@@ -12,7 +12,6 @@ import { playCheckinSound } from "@/src/utils/checkinSound";
 import type { VipTask, VipTaskboard } from "@/src/types";
 import medal3d from "@/src/assets/3d/3dicons-medal-iso-premium.png";
 import dollar3d from "@/src/assets/3d/3dicons-dollar-iso-premium.png";
-import wallet3d from "@/src/assets/3d/3dicons-wallet-iso-premium.png";
 import calendar3d from "@/src/assets/3d/3dicons-calendar-iso-premium.png";
 import play3d from "@/src/assets/3d/3dicons-play-iso-premium.png";
 import flash3d from "@/src/assets/3d/3dicons-flash-iso-premium.png";
@@ -24,19 +23,6 @@ import collectible3d from "@/src/assets/3d/3dicons-gift-box-iso-premium.png";
 let vipCache: { phone: string; board: VipTaskboard; at: number } | null = null;
 const CACHE_TTL = 5 * 60 * 1000;
 const boardListeners = new Set<(board: VipTaskboard) => void>();
-const confirmedTaskClaims = new Map<string, Set<string>>();
-
-function applyConfirmedTaskClaims(phone: string, board: VipTaskboard): VipTaskboard {
-  const taskIds = confirmedTaskClaims.get(phone);
-  if (!taskIds?.size) return board;
-  let changed = false;
-  const tasks = board.tasks.map((task) => {
-    if (!taskIds.has(task.id) || (task.claimed && task.claimStatus === "approved")) return task;
-    changed = true;
-    return { ...task, claimed: true, claimStatus: "approved" as const };
-  });
-  return changed ? { ...board, tasks } : board;
-}
 
 // Anyone holding a board re-reads it the moment anyone else loads a newer one.
 // The header chip is mounted on every tab, so it would otherwise sit on a
@@ -56,24 +42,13 @@ function publishBoard(board: VipTaskboard) {
 export async function getMilestoneBoard(phone: string, signal: AbortSignal): Promise<VipTaskboard> {
   if (vipCache && vipCache.phone === phone && Date.now() - vipCache.at < CACHE_TTL) return vipCache.board;
   const data = await fetchJsonWithSignal<VipTaskboard>(`/api/profile/vip-tasks/${encodeURIComponent(phone)}`, signal);
-  const board = applyConfirmedTaskClaims(phone, normalizeVipTaskboard(data));
+  const board = normalizeVipTaskboard(data);
   vipCache = { phone, board, at: Date.now() };
   publishBoard(board);
   return board;
 }
 
 export function bustMilestoneCache() { vipCache = null; }
-
-export function confirmMilestoneTaskClaim(phone: string, taskId: string) {
-  const taskIds = confirmedTaskClaims.get(phone) || new Set<string>();
-  taskIds.add(taskId);
-  confirmedTaskClaims.set(phone, taskIds);
-  if (vipCache?.phone === phone) {
-    const board = applyConfirmedTaskClaims(phone, vipCache.board);
-    vipCache = { ...vipCache, board, at: Date.now() };
-    publishBoard(board);
-  }
-}
 
 interface Props { phone: string; siteConfig?: any; userProfile?: any; onClaimSuccess?: (p: any) => void; onBack?: () => void; focusStage?: string | null; }
 
@@ -96,8 +71,6 @@ export function AchievementGlyph({ metric, socialType, className }: { metric?: s
     : m === "invites_count" ? link3d
     : m === "account_created" ? account3d
     : m === "lifetime_yield" ? dollar3d
-    : m === "successful_deposits" ? dollar3d
-    : m === "successful_withdrawals" ? wallet3d
     : m === "milestones_claimed" ? medal3d
     : m === "collectibles_claimed" ? collectible3d
     : dollar3d;
@@ -173,7 +146,7 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
     if (typeof document !== "undefined" && document.hidden) return;
     setLoading(true);
     const s=renew();
-    try { const data=await fetchJsonWithSignal<VipTaskboard>(`/api/profile/vip-tasks/${encodeURIComponent(phone)}`, s); const n=applyConfirmedTaskClaims(phone, normalizeVipTaskboard(data)); setBoard(n); setHasLoadedBoard(true); vipCache={phone, board:n, at:Date.now()}; publishBoard(n); }
+    try { const data=await fetchJsonWithSignal<VipTaskboard>(`/api/profile/vip-tasks/${encodeURIComponent(phone)}`, s); const n=normalizeVipTaskboard(data); setBoard(n); setHasLoadedBoard(true); vipCache={phone, board:n, at:Date.now()}; publishBoard(n); }
     catch(e:any){ if(s.aborted||e?.name==="AbortError") return; toast.error(e.message||"Journey unavailable"); }
     finally{ if (!s.aborted) { setLoading(false); setHasLoadedBoard(true); } }
   }, [phone]);
@@ -366,7 +339,6 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
           applyPointsDelta(reward - optimisticReward);
         }
         toast.success(`${formatCurrency(reward)} added to your balance.`);
-        confirmMilestoneTaskClaim(phone, task.id);
         vipCache = null;
         void load(true);
       } else {
