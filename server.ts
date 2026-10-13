@@ -318,14 +318,14 @@ function formatSeoUgx(_value: unknown): string {
 async function getSeoData(): Promise<{ brand: string; description: string; items: any[]; config: any }> {
   try {
     const config = await getSiteConfig().catch(() => ({} as any));
-    const brand = String((config as any)?.brandName || "").trim() || "RENTDUE";
+    const brand = String((config as any)?.brandName || "").trim() || "CashDragons";
     // Placeholder format: fixed corporate description until final copy lands.
     // Products stay hidden behind auth — no catalog fetch here by design.
     const description = String(config?.seoDescription || "").trim() || SEO_DESCRIPTION;
     return { brand, description, items: [], config: config || {} };
   } catch {
     return {
-      brand: "RENTDUE",
+      brand: "CashDragons",
       description: SEO_DESCRIPTION,
       items: [],
       config: {},

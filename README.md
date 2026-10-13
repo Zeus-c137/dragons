@@ -1,13 +1,11 @@
-# Rentdue
+# Cash Dragons
 
-Mobile-first referral-mining platform. Users recharge their account, activate product runs, earn daily yields, collect referral commissions, complete milestones and check-in streaks, then withdraw via mobile money or USDT. Includes a full admin dashboard for users, transactions, catalog, gift codes, announcements, milestones, and site configuration.
+Mobile-first egg-hatching platform. Users recharge their account, activate product runs, earn daily yields, collect referral commissions, complete milestones and check-in streaks, then withdraw via mobile money or USDT. Includes a full admin dashboard for users, transactions, catalog, gift codes, announcements, milestones, and site configuration.
 
 Built on Vite + React 19 + Express + Drizzle/MySQL + Cloudinary.
 
 ## Screenshots
-![](src/assets/screenshots/1.png)
-![](src/assets/screenshots/3.png)
-![](src/assets/screenshots/4.png)
+
 
 ## Quick Start
 ```bash

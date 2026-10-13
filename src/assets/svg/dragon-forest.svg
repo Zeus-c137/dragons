@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="720" viewBox="0 0 720 720" role="img" aria-label="Лесной дракон — древний рогатый хранитель, мох, лозы и светящиеся споры">
+<defs>
+<linearGradient id="bark" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#a5ae67"/><stop offset=".24" stop-color="#65734a"/><stop offset=".56" stop-color="#354c38"/><stop offset="1" stop-color="#142d2c"/></linearGradient>
+<linearGradient id="root" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#eddfa2"/><stop offset=".3" stop-color="#ac985f"/><stop offset=".7" stop-color="#665a3d"/><stop offset="1" stop-color="#2e382d"/></linearGradient>
+<linearGradient id="moss" x1="0" y1="0" x2=".6" y2="1"><stop stop-color="#c3cf6e"/><stop offset=".25" stop-color="#8ca444"/><stop offset=".65" stop-color="#4c702f"/><stop offset="1" stop-color="#284c31"/></linearGradient>
+<linearGradient id="belly" x1="0" y1="0" x2="1" y2=".3"><stop stop-color="#b2ae74"/><stop offset=".5" stop-color="#6f794b"/><stop offset="1" stop-color="#344c37"/></linearGradient>
+<linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#c5d68a"/><stop offset=".35" stop-color="#70964b"/><stop offset="1" stop-color="#244633"/></linearGradient>
+<radialGradient id="spore"><stop stop-color="#f2ffc0"/><stop offset=".28" stop-color="#cbe984" stop-opacity=".7"/><stop offset="1" stop-color="#aadd62" stop-opacity="0"/></radialGradient>
+<filter id="glow" x="-.6" y="-.6" width="2.2" height="2.2"><feGaussianBlur stdDeviation="2.3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="soft" x="-.3" y="-.5" width="1.6" height="2"><feGaussianBlur stdDeviation="5"/></filter>
+<pattern id="scales" width="24" height="21" patternUnits="userSpaceOnUse"><path d="M-12 0 0 12 12 0M12 0 24 12 36 0M0 10 12 22 24 10" stroke="#c4d18b" stroke-opacity=".21" stroke-width="1.25" fill="none"/></pattern>
+<path id="torso" d="M268 348 C307 332 361 352 394 364 C440 370 470 402 469 444 C474 480 450 511 405 514 L313 497 C274 484 249 446 247 410Z"/>
+<path id="neck" d="M288 430 C258 399 251 364 249 329 L258 281 222 248 C193 283 193 316 204 350 C205 395 216 429 242 456Z"/>
+<style>
+.chest{animation:breath 4.8s ease-in-out infinite}.head{transform-origin:236px 297px;animation:nod 4.8s ease-in-out infinite}.tail{transform-origin:432px 464px;animation:sweep 4.8s ease-in-out infinite}.vine{transform-origin:310px 366px;animation:vine 4.8s ease-in-out infinite}.spore{animation:rise 2.4s linear infinite}.s2{animation-delay:-.6s}.s3{animation-delay:-1.2s}.s4{animation-delay:-1.8s}.glimmer{animation:glimmer 4.8s ease-in-out infinite}.beard{transform-origin:191px 290px;animation:beard 2.4s ease-in-out infinite}
+@keyframes breath{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes nod{0%,100%{transform:rotate(0)}50%{transform:rotate(-2deg)}}@keyframes sweep{0%,100%{transform:rotate(0)}50%{transform:rotate(-4deg)}}@keyframes vine{0%,100%{transform:rotate(-1deg)}50%{transform:rotate(3deg)}}@keyframes rise{0%{opacity:0;transform:translate(0,8px)}20%{opacity:.85}75%{opacity:.6}100%{opacity:0;transform:translate(14px,-57px)}}@keyframes glimmer{0%,100%{opacity:.45}50%{opacity:1}}@keyframes beard{0%,100%{transform:rotate(-1deg)}50%{transform:rotate(3deg)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}.spore{opacity:.5}}
+</style></defs>
+<ellipse cx="358" cy="592" rx="202" ry="21" fill="#182c25" opacity=".25" filter="url(#soft)"/>
+<!-- Far articulated legs remain planted. -->
+<g stroke="#1d352d" stroke-width="4" stroke-linejoin="round"><path d="M402 425 Q447 405 463 450 L457 493 487 539 519 549 521 562 475 564 455 547 424 505 427 475 398 462Z" fill="#263d30"/><path d="M271 377 Q301 386 297 421 L283 469 310 532 332 546 328 560 289 559 277 541 256 482 254 426Z" fill="#314736"/>
+<path d="M498 549 q20 0 25 19 l-19-9 M478 550 q17 5 17 18 l-15-11 M316 547 q18 3 22 18 l-19-7 M298 548 q15 2 16 16 l-17-8" fill="url(#root)" stroke-width="2"/></g>
+<!-- Long root-tipped tail has its own independent sweep. -->
+<g class="tail" stroke-linejoin="round"><path d="M435 435 C486 450 504 500 553 493 C594 489 610 451 588 422 C624 435 629 480 601 510 C561 553 500 513 445 505Z" fill="url(#bark)" stroke="#203b30" stroke-width="4"/><path d="M449 468 Q536 546 585 507 Q625 480 588 422" fill="none" stroke="#929862" stroke-width="3"/>
+<path d="M590 426 Q570 413 565 392 Q584 400 598 414 L594 382 Q615 399 611 424 L627 407 Q627 428 608 441Z" fill="url(#moss)" stroke="#344f32" stroke-width="3"/><path d="M604 428 585 408M605 426 600 397" fill="none" stroke="#c0c77a" stroke-width="1.5"/>
+<path d="M474 466 l11-25 9 34m19 16 14-18 2 26m25 7 16-17-2 23" fill="url(#root)" stroke="#374732" stroke-width="2"/></g>
+<g class="chest" stroke-linejoin="round">
+<use href="#torso" fill="url(#bark)" stroke="#20372c" stroke-width="5"/><use href="#torso" fill="url(#scales)"/>
+<use href="#neck" fill="url(#bark)" stroke="#233c2d" stroke-width="5"/><use href="#neck" fill="url(#scales)"/>
+<path d="M222 279 Q204 322 220 365 Q222 405 251 438 L278 455 299 450 Q265 417 253 382 Q237 334 247 302Z" fill="url(#belly)" stroke="#425038" stroke-width="2"/>
+<path d="M213 305 l32 7m-33 11 31 7m-29 12 32 4m-27 12 32 2m-26 12 31-1m-24 15 32-3m-24 15 33-5m-22 17 33-7m-21 18 30-10m-14 22 28-12" stroke="#344935" stroke-width="3" fill="none"/>
+<!-- Individual bark shields and moss mantle. -->
+<path d="M263 331 285 312 300 346 283 371 261 359Z M290 351 316 331 336 370 313 393 290 382Z M325 367 351 351 371 388 348 411 325 395Z M363 378 389 365 410 400 388 423 365 410Z M402 392 425 383 447 418 429 439 406 428Z" fill="url(#root)" stroke="#354630" stroke-width="3"/>
+<path d="M271 337 l12-12 10 21-10 16M299 356 l16-12 13 26-13 15M336 372 l14-9 12 25-13 14M374 387 l15-9 13 23-15 15" stroke="#d5ca8b" stroke-width="2" fill="none" opacity=".7"/>
+<path d="M257 331 Q254 309 272 313 Q282 299 295 314 Q309 310 316 324 Q337 317 344 337 Q368 328 379 346 Q401 341 407 361 Q430 356 438 380 L451 403 435 398 428 410 416 389 401 395 390 377 375 384 361 363 348 371 330 352 315 360 301 341 287 349 278 331 266 342Z" fill="url(#moss)" stroke="#3d562e" stroke-width="3"/>
+<path d="M280 322 l8-10m18 23 6-10m20 16 6-10m23 19 6-10m24 22 6-9m22 18 6-8" fill="none" stroke="#c8d780" stroke-width="2"/>
+<!-- Root-bark texture on ribs. -->
+<g fill="none" stroke="#a4b078" stroke-width="2" opacity=".5"><path d="M313 404 l-8 18 11 12-6 24m16-45 10 16-8 13 8 18M357 425 l-9 13 10 19-8 17M392 441 l-12 13 8 23m-113-83 5 14-4 11"/></g>
+<g class="vine" fill="none" stroke-linecap="round"><path d="M311 353 C295 388 323 412 316 444 C310 471 335 488 355 472 Q366 461 355 451 Q343 443 338 456" stroke="#1f3929" stroke-width="7"/><path d="M311 353 C295 388 323 412 316 444 C310 471 335 488 355 472 Q366 461 355 451 Q343 443 338 456" stroke="#93a35c" stroke-width="2.5"/><path d="M307 385 Q286 372 281 391 Q300 398 310 392 M315 424 Q332 404 341 419 Q330 433 315 431 M317 453 Q298 445 301 465 Q312 469 321 461" fill="url(#leaf)" stroke="#3b633a" stroke-width="2"/></g>
+<!-- Rigid skull and antlers follow the neck. -->
+<g class="head">
+<!-- Two asymmetric branching antlers; wide ancient crown. -->
+<path d="M246 247 C270 216 291 183 283 150 L265 126 260 99 271 111 276 128 292 144 301 135 300 104 310 85 311 116 320 109 334 93 331 113 313 132 313 159 324 143 341 139 326 159 306 177 Q302 217 265 260Z" fill="url(#root)" stroke="#3f4631" stroke-width="3"/>
+<path d="M218 245 C215 213 185 188 175 158 L149 145 130 125 111 122 102 111 126 115 145 128 166 136 160 111 146 93 150 80 172 107 183 119 186 95 178 74 184 60 197 91 195 125 202 150 211 129 226 113 220 135 208 170 226 200 239 232Z" fill="url(#root)" stroke="#3a4432" stroke-width="3"/>
+<path d="M226 228 Q219 195 196 165 L179 125M176 150 147 136M252 243 Q290 208 296 169 L294 151M296 169 311 151" fill="none" stroke="#e2d49b" stroke-width="2.5" opacity=".75"/>
+<!-- Moss trailing from the older antler. -->
+<path d="M174 154 Q168 170 176 185 L180 168 189 192 188 166 M296 183 Q314 177 307 201 L303 193 299 216 291 211" fill="url(#moss)" stroke="#5a7336" stroke-width="2"/>
+<path d="M236 226 211 218 186 232 175 251 145 257 126 273 136 287 174 294 194 312 221 313 248 289 258 261Z" fill="url(#bark)" stroke="#20392e" stroke-width="4.5"/>
+<path d="M233 232 210 228 190 242 187 259 210 259 230 273 246 256Z" fill="url(#root)" stroke="#536344" stroke-width="2"/>
+<path d="M242 257 262 248 255 275 268 277 248 294 238 287 227 271Z" fill="url(#bark)" stroke="#314b36" stroke-width="3"/>
+<path d="M212 263 185 266 196 279 211 277Z" fill="#142d28"/><path d="M206 267 191 270 199 274 208 272Z" fill="#f2ed9c" filter="url(#glow)"/><path d="M200 267 200 274" stroke="#293a28" stroke-width="2"/><path d="M214 261 195 260 181 268" fill="none" stroke="#b9bf7a" stroke-width="3"/>
+<path d="M176 260 145 265 133 274 144 281 175 281" fill="#809362"/><path d="M145 266 154 267 150 272 143 272Z" fill="#203b2d"/>
+<path d="M188 285 Q164 289 139 283 L149 298 175 304 202 293Z" fill="#152a26"/>
+<path d="M148 287 152 299 157 289M165 290 171 303 176 290M184 287 190 298 194 285" fill="#e6ddb2"/>
+<path d="M205 294 176 309 151 301 160 313 183 320 215 309Z" fill="url(#bark)" stroke="#2a4231" stroke-width="3"/>
+<path d="M225 275 211 286 218 300 235 294 242 279Z" fill="url(#root)" stroke="#43573b" stroke-width="2"/>
+<g class="beard"><path d="M205 309 Q204 335 189 351 L191 331 177 346 181 326 169 334 176 315Z" fill="url(#moss)" stroke="#446039" stroke-width="2"/><path d="M194 316 187 337M182 320 178 328" fill="none" stroke="#b0c56c" stroke-width="1.8"/></g>
+<path d="M213 225 Q200 211 189 225 L178 224 180 238 172 244 187 246 198 234 208 239Z" fill="url(#moss)" stroke="#4b6638" stroke-width="2"/>
+</g></g>
+<!-- Near foreleg, long wrist and three root-coloured talons. -->
+<g stroke-linejoin="round" stroke="#223c2e" stroke-width="4"><path d="M249 397 Q269 410 264 441 L247 477 252 529 274 554 Q281 565 271 575 L228 575 Q215 568 220 552 L222 485 Q208 461 215 432 L226 407Z" fill="url(#bark)"/><path d="M228 422 Q240 411 250 429L236 469 236 526M233 545 l20 15" fill="none" stroke="#a9b280" stroke-width="3"/>
+<path d="M231 444 249 441 244 468 228 478 222 465Z M229 489 244 483 245 508 232 516Z" fill="url(#root)" stroke-width="2"/>
+<path d="M226 559 Q210 564 208 584 L224 575Z M244 562 Q229 570 233 589 L246 576Z M263 562 Q252 575 261 587 L270 574Z" fill="url(#root)" stroke-width="2"/>
+<!-- Near hindleg, hock folds backwards before the planted paw. -->
+<path d="M419 432 C387 415 366 440 375 475 Q381 498 408 504 L400 532 384 552 Q373 559 378 574 L434 574 Q446 566 436 552 L428 534 444 493 Q463 455 419 432Z" fill="url(#bark)"/>
+<path d="M389 449 Q412 430 430 453M391 480 Q404 492 422 485M420 506 411 536" fill="none" stroke="#98a76e" stroke-width="3"/>
+<path d="M392 554 Q375 559 370 582 L389 572Z M411 556 Q397 564 401 587 L414 574Z M430 557 Q421 570 431 583 L438 571Z" fill="url(#root)" stroke-width="2"/>
+</g>
+<!-- Restrained leaf litter and bioluminescent spores, no scenery plane. -->
+<g fill="url(#leaf)" stroke="#587342" stroke-width="1.5"><path d="M168 584 Q183 571 199 584 Q183 598 168 584Z M458 589 Q477 576 489 584 Q478 598 458 589Z M317 593 Q327 578 340 585 Q331 599 317 593Z"/></g>
+<g class="glimmer" fill="none" stroke="#9eb866" stroke-width="1.3" opacity=".6"><path d="M197 604 Q351 629 499 601 M243 611 l7 8 9-5m80 6 8 8 9-9m73-5 8 5 9-9"/></g>
+<g fill="#e4f5a4" filter="url(#glow)"><g transform="translate(157 443)"><g class="spore"><circle r="2.6"/><circle r="12" fill="url(#spore)"/></g></g><g transform="translate(342 274)"><g class="spore s2"><circle r="2"/><circle r="10" fill="url(#spore)"/></g></g><g transform="translate(514 408)"><g class="spore s3"><circle r="2.5"/><circle r="10" fill="url(#spore)"/></g></g><g transform="translate(324 564)"><g class="spore s4"><circle r="2.5"/><circle r="9" fill="url(#spore)"/></g></g><g transform="translate(552 566)"><circle class="spore s2" r="2"/></g><g transform="translate(126 353)"><circle class="spore s3" r="2"/></g></g>
+</svg>

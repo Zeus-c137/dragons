@@ -108,8 +108,8 @@ const WELCOME_TUTORIAL_SLIDES = [
     imageAlt: "Referral earnings and friends referred",
   },
   {
-    title: "RentDue AI Assistant",
-    description: "Get help with any questions or issues you have using RentDue. Our AI assistant is available 24/7.",
+    title: "Cash Dragons AI Assistant",
+    description: "Get help with any questions or issues you have using Cash Dragons. Our AI assistant is available 24/7.",
     image: aiTutorialScreenshot,
     imageAlt: "AI assistant chat interface",
   },
@@ -750,7 +750,7 @@ export default function App() {
                     <div className="relative flex min-h-0 flex-1 flex-col px-4 pb-4 pt-14 sm:px-6 sm:pb-5">
                       <div className="mb-3 flex items-center justify-between pr-11">
                         <p className="text-[20px] font-sans  text-[var(--theme-primary)]">
-                          RentDue Tutorial
+                          Cash Dragons Tutorial
                         </p>
                         <span className="text-[11px] font-sans font-bold tabular-nums opacity-55">
                           {tutorialIndex + 1} / {WELCOME_TUTORIAL_SLIDES.length}
