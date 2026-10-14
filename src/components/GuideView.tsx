@@ -17,7 +17,7 @@ export const GUIDE_SECTIONS: { title: string; body: string[] }[] = [
   {
     title: "Getting started",
     body: [
-      "Deposit funds into your rechargeable balance.",
+      "Deposit funds into your balance.",
       "Pick a run from the store and activate it.",
       "Each run has a cycle measured in days.",
     ],
@@ -25,9 +25,9 @@ export const GUIDE_SECTIONS: { title: string; body: string[] }[] = [
   {
     title: "Daily income",
     body: [
-      "Every active run earns daily income.",
-      "Income is credited to your withdrawable balance automatically.",
-      "Track everything on the My Runs page.",
+      "Every active run accumulates its daily return.",
+      "Claim available returns from My Runs to add them to your balance.",
+      "Unclaimed returns remain available through the run cycle.",
     ],
   },
   {
@@ -41,7 +41,7 @@ export const GUIDE_SECTIONS: { title: string; body: string[] }[] = [
   {
     title: "Withdrawals",
     body: [
-      "Withdraw from your withdrawable balance anytime.",
+      "Withdraw from your balance anytime.",
       "You need at least one active run to withdraw.",
       "We support instant Mobile Money (MTN / Airtel) and USDT.",
     ],
@@ -58,7 +58,7 @@ export const GUIDE_SECTIONS: { title: string; body: string[] }[] = [
     title: "Deposits",
     body: [
       "Top up via instant Mobile Money or USDT.",
-      "Deposits land in your rechargeable balance.",
+      "Deposits land in your balance.",
       "Use that balance to activate new runs.",
     ],
   },
@@ -66,7 +66,7 @@ export const GUIDE_SECTIONS: { title: string; body: string[] }[] = [
     title: "Daily check-in",
     body: [
       "Open the streak page and check in every day.",
-      "Each check-in pays a bonus into your withdrawable balance.",
+      "Each check-in pays a bonus into your balance.",
       "Longer streaks unlock bigger rewards.",
     ],
   },

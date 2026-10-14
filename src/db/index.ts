@@ -70,7 +70,8 @@ export async function ensureDatabaseSchema(): Promise<void> {
 
   const statements = [
     `CREATE TABLE IF NOT EXISTS users (
-      phone VARCHAR(32) NOT NULL PRIMARY KEY,
+      id VARCHAR(32) NOT NULL PRIMARY KEY,
+      phone VARCHAR(32) NULL,
       telegram_id VARCHAR(32) NULL,
       username VARCHAR(64) NOT NULL,
       password VARCHAR(255) NOT NULL,
@@ -78,12 +79,12 @@ export async function ensureDatabaseSchema(): Promise<void> {
       referred_by_code VARCHAR(64) DEFAULT '',
       operator VARCHAR(16) DEFAULT 'MTN',
       points DOUBLE NOT NULL DEFAULT 0,
-      recharge_balance DOUBLE NOT NULL DEFAULT 0,
       withdrawn_cash DOUBLE NOT NULL DEFAULT 0,
       total_deposits DOUBLE NOT NULL DEFAULT 0,
       ai_income DOUBLE NOT NULL DEFAULT 0,
       invites_count INT NOT NULL DEFAULT 0,
       referral_rewards_earned DOUBLE NOT NULL DEFAULT 0,
+      pending_referral_rewards DOUBLE NOT NULL DEFAULT 0,
       claimed_vip_tasks JSON NOT NULL,
       claimed_tier_rewards JSON NULL,
       locked BOOLEAN NOT NULL DEFAULT FALSE,
@@ -94,6 +95,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
       created_at VARCHAR(64) NOT NULL,
       INDEX idx_users_invite_code (invite_code),
       INDEX idx_users_referred_by (referred_by_code),
+      UNIQUE INDEX uq_users_phone (phone),
       UNIQUE INDEX uq_users_username (username),
       UNIQUE INDEX uq_users_telegram_id (telegram_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
@@ -103,6 +105,8 @@ export async function ensureDatabaseSchema(): Promise<void> {
       item_id VARCHAR(64) NOT NULL,
       item_name VARCHAR(128) NOT NULL,
       image VARCHAR(255) NOT NULL,
+      egg_image_url VARCHAR(512) DEFAULT '',
+      dragon_image_url VARCHAR(512) DEFAULT '',
       amount DOUBLE NOT NULL,
       duration INT NOT NULL,
       daily_yield DOUBLE NOT NULL,
@@ -119,6 +123,8 @@ export async function ensureDatabaseSchema(): Promise<void> {
       name VARCHAR(128) NOT NULL,
       image VARCHAR(255) NOT NULL,
       image_url VARCHAR(512) DEFAULT '',
+      egg_image_url VARCHAR(512) DEFAULT '',
+      dragon_image_url VARCHAR(512) DEFAULT '',
       amount DOUBLE NOT NULL,
       duration INT NOT NULL,
       daily_yield DOUBLE NOT NULL,
@@ -236,8 +242,110 @@ export async function ensureDatabaseSchema(): Promise<void> {
     await connection.query(statement);
   }
 
+  for (const [table, column] of [
+    ["catalog_products", "egg_image_url"],
+    ["catalog_products", "dragon_image_url"],
+    ["subscribed_nodes", "egg_image_url"],
+    ["subscribed_nodes", "dragon_image_url"],
+  ]) {
+    try {
+      await connection.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` VARCHAR(512) DEFAULT ''`);
+    } catch (error: any) {
+      if (!String(error?.code || "").includes("DUPLICATE") && error?.errno !== 1060) throw error;
+    }
+  }
+
+  const [legacyBalanceColumns] = await connection.query(
+    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'recharge_balance'"
+  );
+  if ((legacyBalanceColumns as unknown[]).length > 0) {
+    await connection.query(`CREATE TABLE IF NOT EXISTS app_migrations (
+      migration_key VARCHAR(128) NOT NULL PRIMARY KEY,
+      applied_at VARCHAR(64) NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    const migrationConnection = await poolInstance.promise().getConnection();
+    try {
+      await migrationConnection.beginTransaction();
+      const [markerResult] = await migrationConnection.query(
+        "INSERT IGNORE INTO app_migrations (migration_key, applied_at) VALUES (?, ?)",
+        ["unified-user-balance-v1", new Date().toISOString()]
+      );
+      if ((markerResult as mysql.ResultSetHeader).affectedRows === 1) {
+        await migrationConnection.query(
+          "UPDATE users SET points = COALESCE(points, 0) + COALESCE(recharge_balance, 0)"
+        );
+      }
+      await migrationConnection.commit();
+    } catch (error) {
+      await migrationConnection.rollback();
+      throw error;
+    } finally {
+      migrationConnection.release();
+    }
+
+    await connection.query("ALTER TABLE users DROP COLUMN recharge_balance");
+  }
+
+  try {
+    await connection.query("ALTER TABLE users ADD COLUMN id VARCHAR(32) NULL");
+  } catch (error: any) {
+    if (!String(error?.code || "").includes("DUPLICATE") && error?.errno !== 1060) throw error;
+  }
+  await connection.query("UPDATE users SET id = LOWER(REPLACE(UUID(), '-', '')) WHERE id IS NULL OR id = ''");
+
+  const [primaryIndexes] = await connection.query("SHOW INDEX FROM users WHERE Key_name = 'PRIMARY'");
+  const primaryColumns = (primaryIndexes as Array<{ Column_name?: string }>).map((row) => row.Column_name);
+  if (primaryColumns.length !== 1 || primaryColumns[0] !== "id") {
+    for (const table of ["subscribed_nodes", "collectibles", "notifications", "transactions", "vip_task_claims"]) {
+      await connection.query(
+        `UPDATE \`${table}\` AS child JOIN users AS user ON child.user_id = user.phone SET child.user_id = user.id`
+      );
+    }
+    await connection.query(`
+      UPDATE chat_messages AS message
+      JOIN users AS user ON message.room_id = CONCAT('direct_', user.phone)
+      SET message.room_id = CONCAT('direct_', user.id)
+    `);
+    await connection.query(`
+      UPDATE chat_messages AS message
+      JOIN users AS user ON message.sender = user.phone
+      SET message.sender = user.id
+    `);
+    await connection.query(`
+      UPDATE transactions AS t
+      JOIN users AS user
+        ON JSON_UNQUOTE(JSON_EXTRACT(t.metadata, '$.sourceUserPhone')) = user.phone
+      SET t.metadata = JSON_SET(t.metadata, '$.sourceUserPhone', user.id)
+    `);
+    await connection.query(`
+      UPDATE transactions AS t
+      JOIN users AS user ON t.item_id = user.phone
+      SET t.item_id = user.id
+      WHERE t.type = 'referral_signup_bonus'
+    `);
+    await connection.query("ALTER TABLE users DROP PRIMARY KEY, ADD PRIMARY KEY (id)");
+  }
+  await connection.query("ALTER TABLE users MODIFY COLUMN id VARCHAR(32) NOT NULL");
+  await connection.query("ALTER TABLE users MODIFY COLUMN phone VARCHAR(32) NULL");
+  try {
+    await connection.query("CREATE UNIQUE INDEX uq_users_phone ON users (phone)");
+  } catch (error: any) {
+    if (!String(error?.code || "").includes("DUPLICATE") && error?.errno !== 1061) throw error;
+  }
+  try {
+    await connection.query("CREATE UNIQUE INDEX uq_users_username ON users (username)");
+  } catch (error: any) {
+    if (!String(error?.code || "").includes("DUPLICATE") && error?.errno !== 1061) throw error;
+  }
+
   await connection.query("ALTER TABLE users MODIFY COLUMN invite_code VARCHAR(64) NOT NULL");
   await connection.query("ALTER TABLE users MODIFY COLUMN referred_by_code VARCHAR(64) DEFAULT ''");
+  try {
+    await connection.query("ALTER TABLE users ADD COLUMN pending_referral_rewards DOUBLE NOT NULL DEFAULT 0");
+  } catch (error: any) {
+    if (!String(error?.code || "").includes("DUPLICATE") && error?.errno !== 1060) throw error;
+  }
 
   try {
     await connection.query("ALTER TABLE notifications ADD COLUMN metadata JSON NULL");

@@ -35,7 +35,7 @@ function loadStoredChats(phone: string): Array<{ sender: "user" | "advisor"; tex
 
 export default function AiChatView({ userProfile, activeNodes, siteConfig, onThinkingChange }: AiChatViewProps) {
   const [advisorMessages, setAdvisorMessages] = useState<Array<{ sender: "user" | "advisor"; text: string }>>(() =>
-    loadStoredChats(userProfile.phone)
+    loadStoredChats(userProfile.id)
   );
   const [advisorInput, setAdvisorInput] = useState("");
   const [isAskingAdvisor, setIsAskingAdvisor] = useState(false);
@@ -64,11 +64,11 @@ export default function AiChatView({ userProfile, activeNodes, siteConfig, onThi
 
   useEffect(() => {
     try {
-      localStorage.setItem(`ai_chat_${userProfile.phone}`, JSON.stringify(advisorMessages.slice(-MAX_STORED_MESSAGES)));
+      localStorage.setItem(`ai_chat_${userProfile.id}`, JSON.stringify(advisorMessages.slice(-MAX_STORED_MESSAGES)));
     } catch {
       /* storage full or unavailable — chats stay in memory */
     }
-  }, [advisorMessages, userProfile.phone]);
+  }, [advisorMessages, userProfile.id]);
 
   useEffect(() => {
     onThinkingChange?.(isAskingAdvisor && streamedReply === null);

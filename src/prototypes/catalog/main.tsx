@@ -96,7 +96,7 @@ function App() {
           <div className="detail-image">{image(p)}<span className="tier-tag">{p.tier}</span>{p.popular && <span className="popular-tag">POPULAR</span>}</div>
           <div className="detail-copy"><div className="detail-heading"><div><h3>{p.name}</h3><p>Virtual compute run</p></div>{status(p)}</div><div className="detail-summary"><div><span>Starting at</span><b>{money(p.price)}</b></div><div><span>Daily return</span><b className="green-text">{money(p.price * Number(p.percent.replace("%", "")) / 100)}</b></div></div>
             <button className="breakdown-toggle" aria-expanded={expanded === p.id} onClick={() => setExpanded(expanded === p.id ? null : p.id)}>{expanded === p.id ? "Hide breakdown" : "View return breakdown"}<ChevronDown size={16} className={expanded === p.id ? "rotated" : ""}/></button>
-            {expanded === p.id && <div className="breakdown">{details(p, true)}<div className="note-row"><Clock3 size={14}/><span>Returns are credited daily for {p.duration} days.</span></div></div>}
+            {expanded === p.id && <div className="breakdown">{details(p, true)}<div className="note-row"><Clock3 size={14}/><span>Returns accrue daily and can be claimed during the {p.duration}-day cycle.</span></div></div>}
             <div className="detail-bottom">{expanded !== p.id && <span>Earn <b>{money(p.total - p.price)}</b> total</span>}{start(p)}</div>
           </div>
         </article>)}</div>}

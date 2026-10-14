@@ -21,20 +21,21 @@ import {
 export const users = mysqlTable(
   "users",
   {
-    phone: varchar("phone", { length: 32 }).primaryKey(),
+    id: varchar("id", { length: 32 }).primaryKey(),
+    phone: varchar("phone", { length: 32 }),
     telegramId: varchar("telegram_id", { length: 32 }),
     username: varchar("username", { length: 64 }).notNull(),
     password: varchar("password", { length: 255 }).notNull(),
     inviteCode: varchar("invite_code", { length: 64 }).notNull().unique(),
     referredByCode: varchar("referred_by_code", { length: 64 }).default(""),
     operator: varchar("operator", { length: 16 }).default("MTN"),
-    points: double("points").default(0).notNull(), // Withdrawable balance (UGX)
-    rechargeBalance: double("recharge_balance").default(0).notNull(), // Account deposit balance (UGX)
+    points: double("points").default(0).notNull(), // Unified account balance (UGX)
     withdrawnCash: double("withdrawn_cash").default(0).notNull(),
     totalDeposits: double("total_deposits").default(0).notNull(),
     aiIncome: double("ai_income").default(0).notNull(),
     invitesCount: int("invites_count").default(0).notNull(),
     referralRewardsEarned: double("referral_rewards_earned").default(0).notNull(),
+    pendingReferralRewards: double("pending_referral_rewards").default(0).notNull(),
     claimedVipTasks: json("claimed_vip_tasks").$type<string[]>().default([]),
     claimedTierRewards: json("claimed_tier_rewards").$type<string[]>().default([]),
     locked: boolean("locked").default(false).notNull(),
@@ -47,6 +48,7 @@ export const users = mysqlTable(
   (table) => ({
     inviteCodeIdx: index("idx_users_invite_code").on(table.inviteCode),
     referredByIdx: index("idx_users_referred_by").on(table.referredByCode),
+    phoneUnique: uniqueIndex("uq_users_phone").on(table.phone),
     usernameUnique: uniqueIndex("uq_users_username").on(table.username),
     telegramIdUnique: uniqueIndex("uq_users_telegram_id").on(table.telegramId)
   })
@@ -61,6 +63,8 @@ export const subscribedNodes = mysqlTable(
     itemId: varchar("item_id", { length: 64 }).notNull(),
     itemName: varchar("item_name", { length: 128 }).notNull(),
     image: varchar("image", { length: 255 }).notNull(),
+    eggImageUrl: varchar("egg_image_url", { length: 512 }).default(""),
+    dragonImageUrl: varchar("dragon_image_url", { length: 512 }).default(""),
     amount: double("amount").notNull(),
     duration: int("duration").notNull(),
     dailyYield: double("daily_yield").notNull(),
@@ -110,6 +114,8 @@ export const catalogProducts = mysqlTable(
     name: varchar("name", { length: 128 }).notNull(),
     image: varchar("image", { length: 255 }).notNull(),
     imageUrl: varchar("image_url", { length: 512 }).default(""),
+    eggImageUrl: varchar("egg_image_url", { length: 512 }).default(""),
+    dragonImageUrl: varchar("dragon_image_url", { length: 512 }).default(""),
     amount: double("amount").notNull(),
     duration: int("duration").notNull(),
     dailyYield: double("daily_yield").notNull(),
@@ -191,7 +197,7 @@ export const transactions = mysqlTable(
     type: varchar("type", { length: 32 }).notNull(), // 'deposit'|'withdrawal'|'registration_bonus'|'daily_checkin_bonus'|'gift_code'|'referral_signup_bonus'|'referral_level_income'|'vip_task'|'product_activation'|'daily_yield'
     amount: double("amount").notNull(),
     currency: varchar("currency", { length: 8 }).default("UGX").notNull(),
-    status: varchar("status", { length: 32 }).default("pending").notNull(), // 'pending' | 'completed' | 'failed'
+    status: varchar("status", { length: 32 }).default("pending").notNull(), // includes CLAIMABLE for referral rewards awaiting a user claim
     paymentMethod: varchar("payment_method", { length: 64 }),
     phone: varchar("phone", { length: 32 }),
     usdtAddress: varchar("usdt_address", { length: 255 }),

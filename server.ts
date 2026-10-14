@@ -7,7 +7,6 @@ import express from "express";
 import { createHmac, timingSafeEqual } from "crypto";
 import path from "path";
 import fs from "fs";
-import cron from "node-cron";
 import dotenv from "dotenv";
 import { v2 as cloudinary } from "cloudinary";
 import {
@@ -17,6 +16,7 @@ import {
   getUserProfile,
   updateUserProfile,
   getSubscriptionItems,
+  getPersistentArtworkUrls,
   subscribeToItem,
   getUserSubscriptions,
   getUserCollectibles,
@@ -37,8 +37,7 @@ import {
   completeSuccessfulWithdrawal,
   completeSuccessfulGpuActivation,
   completeFailedTransaction,
-  autoCollectUserYields,
-  ensureUserDailyYields,
+  claimReferralRewards,
   flushDatabase,
   adminGetAllUsers,
   adminOverridePassword,
@@ -78,10 +77,12 @@ import {
   getPlatformDateKey,
   createTransactionId,
   getTransactionByExternalReference,
+  getUserProfileByPhone,
   publicProfile,
   verifyPassword,
   linkTelegramAccount,
-  getUserProfileByTelegramId
+  getUserProfileByTelegramId,
+  getUserProfileByUsername
 } from "./src/server/db";
 import { verifyTelegramIdToken } from "./src/server/telegramAuth";
 import { normalizeExternalReference } from "./src/utils/transactionMeta";
@@ -142,12 +143,6 @@ const app = express();
 // IISNode provides PORT (often a named pipe). Keep 3000 only for local development.
 const PORT = process.env.PORT || 3000;
 let databaseReady = false;
-type DailyCreditRunResult = {
-  status: "completed" | "already-ran";
-  platformDate: string;
-  processed?: number;
-};
-let dailyCreditRunner: ((reason: string) => Promise<DailyCreditRunResult>) | null = null;
 const processStartedAt = Date.now();
 const PAYMENT_GATEWAY_URL = process.env.PAYMENT_GATEWAY_URL?.replace(/\/$/, "") || "https://zulupay.org";
 const UPSTREAM_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS || 12_000);
@@ -242,6 +237,10 @@ async function collectImageOrphans(): Promise<void> {
   try {
     const config = await getSiteConfig().catch(() => ({} as any));
     const live = collectCloudinaryIds(config);
+    for (const url of await getPersistentArtworkUrls()) {
+      const id = cloudinaryPublicId(url);
+      if (id) live.add(id);
+    }
     const cutoff = Date.now() - IMAGE_ORPHAN_GRACE_MS;
     let nextCursor: string | undefined = undefined;
     do {
@@ -287,12 +286,12 @@ app.get("/readyz", (_req, res) => {
 // Keep the authenticated product catalog out of public SEO pages and sitemap.
 const SEO_PUBLIC_PATHS = ["/welcome", "/faq"];
 
-const SEO_KEYWORDS = "RentDue, virtual machine rentals, daily returns, referral rewards, mobile money withdrawals, USDT withdrawals";
-const SEO_DESCRIPTION = "Rent virtual machines with RentDue and track daily returns. Complete tasks, earn referral rewards, and withdraw eligible earnings via mobile money or USDT.";
+const SEO_KEYWORDS = "Cash Dragons, hatch eggs, collect dragons, daily rewards, referral bonuses, mobile money deposits and withdrawals";
+const SEO_DESCRIPTION = "Hatch eggs, collect dragon artwork, track daily rewards, invite friends, and manage eligible deposits and withdrawals with Cash Dragons.";
 const SEO_SHARE_IMAGE = "/seo-share-image";
 
 function seoTitle(brand: string): string {
-  return `${brand} | Virtual machine rentals and daily returns`;
+  return `${brand} | Hatch eggs and collect dragons`;
 }
 
 function getPublicBaseUrl(req: express.Request): string {
@@ -380,10 +379,10 @@ ${jsonLdTag}
 }
 
 const SEO_FAQS: Array<{ q: string; a: string }> = [
-  { q: "How does Rentdue work?", a: "Deposit funds into your rechargeable balance, use that balance to rent a product, and each product earns daily income into your withdrawable balance for the length of its cycle." },
-  { q: "How do withdrawals work?", a: "Withdrawals come from the withdrawable balance only, require at least one product, and are paid to MTN, Airtel or USDT. Fees and minimums are shown in the app before you confirm." },
+  { q: "How does Cash Dragons work?", a: "Deposit into your balance, activate a product, then claim its accumulated daily returns into that same balance during the product cycle." },
+  { q: "How do withdrawals work?", a: "Withdrawals come from your balance, require at least one product, and are paid to MTN, Airtel or USDT. Fees and minimums are shown in the app before you confirm." },
   { q: "How do referrals earn?", a: "Share your invite link. You earn Level 1–4 commissions when invitees activate products, paid while the invitee keeps an active product." },
-  { q: "What is the daily check-in?", a: "Open the app every day to claim a check-in bonus into your withdrawable balance. Longer streaks unlock bigger rewards." },
+  { q: "What is the daily check-in?", a: "Open the app every day to claim a check-in bonus into your balance. Longer streaks unlock bigger rewards." },
   { q: "Do I need the app installed?", a: "No — the app works in the browser. You can also install it from your phone browser for faster access." },
 ];
 
@@ -507,7 +506,7 @@ app.get("/faq", async (req, res) => {
   res.send(seoShell({
     brand,
     title: `${brand} FAQs | Rentals, returns, and rewards`,
-    description: `Learn how RentDue rentals, daily returns, check-ins, referrals, withdrawals, and app access work.`,
+    description: `Learn how Cash Dragons egg cycles, daily rewards, check-ins, referrals, withdrawals, and account access work.`,
     image: `${base}${SEO_SHARE_IMAGE}`,
     canonical: `${base}/faq`,
     activePath: "/faq",
@@ -516,34 +515,8 @@ app.get("/faq", async (req, res) => {
   }));
 });
 
-function isValidDailyCreditJobRequest(req: express.Request): boolean {
-  const expected = String(process.env.DAILY_CREDIT_JOB_SECRET || "");
-  const provided = String(req.query.key || req.headers["x-daily-credit-secret"] || "");
-  if (!expected || !provided) return false;
-  const expectedBytes = Buffer.from(expected);
-  const providedBytes = Buffer.from(provided);
-  return expectedBytes.length === providedBytes.length && timingSafeEqual(expectedBytes, providedBytes);
-}
-
-// Optional hosting scheduler hook. It is protected and idempotent, so a host
-// can call it periodically without relying on the Node process staying alive
-// at exactly midnight.
-app.get("/api/jobs/daily-credit", async (req, res) => {
-  if (!isValidDailyCreditJobRequest(req)) {
-    return res.status(401).json({ error: "Invalid daily credit job secret." });
-  }
-  if (!dailyCreditRunner) {
-    return res.status(503).json({ error: "Daily credit worker is not ready." });
-  }
-  try {
-    res.json(await dailyCreditRunner("External"));
-  } catch (error: any) {
-    logError("[Daily Credit Job] External run failed:", error);
-    res.status(500).json({ error: "Daily credit job failed." });
-  }
-});
-
 const PHONE_PATTERN = /^\d{9,10}$/;
+const USERNAME_PATTERN = /^[a-zA-Z0-9_.-]{3,32}$/;
 const MAX_PASSWORD_LENGTH = 128;
 
 function normalizePhone(value: unknown): string {
@@ -607,8 +580,8 @@ function validAdminSignature(payload: string, signature: string, secret: string)
   return received.length === expected.length && timingSafeEqual(received, expected);
 }
 
-function signUserSession(phone: string, secret: string): string {
-  const payload = Buffer.from(JSON.stringify({ phone, exp: Math.floor(Date.now() / 1000) + USER_SESSION_TTL_SECONDS })).toString("base64url");
+function signUserSession(userId: string, secret: string): string {
+  const payload = Buffer.from(JSON.stringify({ userId, exp: Math.floor(Date.now() / 1000) + USER_SESSION_TTL_SECONDS })).toString("base64url");
   const signature = createHmac("sha256", secret).update(`user:${payload}`).digest("base64url");
   return `${payload}.${signature}`;
 }
@@ -625,8 +598,13 @@ async function getAuthenticatedUserPhone(req: express.Request): Promise<string |
     const expected = createHmac("sha256", secret).update(`user:${payload}`).digest();
     const received = Buffer.from(signature, "base64url");
     if (!secret || received.length !== expected.length || !timingSafeEqual(received, expected)) return null;
-    if (typeof session.phone !== "string" || Number(session.exp) < Math.floor(Date.now() / 1000)) return null;
-    return session.phone;
+    if (Number(session.exp) < Math.floor(Date.now() / 1000)) return null;
+    if (typeof session.userId === "string" && session.userId) return session.userId;
+    if (typeof session.phone === "string" && session.phone) {
+      const legacyProfile = await getUserProfile(session.phone);
+      return legacyProfile?.id || null;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -707,7 +685,7 @@ app.post("/api/auth/telegram/login", async (req, res) => {
     if (profile.phone === config.adminPhone) return res.status(403).json({ error: "Telegram sign-in is unavailable for admin accounts." });
     const secret = adminSessionSecret(config);
     if (!secret) return res.status(503).json({ error: "Sign-in is temporarily unavailable." });
-    res.setHeader("Set-Cookie", `${USER_SESSION_COOKIE}=${encodeURIComponent(signUserSession(profile.phone, secret))}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${USER_SESSION_TTL_SECONDS}`);
+    res.setHeader("Set-Cookie", `${USER_SESSION_COOKIE}=${encodeURIComponent(signUserSession(profile.id, secret))}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${USER_SESSION_TTL_SECONDS}`);
     res.json({ success: true, profile: publicProfile(profile) });
   } catch (error: any) {
     const status = Number(error?.statusCode) || 400;
@@ -719,10 +697,14 @@ app.post("/api/auth/telegram/login", async (req, res) => {
 // client never needs to persist the profile or the session token itself.
 app.get("/api/auth/session", async (req, res) => {
   try {
-    const phone = await getAuthenticatedUserPhone(req);
-    if (!phone) return res.status(401).json({ authenticated: false });
-    const profile = await getUserProfile(phone);
+    const userId = await getAuthenticatedUserPhone(req);
+    if (!userId) return res.status(401).json({ authenticated: false });
+    const profile = await getUserProfile(userId);
     if (!profile) return res.status(401).json({ authenticated: false });
+    const config = await getSiteConfig();
+    const secret = adminSessionSecret(config);
+    if (!secret) return res.status(503).json({ authenticated: false });
+    res.setHeader("Set-Cookie", `${USER_SESSION_COOKIE}=${encodeURIComponent(signUserSession(profile.id, secret))}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${USER_SESSION_TTL_SECONDS}`);
     res.json({ authenticated: true, profile: publicProfile(profile) });
   } catch (error: any) {
     logError("[Auth] Session restore failed:", error);
@@ -735,17 +717,47 @@ app.post("/api/auth/logout", (_req, res) => {
   res.json({ success: true });
 });
 
+app.post("/api/auth/recovery", async (req, res) => {
+  const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
+  const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+  const contactPhone = normalizePhone(req.body?.contactPhone);
+  const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+  if (!USERNAME_PATTERN.test(username) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      (contactPhone && !PHONE_PATTERN.test(contactPhone)) || message.length < 10 || message.length > 1000) {
+    return res.status(400).json({ error: "Enter your username, a valid email, and a message of at least 10 characters." });
+  }
+  try {
+    const profile = await getUserProfileByUsername(username);
+    if (profile) {
+      await sendChatMessage({
+        roomId: `direct_${profile.id}`,
+        sender: profile.id,
+        senderName: `${profile.username} (recovery)`,
+        text: `[recovery] Username: ${profile.username} | Contact phone: ${contactPhone || "not provided"} | Email: ${email} | ${message}`
+      });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    logError("[Auth] Recovery request failed:", error);
+    res.status(503).json({ error: "Could not send your recovery request. Try again shortly." });
+  }
+});
+
 // Registration
 app.post("/api/auth/register", async (req, res) => {
   const { phone, password, confirmPassword, inviteCode } = req.body;
   const normalizedPhone = normalizePhone(phone);
-  const displayName = typeof req.body?.username === "string" ? req.body.username.trim().slice(0, 64) : "";
+  const displayName = typeof req.body?.username === "string" ? req.body.username.trim() : "";
 
-  if (!normalizedPhone || typeof password !== "string") {
-    return res.status(400).json({ error: "Phone number and password are required." });
+  if (!displayName || typeof password !== "string") {
+    return res.status(400).json({ error: "Username and password are required." });
   }
 
-  if (!PHONE_PATTERN.test(normalizedPhone)) {
+  if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(displayName)) {
+    return res.status(400).json({ error: "Username must be 3–32 characters and use letters, numbers, dots, underscores, or hyphens." });
+  }
+
+  if (normalizedPhone && !PHONE_PATTERN.test(normalizedPhone)) {
     return res.status(400).json({ error: "Phone number must contain 9 or 10 digits." });
   }
 
@@ -781,20 +793,21 @@ app.post("/api/auth/register", async (req, res) => {
   try {
     if (telegramId) {
       const config = await getSiteConfig();
-      if (normalizedPhone === config.adminPhone) return res.status(403).json({ error: "Telegram sign-in is unavailable for admin accounts." });
+      if (normalizedPhone && normalizedPhone === config.adminPhone) return res.status(403).json({ error: "Telegram sign-in is unavailable for admin accounts." });
       // Check A — Telegram ID: catches the same-Telegram-different-phones
       // edge case (only the Telegram owner can trigger this).
       const telegramTaken = await getUserProfileByTelegramId(telegramId);
       if (telegramTaken) return res.status(409).json({ error: "This Telegram account is already connected. Please log in." });
       // Check B — phone: the user typed this number themselves, so naming it
       // discloses nothing.
-      const phoneTaken = await getUserProfile(normalizedPhone);
-      if (phoneTaken) return res.status(409).json({ error: "An account with this phone number already exists. Please log in." });
+    }
+    if (normalizedPhone && await getUserProfileByPhone(normalizedPhone)) {
+      return res.status(409).json({ error: "An account with this phone number already exists. Please log in." });
     }
     const { success, profile } = await registerUserProfile({
-      phone: normalizedPhone,
+      phone: normalizedPhone || null,
       passwordHash: password, // Store password safely for live demo validation
-      username: displayName || undefined, // blank falls back to auto User_XXXX
+      username: displayName,
       referredByCode: inviteCode ? inviteCode.trim() : "",
       telegramId: telegramId || undefined
     });
@@ -821,32 +834,29 @@ app.post("/api/auth/register", async (req, res) => {
 
 // Login
 app.post("/api/auth/login", async (req, res) => {
-  const { phone, password } = req.body;
-  const normalizedPhone = normalizePhone(phone);
+  const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
+  const { password } = req.body;
   
-  if (!normalizedPhone || typeof password !== "string" || password.length === 0) {
-    return res.status(400).json({ error: "Enter your phone number and password." });
+  if (!username || typeof password !== "string" || password.length === 0) {
+    return res.status(400).json({ error: "Enter your username and password." });
   }
 
-  if (!PHONE_PATTERN.test(normalizedPhone)) {
-    return res.status(400).json({ error: "Phone number must contain 9 or 10 digits." });
-  }
-
+  if (username.length > 64) return res.status(400).json({ error: "Username is too long." });
   if (password.length > MAX_PASSWORD_LENGTH) {
     return res.status(400).json({ error: "Password is too long." });
   }
 
   try {
-    const profile = await loginUser(normalizedPhone, password);
+    const profile = await loginUser(username, password);
     if (!profile) {
-      return res.status(401).json({ success: false, error: "Phone number or password is incorrect." });
+      return res.status(401).json({ success: false, error: "Username or password is incorrect." });
     }
     const config = await getSiteConfig();
     const secret = adminSessionSecret(config);
     if (!secret) {
       return res.status(503).json({ error: "Sign-in is temporarily unavailable because secure session configuration is missing." });
     }
-    res.setHeader("Set-Cookie", `${USER_SESSION_COOKIE}=${encodeURIComponent(signUserSession(normalizedPhone, secret))}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${USER_SESSION_TTL_SECONDS}`);
+    res.setHeader("Set-Cookie", `${USER_SESSION_COOKIE}=${encodeURIComponent(signUserSession(profile.id, secret))}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${USER_SESSION_TTL_SECONDS}`);
     res.json({ success: true, profile: publicProfile(profile) });
   } catch (error: any) {
     logError("Login Error:", error);
@@ -882,7 +892,6 @@ app.post("/api/auth/profile", async (req, res) => {
 // Fetch Profile details
 app.get("/api/profile/:phone", async (req, res) => {
   try {
-    await ensureUserDailyYields(req.params.phone);
     const profile = await getUserProfile(req.params.phone);
     res.json(publicProfile(profile));
   } catch (error: any) {
@@ -907,7 +916,6 @@ app.get("/api/items", async (req, res) => {
 // Get user active subscriptions nodes
 app.get("/api/subscriptions/:phone", async (req, res) => {
   try {
-    await ensureUserDailyYields(req.params.phone);
     const list = await getUserSubscriptions(req.params.phone);
     res.json(list);
   } catch (error: any) {
@@ -923,9 +931,13 @@ app.post("/api/items/subscribe", async (req, res) => {
   if (!phone || !itemId) {
     return res.status(400).json({ error: "Missing subscription values phone and itemId." });
   }
+  const authenticatedPhone = await getAuthenticatedUserPhone(req);
+  if (!authenticatedPhone || authenticatedPhone !== String(phone)) {
+    return res.status(401).json({ error: "Please sign in again before opening an egg." });
+  }
 
   try {
-    const subNode = await subscribeToItem(phone, itemId);
+    const subNode = await subscribeToItem(authenticatedPhone, itemId);
     
     res.json({ success: true, subscription: subNode });
   } catch (error: any) {
@@ -934,19 +946,41 @@ app.post("/api/items/subscribe", async (req, res) => {
   }
 });
 
-// Claim accumulated mining points
+// Claim accumulated daily product returns
 app.post("/api/subscriptions/claim", async (req, res) => {
   const { subId, phone } = req.body;
 
   if (!subId || !phone) {
     return res.status(400).json({ error: "Missing subId and user phone metadata parameters." });
   }
+  const authenticatedPhone = await getAuthenticatedUserPhone(req);
+  if (!authenticatedPhone || authenticatedPhone !== String(phone)) {
+    return res.status(401).json({ error: "Please sign in again before claiming product returns." });
+  }
 
   try {
-    const result = await claimDailyReward(subId, phone);
+    const result = await claimDailyReward(subId, authenticatedPhone);
     res.json(result);
   } catch (error: any) {
     logError("Claim reward error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post("/api/profile/referrals/claim", async (req, res) => {
+  const { phone } = req.body || {};
+  if (!phone) return res.status(400).json({ error: "Sign in to claim your referral rewards." });
+  const authenticatedPhone = await getAuthenticatedUserPhone(req);
+  if (!authenticatedPhone || authenticatedPhone !== String(phone)) {
+    return res.status(401).json({ error: "Please sign in again before claiming referral rewards." });
+  }
+
+  try {
+    const result = await claimReferralRewards(authenticatedPhone);
+    const profile = await getUserProfile(authenticatedPhone);
+    res.json({ success: true, ...result, profile: publicProfile(profile) });
+  } catch (error: any) {
+    logError("Claim referral rewards error:", error);
     res.status(400).json({ error: error.message });
   }
 });
@@ -964,7 +998,7 @@ app.get("/api/collectibles/:phone", async (req, res) => {
   }
 });
 
-// Autocredit runs till the cycle is done — this tap completes ownership.
+// Claim a finished run collectible.
 app.post("/api/collectibles/claim", async (req, res) => {
   const { phone, subscriptionId } = req.body;
 
@@ -1283,8 +1317,15 @@ app.post("/api/payment/status", async (req, res) => {
     }
 
     if (tx.status === "SUCCESSFUL" || tx.status === "FAILED" || tx.mode === "manual") {
-      // Create user response
-      return res.json({ success: true, status: tx.status, transaction: tx });
+      const settledDepositProfile = tx.type === "deposit" && String(tx.status).toUpperCase() === "SUCCESSFUL"
+        ? await getUserProfile(tx.userId)
+        : null;
+      return res.json({
+        success: true,
+        status: tx.status,
+        ...(settledDepositProfile ? { profile: publicProfile(settledDepositProfile) } : {}),
+        transaction: tx
+      });
     }
 
     // Automatic withdrawals are settled exclusively by /api/payment/webhook.
@@ -1388,7 +1429,7 @@ app.post("/api/payment/withdraw", async (req, res) => {
   if (!authenticatedPhone || authenticatedPhone !== phone) {
     return res.status(401).json({ error: "Please sign in again before requesting a withdrawal." });
   }
-  if (!PHONE_PATTERN.test(phone) || !Number.isInteger(withAmt) || withAmt <= 0 || !["MTN", "AIRTEL", "USDT"].includes(operator) || !withdrawPhone) {
+  if (!phone || !Number.isInteger(withAmt) || withAmt <= 0 || !["MTN", "AIRTEL", "USDT"].includes(operator) || !withdrawPhone) {
     return res.status(400).json({ error: "Missing payout parameters. Enter a valid withdrawal amount." });
   }
 
@@ -1424,7 +1465,7 @@ app.post("/api/payment/withdraw", async (req, res) => {
       return res.status(404).json({ error: "User account not found." });
     }
     if (Number(currentUser.points || 0) < withAmt) {
-      return res.status(400).json({ error: `Insufficient withdrawable balance. Available: UGX ${Number(currentUser.points || 0).toLocaleString()}.` });
+      return res.status(400).json({ error: `Insufficient balance. Available: UGX ${Number(currentUser.points || 0).toLocaleString()}.` });
     }
 
     // USDT has no gateway provider (the gateway is mobile-money only), so it is
@@ -1745,23 +1786,23 @@ app.get("/api/system/stats", async (req, res) => {
 
 // ================= GEMINI Miner Assistant =================
 
-// In-memory rate limiting map for AI Copilot (phone -> { count, date })
+// In-memory rate limiting map for AI Copilot (user ID -> { count, date })
 const copilotRateLimit = new Map<string, { count: number, date: string }>();
 
 app.post("/api/copilot/chat", async (req, res) => {
   const { messages, userProfile, activeSubscriptions } = req.body;
   
   // Rate Limiting (20 msgs / day — cap is silent in UI)
-  if (userProfile?.phone) {
+  if (userProfile?.id) {
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const userLimit = copilotRateLimit.get(userProfile.phone);
+    const userLimit = copilotRateLimit.get(userProfile.id);
     if (userLimit && userLimit.date === today) {
       if (userLimit.count >= 20) {
         return res.status(429).json({ error: "You've reached today's AI message limit. Please try again tomorrow!" });
       }
       userLimit.count += 1;
     } else {
-      copilotRateLimit.set(userProfile.phone, { count: 1, date: today });
+      copilotRateLimit.set(userProfile.id, { count: 1, date: today });
     }
   }
 
@@ -1776,22 +1817,21 @@ app.post("/api/copilot/chat", async (req, res) => {
   // Client-supplied figures as fallback; refreshed from the database below so
   // the AI never quotes a stale balance the user saw minutes ago.
   let liveUsername = userProfile?.username || "Guest";
-  let liveWithdrawable = Number(userProfile?.points || 0);
-  let liveRechargeable = Number(userProfile?.rechargeBalance || 0);
+  let liveBalance = Number(userProfile?.points || 0);
   let liveWithdrawn = Number(userProfile?.withdrawnCash || 0);
   let liveReferralEarned = Number(userProfile?.referralRewardsEarned || 0);
   let liveInvites = Number(userProfile?.invitesCount || 0);
   let liveVipLevel = 0;
   let liveLevelBonus = "";
 
-  const accountPhone = typeof userProfile?.phone === "string" ? userProfile.phone.trim() : "";
+  const accountId = typeof userProfile?.id === "string" ? userProfile.id.trim() : "";
 
   try {
     const [catalogItems, giftCodes, freshProfile, vipBoard] = await Promise.all([
       getSubscriptionItems(),
       adminGetGiftCodes(),
-      accountPhone ? getUserProfile(accountPhone).catch(() => null) : Promise.resolve(null),
-      accountPhone ? getVipTaskboard(accountPhone).catch(() => null) : Promise.resolve(null)
+      accountId ? getUserProfile(accountId).catch(() => null) : Promise.resolve(null),
+      accountId ? getVipTaskboard(accountId).catch(() => null) : Promise.resolve(null)
     ]);
 
     const customCats: string[] = siteConfig?.categories || [];
@@ -1817,8 +1857,7 @@ app.post("/api/copilot/chat", async (req, res) => {
 
     if (freshProfile) {
       liveUsername = freshProfile.username || liveUsername;
-      liveWithdrawable = Number(freshProfile.points || 0);
-      liveRechargeable = Number(freshProfile.rechargeBalance || 0);
+      liveBalance = Number(freshProfile.points || 0);
       liveWithdrawn = Number(freshProfile.withdrawnCash || 0);
       liveReferralEarned = Number(freshProfile.referralRewardsEarned || 0);
       liveInvites = Number(freshProfile.invitesCount || 0);
@@ -1879,8 +1918,8 @@ ${catalogProductsList || "No products currently listed."}
 Current User Details (fresh from the database as of this message):
 - Username: ${liveUsername}
 - Phone: ${userProfile?.phone || "None"}
-- Rechargeable balance: UGX ${liveRechargeable.toLocaleString()} (deposit funds land here; this balance is spent to rent products — it is NOT withdrawable)
-- Withdrawable balance: UGX ${liveWithdrawable.toLocaleString()} (daily income, bonuses and rewards land here; withdrawals come from this balance)
+- Account balance: UGX ${liveBalance.toLocaleString()} (deposits, rentals, income, bonuses, rewards and withdrawals all use this balance)
+- Referral rewards ready to claim: UGX ${Number(userProfile?.pendingReferralRewards || 0).toLocaleString()}
 - Total withdrawn to date: UGX ${liveWithdrawn.toLocaleString()}
 - Referral income earned: UGX ${liveReferralEarned.toLocaleString()} across ${liveInvites} invites${liveLevelBonus ? ` (by level — ${liveLevelBonus})` : ""}
 - Operator level: ${liveVipLevel}
@@ -1890,14 +1929,15 @@ Their milestone board (progress is their live operator points total):
 ${vipTasksList || "Sign-in data unavailable — speak generally about milestones."}
 
 How ${brand} works (always explain it this way):
-- Users deposit funds into their rechargeable balance. That balance is used to rent products in the system.
-- Each product has a cycle (duration in days) and earns daily income. Daily income is credited to the user's withdrawable balance.
-- Withdrawals come from the withdrawable balance to Mobile Money or USDT. Withdrawals only work if the user has a product — users without any product cannot withdraw.
+- Users deposit funds into one account balance. That balance is used to rent products and receive daily income, bonuses and rewards.
+- Each product has a cycle (duration in days) and accumulates daily returns for the user to claim into the account balance.
+- Referral signup and product commissions accumulate separately and can be claimed as one total into the account balance.
+- Withdrawals come from the account balance to Mobile Money or USDT. Withdrawals only work if the user has a product — users without any product cannot withdraw.
 - We support both instant Mobile Money (MTN/Airtel) and USDT payments.
 
 Knowledge & Capabilities:
-- **Recharge (Deposit)**: Users can deposit via instant Mobile Money (MTN/Airtel) or USDT TRC20 into their rechargeable balance to rent products.
-- **Withdrawal**: Withdraw from the withdrawable balance to Mobile Money or USDT. Only works with an active product. Withdrawal fee is exactly ${siteConfig?.withdrawFee || 0}%.
+- **Deposit**: Users can deposit via instant Mobile Money (MTN/Airtel) or USDT TRC20 into their account balance.
+- **Withdrawal**: Withdraw from the account balance to Mobile Money or USDT. Only works with an active product. Withdrawal fee is exactly ${siteConfig?.withdrawFee || 0}%.
 - **Invite Program**: Users share referral links and earn ${siteConfig?.level1InviteIncomePct ?? 15}% on Level 1, ${siteConfig?.level2InviteIncomePct ?? 5}% on Level 2, ${siteConfig?.level3InviteIncomePct ?? 0}% on Level 3, and ${siteConfig?.level4InviteIncomePct ?? 0}% on Level 4 when invited friends activate products (referrals only pay while the invitee has an active product).
 - **Gift Codes**: New gift codes are given out daily in the community groups set by the admin (WhatsApp: ${siteConfig?.whatsappLink || "N/A"}, Telegram: ${siteConfig?.telegramLink || "N/A"}). Tell users to join the community groups to claim them.
 - **Milestones**: Journey stages with achievements. A stage reward is claimed once, only when every achievement in that stage is done. Quote their real figures, and direct them to claim finished stages on the Journey page.
@@ -2151,8 +2191,16 @@ app.post("/api/admin/catalog/save", async (req, res) => {
     const numBonus = item.inviteBonusPercent == null || item.inviteBonusPercent === ""
       ? 0
       : Number(item.inviteBonusPercent);
+    const eggImageUrl = String(item.eggImageUrl || "").trim();
+    const dragonImageUrl = String(item.dragonImageUrl || "").trim();
     if (!Number.isInteger(numAmount) || numAmount <= 0 || !Number.isInteger(numDuration) || numDuration <= 0 || !Number.isFinite(numYield) || numYield < 0 || !Number.isFinite(numBonus) || numBonus < 0) {
       return res.status(400).json({ error: "Amount and duration must be positive whole numbers; yields and bonuses must be valid non-negative numbers." });
+    }
+    if (Boolean(eggImageUrl) !== Boolean(dragonImageUrl)) {
+      return res.status(400).json({ error: "Egg products need both egg PNG and dragon SVG artwork." });
+    }
+    if (eggImageUrl.length > 512 || dragonImageUrl.length > 512) {
+      return res.status(400).json({ error: "Artwork URLs must be 512 characters or fewer." });
     }
 
     await adminSaveCatalogItem({
@@ -2163,7 +2211,9 @@ app.post("/api/admin/catalog/save", async (req, res) => {
       amount: numAmount,
       duration: numDuration,
       dailyYield: numYield,
-      inviteBonusPercent: numBonus
+      inviteBonusPercent: numBonus,
+      eggImageUrl: item.eggImageUrl === undefined ? undefined : eggImageUrl,
+      dragonImageUrl: item.dragonImageUrl === undefined ? undefined : dragonImageUrl
     });
     res.json({ success: true, message: `Catalog item ${item.name} configured successfully.` });
   } catch (err: any) {
@@ -2224,16 +2274,15 @@ app.post("/api/admin/users/lock", async (req, res) => {
   }
 });
 
-// Admin API: Credit or debit a user's withdrawable (points) or deposit
-// (rechargeBalance) balance by a signed delta. Writes an audit-only ledger
+// Admin API: Credit or debit a user's unified balance by a signed delta. Writes an audit-only ledger
 // row that is hidden from the user's own history.
 app.post("/api/admin/users/adjust-balance", async (req, res) => {
   const { phone, target, amount, reason } = req.body;
   if (!phone || !target || amount === undefined || amount === null) {
     return res.status(400).json({ error: "Missing required parameters: phone, target, amount" });
   }
-  if (target !== "points" && target !== "rechargeBalance") {
-    return res.status(400).json({ error: "Invalid balance target: expected 'points' or 'rechargeBalance'." });
+  if (target !== "points") {
+    return res.status(400).json({ error: "Invalid balance target: expected 'points'." });
   }
   const delta = Number(amount);
   if (!Number.isSafeInteger(delta) || delta === 0) {
@@ -2241,7 +2290,7 @@ app.post("/api/admin/users/adjust-balance", async (req, res) => {
   }
   try {
     const { balance } = await adminAdjustBalance(phone, target, delta, typeof reason === "string" ? reason.trim().slice(0, 200) : undefined);
-    const label = target === "points" ? "withdrawable" : "deposit";
+    const label = "account";
     res.json({
       success: true,
       balance,
@@ -2335,14 +2384,14 @@ app.get("/api/manifest.json", async (req, res) => {
     const config = await getSiteConfig();
     const manifest = {
       id: "/",
-      name: config.brandName || "RentDue Store",
-      short_name: config.manifestShortName || config.brandName || "RentDue Store",
+      name: config.brandName || "Cash Dragons",
+      short_name: config.manifestShortName || config.brandName || "Cash Dragons",
       description: config.manifestDescription || SEO_DESCRIPTION,
       start_url: "/",
       display: "standalone",
       display_override: ["window-controls-overlay", "standalone"],
-      background_color: config.manifestBgColor || "#020617",
-      theme_color: config.manifestThemeColor || "#020617",
+      background_color: config.manifestBgColor || "#EEF3FB",
+      theme_color: config.manifestThemeColor || "#244B88",
       lang: "en",
       scope: "/",
       orientation: "portrait",
@@ -2384,13 +2433,13 @@ app.get("/api/manifest.json", async (req, res) => {
     logError("[PWA] Manifest configuration lookup failed:", err);
     res.json({
       id: "/",
-      name: "RentDue Store",
-      short_name: "RentDue Store",
+      name: "Cash Dragons",
+      short_name: "Cash Dragons",
       description: SEO_DESCRIPTION,
       start_url: "/",
       display: "standalone",
-      background_color: "#020617",
-      theme_color: "#020617",
+      background_color: "#EEF3FB",
+      theme_color: "#244B88",
       icons: [
         { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
         { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" }
@@ -2448,16 +2497,15 @@ app.get("/api/config/site", async (req, res) => {
       themeMode: config.themeMode || "light",
       authBgImage: config.authBgImage || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1600&q=80",
       authSlideImages: Array.isArray((config as any).authSlideImages) ? (config as any).authSlideImages : [],
-      dashboardBgImage: config.dashboardBgImage || "",
       cardStyle: migrateCardStyleServer(config.cardStyle as string) || "solid",
       buttonStyle: "pill-gradient",
       borderRadius: "rounded-2xl",
-      primaryColor: config.primaryColor || "#c27a2e",
-      accentColor: config.accentColor || "#f59e0b",
-      secondaryColor: config.secondaryColor || "#0ea5e9",
+      primaryColor: config.primaryColor || "#244B88",
+      accentColor: config.accentColor || "#9B6B1E",
+      secondaryColor: config.secondaryColor || "#7195C7",
       bgColor: config.bgColor || "",
       cardBgColor: config.cardBgColor || "",
-      fontFamily: migrateFontFamilyServer(config.fontFamily) || "Sora",
+      fontFamily: migrateFontFamilyServer(config.fontFamily) || "Nunito Sans",
       fontSizeScale: config.fontSizeScale || "md",
       textColor: config.textColor || "",
       updatedAt: (config as any).updatedAt || 0
@@ -2515,7 +2563,8 @@ app.post("/api/admin/access/activate", async (req, res) => {
           aiIncome: 0,
           createdAt: new Date().toISOString(),
           invitesCount: 0,
-          referralRewardsEarned: 0
+          referralRewardsEarned: 0,
+          pendingReferralRewards: 0
         });
       } catch (registerErr) {
         // Lost the race: a concurrent request created the row first.
@@ -2597,7 +2646,8 @@ app.post("/api/admin/logout", (_req, res) => {
 const SITE_IMAGE_KINDS: Record<string, { exts: string[]; maxBytes: number; prefix: string; field: string }> = {
   logo: { exts: ["png", "jpg", "jpeg", "webp", "svg"], maxBytes: 2 * 1024 * 1024, prefix: "logo", field: "logoUrl" },
   authbg: { exts: ["png", "jpg", "jpeg", "webp"], maxBytes: 4 * 1024 * 1024, prefix: "authbg", field: "authBgImage" },
-  dashboardbg: { exts: ["png", "jpg", "jpeg", "webp"], maxBytes: 4 * 1024 * 1024, prefix: "dashboardbg", field: "dashboardBgImage" },
+  eggart: { exts: ["png"], maxBytes: 4 * 1024 * 1024, prefix: "egg", field: "" },
+  dragonart: { exts: ["svg"], maxBytes: 2 * 1024 * 1024, prefix: "dragon", field: "" },
   // Milestone art attaches to vipTasks[].imageUrl (no top-level field), so
   // pruning sweeps unreferenced prefix files instead of one previous path.
   viptask: { exts: ["png", "jpg", "jpeg", "webp"], maxBytes: 2 * 1024 * 1024, prefix: "viptask", field: "" },
@@ -2623,12 +2673,12 @@ app.post("/api/admin/upload", async (req, res) => {
     };
     const ext = extFromMime[dataMime];
     if (!ext || !spec.exts.includes(ext)) {
-      return res.status(400).json({ error: "Only PNG, JPG, WebP or SVG images are allowed." });
+      return res.status(400).json({ error: kind === "eggart" ? "Egg artwork must be a PNG file." : kind === "dragonart" ? "Dragon artwork must be an SVG file." : "Only PNG, JPG, WebP or SVG images are allowed." });
     }
 
     const buffer = Buffer.from(match[2], "base64");
     if (!buffer.length || buffer.length > spec.maxBytes) {
-      return res.status(400).json({ error: "Image must be smaller than 2 MB." });
+      return res.status(400).json({ error: `Image must be smaller than ${Math.floor(spec.maxBytes / (1024 * 1024))} MB.` });
     }
     if (ext === "svg") {
       const text = buffer.toString("utf8");
@@ -2647,7 +2697,7 @@ app.post("/api/admin/upload", async (req, res) => {
     const uploadOpts: Record<string, unknown> = {
       folder: CLOUDINARY_FOLDER,
       public_id: `${spec.prefix}-${Date.now()}`,
-      resource_type: "auto",
+      resource_type: "image",
       overwrite: false,
     };
     if (kind === "viptask") {
@@ -2660,6 +2710,12 @@ app.post("/api/admin/upload", async (req, res) => {
       ];
     }
     const uploaded = await cloudinary.uploader.upload(dataUrl, uploadOpts);
+    if (uploaded.resource_type !== "image") {
+      throw new Error(`Cloudinary stored ${kind} as ${uploaded.resource_type}, expected image.`);
+    }
+    if (kind === "dragonart" && uploaded.format !== "svg") {
+      throw new Error(`Cloudinary stored dragon artwork as ${uploaded.format}, expected svg.`);
+    }
     void collectImageOrphans();
     return res.json({ success: true, url: uploaded.secure_url });
   } catch (error: any) {
@@ -2797,56 +2853,6 @@ async function startServer() {
     return;
   }
 
-  // Run once per platform day. The date guard also lets a restart after
-  // midnight catch up without waiting for the next calendar day. The row lock
-  // inside claimDailyReward keeps multiple server instances idempotent.
-  let lastAutoCollectDate: string | null = null;
-  const runAutoCollectScan = async (reason: string): Promise<DailyCreditRunResult> => {
-    const platformDate = getPlatformDateKey();
-    if (lastAutoCollectDate === platformDate) return { status: "already-ran", platformDate };
-    lastAutoCollectDate = platformDate;
-    try {
-      console.log(`[Auto-Collect ${reason}] Scanning ledger for platform day ${platformDate}...`);
-      
-      const usersList = await adminGetAllUsers();
-      let totalProcessed = 0;
-      let cursor = 0;
-      const workerCount = Math.max(1, Math.min(Number(process.env.AUTO_COLLECT_CONCURRENCY || 8), 32));
-      const workers = Array.from({ length: workerCount }, async () => {
-        while (cursor < usersList.length) {
-          const u = usersList[cursor++];
-          if (!u?.phone) continue;
-          try {
-            await autoCollectUserYields(u.phone);
-            totalProcessed++;
-          } catch (err) {
-            console.error(`[Auto-Collect ${reason}] Failed for user ${u.phone}:`, err);
-          }
-        }
-      });
-      await Promise.all(workers);
-      
-      console.log(`[Auto-Collect ${reason}] Finished scan successfully. Processed ${totalProcessed} users.`);
-      return { status: "completed", platformDate, processed: totalProcessed };
-    } catch (err) {
-      lastAutoCollectDate = null;
-      console.error(`[Auto-Collect ${reason} Failure] error running scan:`, err);
-      throw err;
-    }
-  };
-  dailyCreditRunner = runAutoCollectScan;
-
-  // Catch up after a process restart instead of waiting until the next
-  // midnight. This is intentionally fire-and-forget so the HTTP server can
-  // become ready while the background scan is running.
-  void runAutoCollectScan("Startup").catch(() => undefined);
-
-  cron.schedule("0 0 * * *", () => {
-    void runAutoCollectScan("Cron").catch(() => undefined);
-  }, {
-    timezone: "Africa/Nairobi"
-  });
-
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
@@ -2887,7 +2893,7 @@ async function startServer() {
         // Public title, description, and configured share image are injected for link preview crawlers.
         try {
           const config = await getSiteConfig().catch(() => ({} as any));
-          const brand = String((config as any)?.brandName || "").trim() || "RentDue Store";
+          const brand = String((config as any)?.brandName || "").trim() || "Cash Dragons";
           const description = String((config as any)?.seoDescription || "").trim() || SEO_DESCRIPTION;
           const base = getPublicBaseUrl(req);
           const escBrand = escapeSeoHtml(brand);

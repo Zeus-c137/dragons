@@ -12,7 +12,7 @@ export type TransactionType =
   | "admin_adjustment";
 
 export const TRANSACTION_LABELS: Record<TransactionType, string> = {
-  deposit: "Recharge",
+  deposit: "Deposit",
   withdrawal: "Withdrawal",
   product_activation: "Product",
   daily_yield: "Income",

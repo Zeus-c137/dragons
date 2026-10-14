@@ -48,6 +48,93 @@ export function getRunDailyRate(
   return Number(rate) || 0;
 }
 
+/** Whole-UGX minimum allowed for collecting half of one day's income. */
+export function getRunMinimumClaimAmount(node: SubscribedNode): number {
+  return Math.ceil(Math.max(0, getRunDailyRate(node)) / 2);
+}
+
+function platformDateKey(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Nairobi",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function addDateKeyDays(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+export function getRunClaimableReturns(
+  node: SubscribedNode,
+  now = new Date()
+): { amount: number; days: number; throughDate: string | null } {
+  const activationTime = new Date(node.startDate).getTime();
+  if (!Number.isFinite(activationTime)) return { amount: 0, days: 0, throughDate: null };
+  const dailyRate = getRunDailyRate(node);
+  if (node.eggImageUrl && node.dragonImageUrl && dailyRate > 0) {
+    const cycleEnd = getRunEndMs(node);
+    if (cycleEnd === null) return { amount: 0, days: 0, throughDate: null };
+
+    let accrualStart = activationTime;
+    if (node.lastClaimedDate) {
+      const checkpoint = String(node.lastClaimedDate);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(checkpoint)) {
+        const nextDate = addDateKeyDays(checkpoint, 1);
+        accrualStart = new Date(`${nextDate}T00:00:00+03:00`).getTime();
+      } else {
+        const checkpointTime = new Date(checkpoint).getTime();
+        if (Number.isFinite(checkpointTime)) accrualStart = checkpointTime;
+      }
+    }
+
+    const accrualEnd = Math.min(now.getTime(), cycleEnd);
+    const elapsed = Math.max(0, accrualEnd - accrualStart);
+    const amount = (dailyRate * elapsed) / 86_400_000;
+    const days = Math.floor(amount / dailyRate);
+    const throughDate = amount > 0 ? platformDateKey(new Date(accrualEnd)) : null;
+    return { amount, days, throughDate };
+  }
+
+  const activationDate = platformDateKey(new Date(activationTime));
+  const today = platformDateKey(now);
+  const finalDate = addDateKeyDays(activationDate, getRunTotalDays(node) - 1);
+  const throughDate = today < finalDate ? today : finalDate;
+  const legacyClaimedDays = dailyRate > 0
+    ? Math.max(0, Math.floor((Number(node.totalEarned) || 0) / dailyRate))
+    : 0;
+  const firstUnclaimedDate = node.lastClaimedDate
+    ? addDateKeyDays(node.lastClaimedDate, 1)
+    : addDateKeyDays(activationDate, legacyClaimedDays);
+  if (firstUnclaimedDate > throughDate) return { amount: 0, days: 0, throughDate: null };
+
+  const start = new Date(`${firstUnclaimedDate}T00:00:00Z`).getTime();
+  const end = new Date(`${throughDate}T00:00:00Z`).getTime();
+  const days = Math.floor((end - start) / 86_400_000) + 1;
+  return {
+    amount: dailyRate * days,
+    days,
+    throughDate
+  };
+}
+
+export function isRunCycleFinished(node: SubscribedNode, now = new Date()): boolean {
+  if (String(node.status).toLowerCase() !== "active") return true;
+  if (node.eggImageUrl && node.dragonImageUrl) {
+    const endMs = getRunEndMs(node);
+    return endMs !== null && now.getTime() >= endMs;
+  }
+  const activationTime = new Date(node.startDate).getTime();
+  if (!Number.isFinite(activationTime)) return false;
+  const activationDate = platformDateKey(new Date(activationTime));
+  const finalDate = addDateKeyDays(activationDate, getRunTotalDays(node) - 1);
+  return platformDateKey(now) > finalDate;
+}
+
 /**
  * Day-count estimate from credited earnings. Shared by Home and Income so
  * both screens agree, reading the same purchase-time snapshot the server
@@ -89,6 +176,12 @@ export function getRunState(
 }
 
 export function getRunEndMs(node: SubscribedNode): number | null {
+  if (node.eggImageUrl && node.dragonImageUrl) {
+    const activationTime = new Date(node.startDate).getTime();
+    if (Number.isFinite(activationTime)) {
+      return activationTime + getRunTotalDays(node) * 86_400_000;
+    }
+  }
   const ms = new Date(node.endDate).getTime();
   return Number.isFinite(ms) ? ms : null;
 }
@@ -120,7 +213,7 @@ export function formatCountdown(remainingMs: number): string {
   return `${String(days).padStart(2, "0")}D ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
-/** Ms until the next Africa/Nairobi midnight — the daily-credit heartbeat. */
+/** Ms until the next Africa/Nairobi date boundary for daily return availability. */
 export function msToNairobiMidnight(now = new Date()): number {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Africa/Nairobi",

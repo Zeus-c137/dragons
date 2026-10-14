@@ -63,7 +63,6 @@ interface ThemeContextType {
   bgColor: string;
   cardBgColor: string;
   authBgImage: string;
-  dashboardBgImage: string;
   fontFamily: string;
   fontSizeScale: "sm" | "md" | "lg" | "xl";
   textColor: string;
@@ -112,7 +111,6 @@ export const ThemeProvider: React.FC<{
   const cardBgColor = config?.cardBgColor || preset.cardBg;
   const rawAuthBg = config?.authBgImage || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1600&q=80";
   const authBgImage = fixGitHubImageUrl(rawAuthBg);
-  const dashboardBgImage = fixGitHubImageUrl(config?.dashboardBgImage || "");
   const fontFamily = migrateFontFamily(config?.fontFamily);
   const fontSizeScale = config?.fontSizeScale || "md";
   const textColor = config?.textColor || "";
@@ -170,7 +168,7 @@ export const ThemeProvider: React.FC<{
 
     root.style.setProperty("--theme-radius", "1.25rem");
 
-    const fontUrl = HUT12_FONTS_MAP[fontFamily] || HUT12_FONTS_MAP["Sora"];
+    const fontUrl = HUT12_FONTS_MAP[fontFamily] || HUT12_FONTS_MAP["Nunito Sans"];
     let fontLink = document.getElementById("dynamic-theme-font") as HTMLLinkElement | null;
     if (!fontLink) {
       fontLink = document.createElement("link");
@@ -181,7 +179,8 @@ export const ThemeProvider: React.FC<{
     if (fontLink.href !== fontUrl) {
       fontLink.href = fontUrl;
     }
-    root.style.setProperty("--theme-font-family", `'${fontFamily}', 'Outfit', sans-serif`);
+    root.style.setProperty("--theme-font-family", `'${fontFamily}', sans-serif`);
+    root.style.setProperty("--theme-display-font-family", "'Bree Serif', Georgia, serif");
 
     const fontScaleMap = { sm: "15px", md: "17px", lg: "19px", xl: "21px" };
     root.style.setProperty("--theme-font-base", fontScaleMap[fontSizeScale as keyof typeof fontScaleMap] || "16px");
@@ -196,11 +195,11 @@ export const ThemeProvider: React.FC<{
 
     if (isDark) {
       root.classList.add("dark");
-      root.style.setProperty("--theme-text-muted", "#A3B18A");
-      root.style.setProperty("--theme-on-primary", "#1A2E05");
+      root.style.setProperty("--theme-text-muted", "#B9B5D6");
+      root.style.setProperty("--theme-on-primary", "#1D1B33");
     } else {
       root.classList.remove("dark");
-      root.style.setProperty("--theme-text-muted", "#5B6B4C");
+      root.style.setProperty("--theme-text-muted", "#5F5B7A");
       root.style.setProperty("--theme-on-primary", "#FFFFFF");
     }
     void darkenColor;
@@ -225,7 +224,6 @@ export const ThemeProvider: React.FC<{
         bgColor,
         cardBgColor,
         authBgImage,
-        dashboardBgImage,
         fontFamily,
         fontSizeScale,
         textColor,

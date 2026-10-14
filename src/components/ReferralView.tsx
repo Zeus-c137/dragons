@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Coins, Copy, Info, Share2, Users, X } from "lucide-react";
+import { ArrowLeft, Check, Coins, Copy, Info, Loader2, Share2, Users, X } from "lucide-react";
 import { useCurrency } from "@/src/currency";
 import {
   getLevelMetrics,
@@ -10,7 +10,7 @@ import {
 } from "@/src/utils/referral";
 import { useClipboard } from "@/src/hooks/useClipboard";
 import { useAbortSignal, useGatedInterval } from "@/src/hooks/useGatedInterval";
-import { fetchJsonWithSignal } from "@/src/utils/api";
+import { fetchJsonWithSignal, readApiJson } from "@/src/utils/api";
 import InviteTeamView from "@/src/components/InviteTeamView";
 import { motion, AnimatePresence } from "motion/react";
 import { POLL_INTERVAL_MS, getViewMotion } from "@/src/utils/motion";
@@ -23,7 +23,7 @@ import inviteLinkArt from "@/src/assets/3d/3dicons-link-iso-premium.png";
 type Props = {
   userProfile: UserProfile;
   siteConfig?: SiteConfig | null;
-  onBack?: () => void;
+  onProfileChange: (profile: UserProfile) => void;
   initialView?: View;
 };
 
@@ -41,13 +41,32 @@ function ErrorBanner({ msg }: { msg: string }) {
 type OverviewProps = {
   metrics: ReturnType<typeof getLevelMetrics>;
   isLoading: boolean;
+  pendingReferralRewards: number;
+  isClaiming: boolean;
   brandName: string;
+  inviteLink: string;
+  copiedLink: boolean;
   onViewTeam: () => void;
-  onInvite: () => void;
+  onCopyLink: () => void;
+  onShare: () => void;
   onHowItWorks: () => void;
+  onClaimRewards: () => void;
 };
 
-function OverviewView({ metrics, isLoading, brandName, onViewTeam, onInvite, onHowItWorks }: OverviewProps) {
+function OverviewView({
+  metrics,
+  isLoading,
+  pendingReferralRewards,
+  isClaiming,
+  brandName,
+  inviteLink,
+  copiedLink,
+  onViewTeam,
+  onCopyLink,
+  onShare,
+  onHowItWorks,
+  onClaimRewards,
+}: OverviewProps) {
   const { formatCurrency } = useCurrency();
   const directInvites = metrics.find((metric) => metric.level === 1)?.count || 0;
   const totalEarned = metrics.reduce((sum, metric) => sum + metric.earned, 0);
@@ -57,52 +76,90 @@ function OverviewView({ metrics, isLoading, brandName, onViewTeam, onInvite, onH
     <div className="space-y-6">
       <section aria-label="Invite friends" className="space-y-3">
         <p className="max-w-[28rem] font-display text-[25px] font-black leading-tight tracking-tight">
-          Share your code, get up to <span className="text-[var(--theme-primary)]">{firstLevelRate}% on verified invites</span>
+          Share your {brandName} code, get up to <span className="text-[var(--theme-primary)]">{firstLevelRate}% on Level 1 invites.</span>
         </p>
      
-        <p className="pt-1 text-[16px] font-sans leading-relaxed">
-          Let’s invite your friends to <span className="font-bold">{brandName}</span>
-        </p>
-        <div className="flex justify-end pt-1">
+       
+      </section>
+
+      <section aria-label="" className="space-y-3 rounded-[24px] border border-white/10 bg-[var(--theme-card-bg)]/40 p-4 backdrop-blur-[20px] backdrop-saturate-[180%]">
+
+        <p className="select-all break-all text-[16px] ">{inviteLink || "N/A"}</p>
+        <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
-            onClick={onViewTeam}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/40 px-3 py-2 text-[11px] font-sans font-black text-[var(--theme-primary)] transition-colors hover:bg-[var(--theme-primary)]/10"
+            onClick={onCopyLink}
+            disabled={!inviteLink}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 text-[14px] font-sans font-bold text-[var(--theme-text)] transition-colors hover:bg-white/[0.08] disabled:opacity-45"
           >
-           
-            My invites
+            {copiedLink ? <Check className="h-4 w-4 text-[var(--theme-primary)]" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
+            {copiedLink ? "Copied" : "Copy"}
+          </button>
+          <button
+            type="button"
+            onClick={onShare}
+            disabled={!inviteLink}
+            className="inline-flex min-h-11 items-center justify-center gap-2  px-3 text-[14px] font-sans text-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:opacity-45"
+          >
+            <Share2 className="h-4 w-4" aria-hidden="true" />
+            Share
           </button>
         </div>
       </section>
 
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={onViewTeam}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/40 px-3 py-2 text-[11px] font-sans font-black text-[var(--theme-primary)] transition-colors hover:bg-[var(--theme-primary)]/10"
+        >
+          My invites
+        </button>
+      </div>
+
       <section aria-label="Referral summary" className="grid grid-cols-2 divide-x divide-white/10 rounded-[24px] border border-white/10 bg-[var(--theme-card-bg)]/40 p-4 backdrop-blur-[20px] backdrop-saturate-[180%]">
         <div className="flex flex-col items-center gap-1.5 px-2 text-center">
-          <Coins className="h-10 w-10 p-2 text-[var(--theme-text-muted)]" strokeWidth={1.8} />
+         
           {isLoading ? (
             <div className="h-6 w-24 animate-pulse rounded bg-[var(--theme-card-border)]/40" />
           ) : (
-            <p className="max-w-full truncate font-display text-[17px] font-black tabular-nums text-white">{formatCurrency(totalEarned)}</p>
+            <p className="max-w-full truncate font-display text-[17px] font-black tabular-nums text-black">{formatCurrency(totalEarned)}</p>
           )}
-          <p className="text-[11px] font-sans opacity-60">Total earned</p>
+          <p className="text-[16px] font-sans opacity-60">Claimed to balance</p>
         </div>
         <div className="flex flex-col items-center gap-1.5 px-2 text-center">
-          <Users className="h-10 w-10 p-2 text-[var(--theme-text-muted)]" strokeWidth={1.8} />
-          <p className="font-display text-[22px] font-black tabular-nums text-white">{isLoading ? "—" : directInvites}</p>
-          <p className="text-[11px] font-sans opacity-60">Friends referred</p>
+        
+          <p className="font-display text-[22px] font-black tabular-nums text-black">{isLoading ? "—" : directInvites}</p>
+          <p className="text-[16px] font-sans opacity-60">Friends referred</p>
         </div>
       </section>
 
-      <div className="space-y-3">
+      <section aria-label="Referral rewards ready to claim" className="space-y-3 rounded-[24px] border border-[var(--theme-primary)]/25 bg-[var(--theme-card-bg)]/55 p-4">
+        <div className="flex items-end justify-between gap-3">
+          <div className="space-y-1">
+            
+            <p className="font-display text-[22px] font-black tabular-nums text-[var(--theme-text)]">
+              {formatCurrency(pendingReferralRewards)}
+            </p>
+          </div>
+         
+        </div>
         <button
           type="button"
-          onClick={onInvite}
-          className="w-full rounded-full bg-[var(--theme-primary)] px-5 py-3.5 text-[16px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98]"
+          onClick={onClaimRewards}
+          disabled={pendingReferralRewards <= 0 || isClaiming}
+          aria-busy={isClaiming}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--theme-primary)] px-5 py-3 text-[14px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
         >
-          <span className="inline-flex items-center justify-center gap-2">
-            Invite friends
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </span>
+          {isClaiming ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+          {isClaiming ? "Claiming…" : "Claim referral rewards"}
         </button>
+        <p className="text-center text-[11px] leading-relaxed opacity-60">
+          Claimed rewards are added to your account balance.
+        </p>
+      </section>
+
+      <div className="space-y-3">
         <button
           type="button"
           onClick={onHowItWorks}
@@ -127,13 +184,7 @@ type CodeViewProps = {
 function CodeView({ inviteLink, copiedLink, onCopyLink, onShare, onHowItWorks }: CodeViewProps) {
   return (
     <div className="space-y-6">
-      <section className="flex flex-col items-center pt-2 text-center">
-        <img src={inviteLinkArt} alt="" aria-hidden="true" className="mb-3 h-16 w-16 object-contain" />
-        <h1 className="max-w-[18rem] font-display text-[23px] font-black leading-tight tracking-tight">
-          Here’s your referral link. Share it.
-        </h1>
-        
-      </section>
+     
 
       <section aria-label="Your referral link" className="flex items-center gap-3 rounded-[24px] border border-white/10 bg-[var(--theme-card-bg)]/40 px-4 py-4 backdrop-blur-[20px] backdrop-saturate-[180%]">
         <p className="min-w-0 flex-1 select-all break-all text-[16px]  leading-relaxed">{inviteLink || "N/A"}</p>
@@ -152,7 +203,7 @@ function CodeView({ inviteLink, copiedLink, onCopyLink, onShare, onHowItWorks }:
           type="button"
           onClick={onShare}
           disabled={!inviteLink}
-          className="w-full rounded-full bg-[var(--theme-primary)] px-5 py-3.5 text-[16px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:opacity-50"
+          className="w-full rounded-md  px-5 py-3.5 text-[16px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:opacity-50"
         >
           <span className="inline-flex items-center justify-center gap-2">
             <Share2 className="h-4 w-4" aria-hidden="true" />
@@ -162,7 +213,7 @@ function CodeView({ inviteLink, copiedLink, onCopyLink, onShare, onHowItWorks }:
         <button
           type="button"
           onClick={onHowItWorks}
-          className="inline-flex w-full items-center justify-center gap-2 py-2 text-[13px] font-sans font-bold text-[var(--theme-text)] opacity-70 underline decoration-white/20 underline-offset-4 transition-opacity hover:opacity-100"
+          className="inline-flex w-md items-center justify-center gap-2 py-2 text-[13px] font-sans font-bold text-[var(--theme-text)] opacity-70 underline decoration-white/20 underline-offset-4 transition-opacity hover:opacity-100"
         >
           <Info className="h-4 w-4" aria-hidden="true" />
           How does it work?
@@ -202,8 +253,8 @@ function HowItWorksSheet({ metrics, onClose }: HowItWorksSheetProps) {
       description: "Your friend must enter your invite code to complete signup."
     },
     {
-      title: "Your friend must make a transaction",
-      description: "A referral is verified when your friend activates one run. Visit our store to get started."
+      title: "Your friend hatch an egg",
+      description: "A referral is verified when your friend hatches one egg. Visit Dragons page to get started."
     }
   ];
 
@@ -293,9 +344,11 @@ function useReferralFetch(phone: string, initialConfig?: SiteConfig | null) {
   return { stats, isLoading, loadError, liveSiteConfig };
 }
 
-export default function ReferralView({ userProfile, siteConfig, onBack, initialView = "overview" }: Props) {
-  const { stats, isLoading, loadError, liveSiteConfig } = useReferralFetch(userProfile.phone, siteConfig ?? null);
+export default function ReferralView({ userProfile, siteConfig, onProfileChange, initialView = "overview" }: Props) {
+  const { formatCurrency } = useCurrency();
+  const { stats, isLoading, loadError, liveSiteConfig } = useReferralFetch(userProfile.id, siteConfig ?? null);
   const { copied: copiedLink, copy: copyLink } = useClipboard();
+  const [isClaiming, setIsClaiming] = useState(false);
   const [view, setView] = useState<View>(initialView);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   useEffect(() => { setView(initialView); }, [initialView]);
@@ -308,13 +361,36 @@ export default function ReferralView({ userProfile, siteConfig, onBack, initialV
   const reduced = useReducedMotion();
   const viewMotion = getViewMotion(reduced);
   const closeHowItWorks = useCallback(() => setShowHowItWorks(false), []);
-  const goBack = () => {
-    if (view !== "overview") {
-      setView("overview");
-    } else {
-      onBack?.();
+  const handleClaimRewards = useCallback(async () => {
+    if (isClaiming || Number(userProfile.pendingReferralRewards) <= 0) return;
+    setIsClaiming(true);
+    try {
+      const response = await fetch("/api/profile/referrals/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ phone: userProfile.id }),
+      });
+      const data = await readApiJson<{
+        success: boolean;
+        claimed: number;
+        profile?: UserProfile;
+      }>(response);
+      if (!data.success) {
+        throw new Error("Could not claim referral rewards.");
+      }
+      if (!data.profile) {
+        throw new Error("Your rewards were claimed, but the balance could not be refreshed. Please reload your account.");
+      }
+      onProfileChange(data.profile);
+      toast.success(`${formatCurrency(Number(data.claimed) || 0)} added to your balance.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not claim referral rewards.");
+    } finally {
+      setIsClaiming(false);
     }
-  };
+  }, [formatCurrency, isClaiming, onProfileChange, userProfile.id, userProfile.pendingReferralRewards]);
+  const goBack = () => setView("overview");
   const shareInvite = async () => {
     if (!inviteLink) return;
     const shareData = {
@@ -339,10 +415,16 @@ export default function ReferralView({ userProfile, siteConfig, onBack, initialV
     overview: <OverviewView
       metrics={levelMetrics}
       isLoading={isLoading}
+      pendingReferralRewards={Number(userProfile.pendingReferralRewards) || 0}
+      isClaiming={isClaiming}
       brandName={brandName}
+      inviteLink={inviteLink}
+      copiedLink={copiedLink}
       onViewTeam={() => setView("team")}
-      onInvite={() => setView("code")}
+      onCopyLink={() => copyLink(inviteLink, "Referral link copied")}
+      onShare={() => void shareInvite()}
       onHowItWorks={() => setShowHowItWorks(true)}
+      onClaimRewards={() => void handleClaimRewards()}
     />,
     code: <CodeView
       inviteLink={inviteLink}
@@ -355,10 +437,10 @@ export default function ReferralView({ userProfile, siteConfig, onBack, initialV
   };
   return (
     <div className="min-h-full w-full space-y-4 pb-16 text-[var(--theme-text)]">
-      {(onBack || view !== "overview") && (
+      {view !== "overview" && (
         <button type="button" onClick={goBack} className="inline-flex items-center gap-2 rounded-full px-2 py-1.5 text-xs font-semibold text-[var(--theme-text)] opacity-65 transition-opacity hover:opacity-100">
           <ArrowLeft className="h-3.5 w-3.5 text-[var(--theme-primary)]" />
-          {view === "overview" ? "Profile" : "Invite"}
+          Invite
         </button>
       )}
       <ErrorBanner msg={loadError} />

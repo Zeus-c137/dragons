@@ -164,7 +164,7 @@ export default function ProfileView({
       const res = await fetch("/api/user/redeem_gift_code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: userProfile.phone, code: giftCodeValue })
+        body: JSON.stringify({ phone: userProfile.id, code: giftCodeValue })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to redeem gift code.");
@@ -235,7 +235,7 @@ export default function ProfileView({
   const [giftAvailable, setGiftAvailable] = useState(false);
   const fetchGiftAvailability = async () => {
     try {
-      const res = await fetch(`/api/user/gift_codes/available/${userProfile.phone}`);
+      const res = await fetch(`/api/user/gift_codes/available/${userProfile.id}`);
       if (res.ok) {
         const data = await res.json();
         setGiftAvailable(!!data.available);
@@ -244,14 +244,14 @@ export default function ProfileView({
       // Silent — the dot just stays off.
     }
   };
-  useEffect(() => { void fetchGiftAvailability(); }, [userProfile.phone]);
-  useGatedInterval(fetchGiftAvailability, POLL_INTERVAL_MS, { enabled: !!userProfile.phone, visibilityGate: true, runOnVisible: true });
+  useEffect(() => { void fetchGiftAvailability(); }, [userProfile.id]);
+  useGatedInterval(fetchGiftAvailability, POLL_INTERVAL_MS, { enabled: !!userProfile.id, visibilityGate: true, runOnVisible: true });
 
   // Fetch non-simulated user transaction logs
   const fetchTxHistory = async () => {
     setTxLoading(true);
     try {
-      const res = await fetch(`/api/profile/transactions/${userProfile.phone}`);
+      const res = await fetch(`/api/profile/transactions/${userProfile.id}`);
       if (res.ok) {
         const data = await res.json();
         setTransactions(data);
@@ -283,7 +283,7 @@ export default function ProfileView({
     }
 
     if (pointsToWithdraw > userProfile.points) {
-      toast.error(`Insufficient withdrawable balance. Available: ${formatCurrency(userProfile.points || 0)}.`);
+      toast.error(`Insufficient balance. Available: ${formatCurrency(userProfile.points || 0)}.`);
       return;
     }
 
@@ -306,7 +306,7 @@ export default function ProfileView({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: userProfile.phone,
+          phone: userProfile.id,
           amount: pointsToWithdraw,
           operator: withdrawOperator,
           withdrawPhone: withdrawOperator === "USDT" ? usdtAddress : withdrawalPhone
@@ -339,15 +339,14 @@ export default function ProfileView({
   return (
     <div className="space-y-6 select-none bg-transparent text-slate-100 p-1 rounded-2xl relative">
       {/* News Grid */}
-      <NewsCarousel phone={userProfile.phone} dynamicNews={notifications.filter((n:any)=> n.category==="news")} fullWidth />
+      <NewsCarousel phone={userProfile.id} dynamicNews={notifications.filter((n:any)=> n.category==="news")} fullWidth />
 
-      {/* 1. Balance — Visa card (recharge + withdrawable) */}
+      {/* Unified account balance */}
       <VisaMetricCard
         inviteCode={userProfile.inviteCode}
-        leftLabel="Recharge balance"
-        leftValue={`${currency === 'USD' ? '$' : 'UGX'} ${currency === 'USD' ? ((userProfile.rechargeBalance || 0) / 3700).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : (userProfile.rechargeBalance || 0).toLocaleString()}`}
-        rightLabel="Withdrawable balance"
-        rightValue={`${currency === 'USD' ? '$' : 'UGX'} ${currency === 'USD' ? ((userProfile.points || 0) / 3700).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : (userProfile.points || 0).toLocaleString()}`}
+        mode="single"
+        leftLabel="My balance"
+        leftValue={`${currency === 'USD' ? '$' : 'UGX'} ${currency === 'USD' ? ((userProfile.points || 0) / 3700).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : Math.trunc(Number(userProfile.points) || 0).toLocaleString('en-UG', { maximumFractionDigits: 0 })}`}
       />
       <div className="flex items-center justify-center gap-2 bg-transparent border-0 p-0">
         <button onClick={onNavigateToDeposit} className="shrink-0 inline-flex items-center justify-center gap-1 px-4 py-2.5 rounded-full bg-[var(--theme-primary)] text-[var(--theme-on-primary)] text-[12px] font-sans font-black transition-all active:scale-95 cursor-pointer">
@@ -526,7 +525,7 @@ export default function ProfileView({
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/75 backdrop-blur-md" onClick={() => setShowGiftCodeSheet(false)} />
                   <motion.div initial={{ scale: 0.94, y: 15, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.94, y: 15, opacity: 0 }} transition={{ type: "spring", damping: 25, stiffness: 350 }} className="relative w-full max-w-[345px] theme-card card-playful-3d bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] text-[var(--theme-text)] rounded-[var(--theme-radius)] p-6 shadow-2xl">
-                    <button onClick={() => setShowGiftCodeSheet(false)} aria-label="Close gift code" className="absolute right-4 top-4 text-[var(--theme-text)] opacity-60 hover:opacity-100 p-1.5 rounded-full bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] transition-all active:scale-95 cursor-pointer">
+                    <button onClick={() => setShowGiftCodeSheet(false)} aria-label="Close gift code" className="absolute right-4 top-4 text-[var(--theme-text)] opacity-60 hover:opacity-100 p-1.5 rounded-full bg-transparent transition-all active:scale-95 cursor-pointer">
                       <X className="w-4 h-4" />
                     </button>
                     <div className="flex flex-col items-center justify-center mb-5 mt-1">
@@ -534,7 +533,7 @@ export default function ProfileView({
                         <img src={gift3d2} alt="" className="w-12 h-12 object-contain drop-shadow-sm" loading="lazy" decoding="async" />
                       </span>
                       <h3 className="text-lg font-display font-black text-[var(--theme-text)] tracking-tight">Gift code</h3>
-                      <p className="text-[12px] text-[var(--theme-text)] opacity-70 mt-1 text-center font-sans leading-relaxed">Enter the code shared with you, the bonus lands in your withdrawable balance. </p>
+                      <p className="text-[12px] text-[var(--theme-text)] opacity-70 mt-1 text-center font-sans leading-relaxed">Enter the code shared with you; the bonus lands in your balance. </p>
                     </div>
                     <form onSubmit={handleRedeemGiftCode} className="space-y-4">
                       <div>
@@ -613,7 +612,7 @@ export default function ProfileView({
               <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-3 scrollbar-none shrink-0">
                 {[
                   { id: "all", label: "All" },
-                  { id: "deposit", label: "Recharge" },
+                  { id: "deposit", label: "Deposit" },
                   { id: "withdraw", label: "Withdrawal" },
                   { id: "product", label: "Product" },
                   { id: "yield", label: "Yield" },
@@ -678,7 +677,7 @@ export default function ProfileView({
                       let IconComponent = Coins;
 
                       if (canon === "deposit") {
-                        badgeLabel = "Recharge";
+                        badgeLabel = "Deposit";
                         badgeStyle = "bg-emerald-500/15 text-emerald-500 border-emerald-500/30";
                         IconComponent = ArrowDownLeft;
                       } else if (canon === "withdrawal") {

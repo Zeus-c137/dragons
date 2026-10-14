@@ -70,7 +70,9 @@ export function useCurrency() {
   }, []);
 
   const formatCurrency = (amountUgx: number) => {
-    return 'UGX ' + amountUgx.toLocaleString();
+    const numericAmount = Number(amountUgx);
+    const wholeAmount = Number.isFinite(numericAmount) ? Math.trunc(numericAmount) : 0;
+    return `UGX ${wholeAmount.toLocaleString("en-UG", { maximumFractionDigits: 0 })}`;
   };
 
   return { currency, preference, setCurrencyPreference, formatCurrency, EXCHANGE_RATE };

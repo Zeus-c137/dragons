@@ -28,16 +28,14 @@ import { useCurrency } from "./currency";
 
 import confetti from "canvas-confetti";
 import {
-  Zap,
-  MessagesSquare,
-  User,
   X,
-  Store,
-  Trophy,
   ArrowRight,
   ChevronLeft,
-  Bell,
-  Home
+  Egg,
+  Plus,
+  Minus,
+  Users,
+  Wallet
 } from "lucide-react";
 
 import activeRunsTutorialScreenshot from "@/src/assets/screenshots/activeruns.png";
@@ -47,12 +45,9 @@ import depositWithdrawTutorialScreenshot from "@/src/assets/screenshots/depositw
 import referralsTutorialScreenshot from "@/src/assets/screenshots/invites.png";
 import storeTutorialScreenshot from "@/src/assets/screenshots/store.png";
 import streakTutorialScreenshot from "@/src/assets/screenshots/streak.png";
-import MilestoneChip from "./components/MilestoneChip";
-import { getTodayKey } from "./utils/runs";
 import { motion, AnimatePresence } from "motion/react";
 
 import { ThemeProvider } from "./context/ThemeContext";
-import { useChatUnread } from "./hooks/useChatUnread";
 import { useGatedInterval, useGatedTimeout, useAbortSignal } from "./hooks/useGatedInterval";
 import { fetchJsonWithSignal, abortableAll } from "./utils/abortableFetch";
 
@@ -73,9 +68,9 @@ const BOOT_SHELL_KEY = "rentdue_boot_shell";
 const WELCOME_TUTORIAL_SLIDES = [
   {
     title: "Deposit & withdraw",
-    description: "Deposit instantly with mobile money or crypto to start a run and get its daily returns, or withdraw your available funds to your mobile money or crypto wallet.",
+    description: "Deposit with mobile money or crypto, activate a run, and claim its accumulated returns. Withdraw available funds to your mobile money or crypto wallet.",
     image: depositWithdrawTutorialScreenshot,
-    imageAlt: "Recharge and withdrawable balances with Deposit and Withdraw actions",
+    imageAlt: "One account balance with Deposit and Withdraw actions",
   },
   {
     title: "Daily tasks",
@@ -91,7 +86,7 @@ const WELCOME_TUTORIAL_SLIDES = [
   },
   {
     title: "The Store",
-    description: "Here we provide machines for rent. Activate them by tapping 'Start Run' button. You will earn daily returns for the duration of the run.",
+    description: "Activate a product with 'Start Run'. Its daily returns accumulate during the cycle and can be claimed from Active Runs.",
     image: storeTutorialScreenshot,
     imageAlt: "The Store with available runs",
   },
@@ -266,7 +261,6 @@ export default function App() {
   useEffect(() => {
     if (siteConfig) writeBootShell(siteConfig);
   }, [siteConfig]);
-  const chatUnread = useChatUnread(userProfile?.phone);
   const [userNotifications, setUserNotifications] = useState<NotificationItem[]>([]);
   const [welcomeModalMode, setWelcomeModalMode] = useState<"bonus" | "tutorial" | null>(null);
   const [welcomeBonusAmount, setWelcomeBonusAmount] = useState(0);
@@ -277,17 +271,17 @@ export default function App() {
     if (!welcomePendingMode || document.hidden) return;
     setWelcomeModalMode(welcomePendingMode);
     setWelcomePendingMode(null);
-    if (userProfile?.phone) {
+    if (userProfile?.id) {
       writeTutorialPreference(
-        getTutorialPreferenceKey(userProfile.phone, "last-shown"),
+        getTutorialPreferenceKey(userProfile.id, "last-shown"),
         getLocalDateKey()
       );
     }
-  }, 2000, [welcomePendingMode, userProfile?.phone]);
+  }, 2000, [welcomePendingMode, userProfile?.id]);
 
   // A first-login tutorial is shown once each day until completed or opted out.
   useEffect(() => {
-    if (!userProfile?.phone) {
+    if (!userProfile?.id) {
       setWelcomeModalMode(null);
       setWelcomeBonusAmount(0);
       setWelcomePendingMode(null);
@@ -295,7 +289,7 @@ export default function App() {
       return;
     }
 
-    const phone = userProfile.phone;
+    const phone = userProfile.id;
     const completed = readTutorialPreference(getTutorialPreferenceKey(phone, "completed")) === "1";
     const optedOut = readTutorialPreference(getTutorialPreferenceKey(phone, "opted-out")) === "1";
     const lastShownToday = readTutorialPreference(getTutorialPreferenceKey(phone, "last-shown")) === getLocalDateKey();
@@ -307,7 +301,7 @@ export default function App() {
       return;
     }
 
-    const welcomeKey = `pending_welcome_bonus_${userProfile.phone}`;
+    const welcomeKey = `pending_welcome_bonus_${userProfile.id}`;
     let pendingBonus: { amount?: number; issuedAt?: number } | null = null;
     try {
       const rawPendingBonus = sessionStorage.getItem(welcomeKey);
@@ -330,7 +324,7 @@ export default function App() {
       setWelcomePendingMode("bonus");
     }
 
-  }, [userProfile?.phone]);
+  }, [userProfile?.id]);
 
   useEffect(() => {
     if (showWelcomeModal) {
@@ -343,17 +337,17 @@ export default function App() {
   }, [showWelcomeModal]);
 
   const handleCloseWelcomeModal = () => {
-    if (userProfile?.phone) {
-      sessionStorage.removeItem(`pending_welcome_bonus_${userProfile.phone}`);
+    if (userProfile?.id) {
+      sessionStorage.removeItem(`pending_welcome_bonus_${userProfile.id}`);
     }
     setWelcomeModalMode(null);
     setWelcomeTutorialIndex(-1);
   };
 
   const handleCompleteWelcomeTutorial = () => {
-    if (userProfile?.phone) {
-      sessionStorage.removeItem(`pending_welcome_bonus_${userProfile.phone}`);
-      writeTutorialPreference(getTutorialPreferenceKey(userProfile.phone, "completed"), "1");
+    if (userProfile?.id) {
+      sessionStorage.removeItem(`pending_welcome_bonus_${userProfile.id}`);
+      writeTutorialPreference(getTutorialPreferenceKey(userProfile.id, "completed"), "1");
     }
     setWelcomeModalMode(null);
     setWelcomePendingMode(null);
@@ -552,22 +546,22 @@ export default function App() {
 
   useEffect(() => {
     if (userProfile && !isAdminRoute) {
-      void fetchUserDataAndCatalog(userProfile.phone);
+      void fetchUserDataAndCatalog(userProfile.id);
     }
     return () => { if (abortRef.current) abortRef.current.abort(); };
-  }, [userProfile?.phone, isAdminRoute, fetchUserDataAndCatalog]);
+  }, [userProfile?.id, isAdminRoute, fetchUserDataAndCatalog]);
 
   useGatedInterval(() => {
-    if (userProfile?.phone && !isAdminRoute) void fetchUserDataAndCatalog(userProfile.phone);
-  }, 60000, { enabled: !!userProfile?.phone && !isAdminRoute, visibilityGate: true, runOnVisible: true });
+    if (userProfile?.id && !isAdminRoute) void fetchUserDataAndCatalog(userProfile.id);
+  }, 60000, { enabled: !!userProfile?.id && !isAdminRoute, visibilityGate: true, runOnVisible: true });
 
   const handleAuthSuccess = (profile: UserProfile) => {
     setUserProfile(profile);
   };
 
   const handleLogout = () => {
-    if (userProfile?.phone) {
-      sessionStorage.removeItem(`pending_welcome_bonus_${userProfile.phone}`);
+    if (userProfile?.id) {
+      sessionStorage.removeItem(`pending_welcome_bonus_${userProfile.id}`);
     }
     setUserProfile(null);
     revokeUserSession();
@@ -584,10 +578,8 @@ export default function App() {
     if (userProfile) {
       const updatedProfile = {
         ...userProfile,
-        rechargeBalance: Math.max(0, (userProfile.rechargeBalance || 0) - costAmt),
-        // Server credits day-1 yield to withdrawable instantly — mirror it
-        // locally so the balance is correct before the next refetch.
-        points: (userProfile.points || 0) + (Number(newSub.totalEarned) || 0)
+        // The server applies the rent and day-one yield to the unified balance.
+        points: Math.max(0, (userProfile.points || 0) - costAmt) + (Number(newSub.totalEarned) || 0)
       };
       setUserProfile(updatedProfile);
     }
@@ -604,6 +596,7 @@ export default function App() {
   };
 
   const handleGpuSuccess = (newSub: any, CostAmount: number) => {
+    setPreselectedGpuRent(null);
     setActiveNodes((prev) => [newSub, ...prev]);
     // Refresh system stats
     handleManualStatsRefresh();
@@ -612,7 +605,7 @@ export default function App() {
   };
 
   // Callback on manual points claims harvesting succeed
-  const handleClaimSuccess = (pointsEarned: number, newBalance: number, subId: string) => {
+  const handleClaimSuccess = (pointsEarned: number, newBalance: number, subId: string, lastClaimedDate: string, status: "active" | "expired") => {
     if (userProfile) {
       const updatedProfile = {
         ...userProfile,
@@ -620,14 +613,14 @@ export default function App() {
       };
       setUserProfile(updatedProfile);
     }
-    // Update local node yield tracker to reflect earned values & set status to expired without reloading full page
+    // Keep the local run card in sync without refetching the full signed-in shell.
     setActiveNodes((prev) =>
       prev.map((n) =>
         n.id === subId
           ? {
               ...n,
-              status: "expired",
-              lastClaimedDate: getTodayKey(),
+              status,
+              lastClaimedDate,
               totalEarned: (n.totalEarned || 0) + pointsEarned
             }
           : n
@@ -640,7 +633,7 @@ export default function App() {
   // Refresh whole dashboard — consolidated to single fetchUserDataAndCatalog (already includes referrals+stats)
   const handleManualStatsRefresh = useCallback(async () => {
     if (userProfile) {
-      await fetchUserDataAndCatalog(userProfile.phone);
+      await fetchUserDataAndCatalog(userProfile.id);
     }
   }, [userProfile, fetchUserDataAndCatalog]);
 
@@ -727,7 +720,7 @@ export default function App() {
                   <div className="relative z-10 space-y-2">
                     <h3 id="welcome-modal-title" className="font-display text-2xl font-black tracking-tight">WELCOME</h3>
                     <p className="mx-auto max-w-xs text-sm leading-relaxed opacity-75">
-                      A registration bonus of <span className="font-black text-[var(--theme-primary)]">UGX {welcomeBonusAmount.toLocaleString()}</span> has been added to your withdrawable balance.
+                      A registration bonus of <span className="font-black text-[var(--theme-primary)]">UGX {welcomeBonusAmount.toLocaleString()}</span> has been added to your balance.
                     </p>
                   </div>
                   <button
@@ -831,62 +824,31 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Main vertical handset application envelope */}
+      {/* Main application layout */}
       <div 
-        className="relative w-full max-w-xl md:max-w-3xl h-full md:h-[94vh] md:rounded-[36px] md:border-[8px] md:border-[var(--theme-card-border)] bg-[var(--theme-bg)] flex flex-col overflow-hidden shadow-2xl z-10 font-[var(--theme-font-family)]"
+        className="relative w-full max-w-xl md:max-w-3xl h-full md:h-[94vh] bg-[var(--theme-bg)] flex flex-col overflow-hidden z-10 font-[var(--theme-font-family)]"
         style={{
           fontFamily: "var(--theme-font-family), 'Plus Jakarta Sans', sans-serif",
           fontSize: "var(--theme-font-base)",
-          backgroundImage: siteConfig?.dashboardBgImage ? `url("${siteConfig.dashboardBgImage}")` : undefined,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat'
         }}
       >
         
-        {/* Header ribbon — milestone identity and progress on the left, actions on the right. */}
-        <header className="sticky top-0 z-40 bg-transparent h-[72px] flex items-center justify-between gap-2 px-3.5 sm:px-4.5 shrink-0">
-          <div className="flex items-center min-w-0 flex-1">
-            <MilestoneChip
-              phone={userProfile.phone}
-              username={userProfile.username}
-              onOpen={(stage) => { setJourneyStage(stage || null); setActiveTab("vip"); }}
-            />
+        <header className="user-app-header sticky top-0 z-40 shrink-0">
+          <div className="user-app-brand">
+            <BrandLogo siteConfig={siteConfig} className="flex h-7 w-7 shrink-0 items-center justify-center" />
+            <span className="user-app-brand-name" title={userProfile.username || userProfile.phone || "Player"}>
+              {userProfile.username?.trim() || userProfile.phone || "Player"}
+            </span>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Messages trigger button */}
+          <div className="user-app-header-actions">
             <button
               type="button"
-              onClick={() => setActiveTab("chat")}
-              className="relative p-1 flex items-center justify-center border-0 transition-[transform,opacity] duration-100 cursor-pointer outline-none h-9 w-9 shrink-0 bg-transparent active:scale-[0.97] will-change-transform opacity-80 hover:opacity-100"
-              title="Messages"
+              onClick={() => { setHistoryFilterRequest("all"); setActiveTab("history"); }}
+              aria-label={`Open transaction history. Current balance ${formatCurrency(Number(userProfile.points) || 0)}`}
+              className="user-app-balance appearance-none border-0 bg-transparent p-0 text-inherit cursor-pointer transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-on-primary)]"
             >
-              <MessagesSquare className="w-6 h-6 text-[var(--theme-text)]" />
-              {chatUnread > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-[var(--theme-card-bg)] shadow-xs">
-                  {chatUnread > 9 ? "9+" : chatUnread}
-                </span>
-              )}
-            </button>
-            {/* Notification Bell trigger button */}
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.setItem("lastViewedAlertsTime", Date.now().toString());
-                setPreviousTab(activeTab as any);
-                setActiveTab("alerts");
-              }}
-              className="relative p-1 flex items-center justify-center border-0 transition-[transform,opacity] duration-100 cursor-pointer outline-none h-9 w-9 shrink-0 bg-transparent active:scale-[0.97] will-change-transform opacity-80 hover:opacity-100"
-              title="View Alerts & Notifications"
-            >
-              <Bell className="w-6 h-6 text-[var(--theme-text)]" />
-              {userNotifications.filter(n => new Date(n.timestamp).getTime() > Number(localStorage.getItem("lastViewedAlertsTime") || 0)).length > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-[var(--theme-card-bg)] shadow-xs">
-                  {userNotifications.filter(n => new Date(n.timestamp).getTime() > Number(localStorage.getItem("lastViewedAlertsTime") || 0)).length > 9
-                    ? "9+"
-                    : userNotifications.filter(n => new Date(n.timestamp).getTime() > Number(localStorage.getItem("lastViewedAlertsTime") || 0)).length}
-                </span>
-              )}
+              <span className="inline-flex items-center justify-end gap-1.5"><Wallet className="h-3.5 w-3.5" aria-hidden="true" />My balance</span>
+              <strong>{formatCurrency(Number(userProfile.points) || 0)}</strong>
             </button>
           </div>
         </header>
@@ -909,11 +871,12 @@ export default function App() {
                   profile={userProfile}
                   activeNodes={activeNodes}
                   items={items}
-                  onNavigateToCatalog={() => setActiveTab("catalog")}
-                  onNavigateToIncome={() => setActiveTab("income")}
-                  onNavigateToMilestones={(stage) => { setJourneyStage(stage || null); setActiveTab("vip"); }}
-                  onNavigateToStreaks={() => { setStreaksReturn("dashboard"); setActiveTab("streaks"); }}
+                  onSubscribeSuccess={handleSubscribeSuccess}
+                  onClaimSuccess={handleClaimSuccess}
                   onProfileUpdate={handleProfileChange}
+                  onNavigateToCollection={() => { setCollectionReturn("dashboard"); setActiveTab("collection"); }}
+                  onNavigateToHistory={() => { setHistoryFilterRequest("all"); setActiveTab("history"); }}
+                  onSignOut={handleLogout}
                 />
               </motion.div>
             )}
@@ -979,7 +942,7 @@ export default function App() {
                 className="w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 <CollectionView
-                  phone={userProfile.phone}
+                  phone={userProfile.id}
                   onBack={() => setActiveTab(collectionReturn)}
                   onNavigateToCatalog={() => setActiveTab("catalog")}
                   onClaimed={() => { void handleManualStatsRefresh(); }}
@@ -996,7 +959,7 @@ export default function App() {
                 transition={{ duration: 0.12 }}
                 className="w-full flex-1 min-h-0 h-full flex flex-col overflow-hidden"
               >
-                <TransactionHistoryView phone={userProfile.phone} siteConfig={siteConfig} initialFilter={historyFilterRequest || "all"} onBack={() => setActiveTab("profile")} />
+                <TransactionHistoryView phone={userProfile.id} siteConfig={siteConfig} initialFilter={historyFilterRequest || "all"} onBack={() => setActiveTab("profile")} />
               </motion.div>
             )}
 
@@ -1016,10 +979,6 @@ export default function App() {
                   onDepositSuccess={handleDepositSuccess}
                   onGpuSuccess={handleGpuSuccess}
                   preselectedItem={preselectedGpuRent}
-                  onBack={() => {
-                    setPreselectedGpuRent(null);
-                    setActiveTab("profile");
-                  }}
                 />
               </motion.div>
             )}
@@ -1037,7 +996,6 @@ export default function App() {
                   userProfile={userProfile}
                   siteConfig={siteConfig}
                   activeNodes={activeNodes}
-                  onBack={() => setActiveTab("profile")}
                   onProfileUpdate={handleProfileChange}
                 />
               </motion.div>
@@ -1052,7 +1010,12 @@ export default function App() {
                 transition={{ duration: 0.12 }}
                 className="w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
-                <ReferralView userProfile={userProfile} siteConfig={siteConfig} initialView={referralView} onBack={() => setActiveTab("profile")} />
+                <ReferralView
+                  userProfile={userProfile}
+                  siteConfig={siteConfig}
+                  initialView={referralView}
+                  onProfileChange={handleProfileChange}
+                />
               </motion.div>
             )}
 
@@ -1078,7 +1041,7 @@ export default function App() {
                 transition={{ duration: 0.12 }}
                 className="w-full flex-1 min-h-0 h-full flex flex-col overflow-hidden"
               >
-                <StreaksPage phone={userProfile.phone} userProfile={userProfile} siteConfig={siteConfig} onClaimSuccess={handleProfileChange} onBack={() => setActiveTab(streaksReturn)} />
+                <StreaksPage phone={userProfile.id} userProfile={userProfile} siteConfig={siteConfig} onClaimSuccess={handleProfileChange} onBack={() => setActiveTab(streaksReturn)} />
               </motion.div>
             )}
 
@@ -1090,7 +1053,7 @@ export default function App() {
                 transition={{ duration: 0.12 }}
                 className="w-full flex-1 min-h-0 h-full flex flex-col overflow-hidden"
               >
-                <VipTasksPage phone={userProfile.phone} siteConfig={siteConfig} userProfile={userProfile} onClaimSuccess={handleProfileChange} onBack={() => setActiveTab("profile")} focusStage={journeyStage} />
+                <VipTasksPage phone={userProfile.id} siteConfig={siteConfig} userProfile={userProfile} onClaimSuccess={handleProfileChange} onBack={() => setActiveTab("profile")} focusStage={journeyStage} />
               </motion.div>
             )}
 
@@ -1213,90 +1176,67 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Bottom Tab Bar — floating dock with a raised My Runs action */}
-        <div className="w-full px-4 pt-0 pb-[calc(0.375rem+env(safe-area-inset-bottom))] bg-transparent shrink-0 z-40 select-none">
-          <nav className="w-full max-w-xl mx-auto bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] border border-white/10 rounded-[28px] shadow-[0_-10px_40px_rgba(0,0,0,0.08)] px-2 pt-2 pb-2 grid grid-cols-5 items-end">
-            {/* Home */}
+        {/* Primary destinations: dragons, wallet actions, and friends */}
+          <nav aria-label="Main navigation" className="user-app-bottom-nav grid grid-cols-4 items-end shrink-0 z-40 select-none">
             <button
+              type="button"
               onClick={() => setActiveTab("dashboard")}
-              className={`flex flex-col items-center gap-1 py-2 px-1 rounded-2xl border-0 transition-colors active:scale-[0.97] ${activeTab === "dashboard" ? "text-[var(--theme-primary)]" : "bg-transparent text-[var(--theme-text)] opacity-55"}`}
+              aria-current={activeTab === "dashboard" ? "page" : undefined}
+              className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "dashboard" ? "is-active" : ""}`}
             >
               <span className="grid place-items-center w-6 h-6">
-                <Home className="w-6 h-6 col-start-1 row-start-1" />
-                <Home fill="currentColor" className={`w-6 h-6 col-start-1 row-start-1 transition-all duration-200 ${activeTab === "dashboard" ? "opacity-100 scale-100" : "opacity-0 scale-[0.4]"}`} />
+                <Egg fill={activeTab === "dashboard" ? "currentColor" : "none"} className="w-6 h-6" />
               </span>
-              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Home</span>
+              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Dragons</span>
               <span className="w-4 h-1 flex items-center justify-center">
-                {activeTab === "dashboard" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-[var(--theme-primary)]" />}
+                {activeTab === "dashboard" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-white" />}
               </span>
             </button>
-
-            {/* milestones */}
-             <button
-              onClick={() => setActiveTab("vip")}
-              className={`flex flex-col items-center gap-1 py-2 px-1 rounded-2xl border-0 transition-colors active:scale-[0.97] ${activeTab === "vip" ? "text-[var(--theme-primary)]" : "bg-transparent text-[var(--theme-text)] opacity-55"}`}
-            >
-              <span className="grid place-items-center w-6 h-6">
-                <Trophy className="w-6 h-6 col-start-1 row-start-1" />
-                <Trophy fill="currentColor" className={`w-6 h-6 col-start-1 row-start-1 transition-all duration-200 ${activeTab === "vip" ? "opacity-100 scale-100" : "opacity-0 scale-[0.4]"}`} />
-              </span>
-              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Tasks</span>
-              <span className="w-4 h-1 flex items-center justify-center">
-                {activeTab === "vip" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-[var(--theme-primary)]" />}
-              </span>
-            </button>
-
-            {/* My Runs — raised floating action */}
-            <div className="flex flex-col items-center">
-              <button
-                onClick={() => setActiveTab("income")}
-                aria-label="My Runs"
-                className={`-mt-10 mb-1 w-14 h-14 rounded-full bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] grid place-items-center border active:scale-90 transition-all duration-200 ${activeTab === "income" ? "border-[var(--theme-primary)] text-[var(--theme-primary)]" : "border-[var(--theme-card-border)] text-[var(--theme-text)] opacity-70"}`}
-              >
-                {siteConfig?.logoUrl?.trim() ? (
-                  <BrandLogo siteConfig={siteConfig} className="w-8 h-8 flex items-center justify-center shrink-0 [&>img]:rounded-lg" />
-                ) : (
-                  <Zap fill="currentColor" className="w-7 h-7" />
-                )}
-              </button>
-              <span className={`text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none transition-colors ${activeTab === "income" ? "text-[var(--theme-primary)]" : "text-[var(--theme-text)] opacity-55"}`}>My Runs</span>
-              <span className="w-4 h-1 flex items-center justify-center mt-1">
-                {activeTab === "income" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-[var(--theme-primary)]" />}
-              </span>
-            </div>
-
-            {/* store */}
-             <button
-              onClick={() => setActiveTab("catalog")}
-              className={`flex flex-col items-center gap-1 py-2 px-1 rounded-2xl border-0 transition-colors active:scale-[0.97] ${activeTab === "catalog" ? "text-[var(--theme-primary)]" : "bg-transparent text-[var(--theme-text)] opacity-55"}`}
-            >
-              <span className="grid place-items-center w-6 h-6">
-                <Store className="w-6 h-6 col-start-1 row-start-1" />
-                <Store fill="currentColor" className={`w-6 h-6 col-start-1 row-start-1 transition-all duration-200 ${activeTab === "catalog" ? "opacity-100 scale-100" : "opacity-0 scale-[0.4]"}`} />
-              </span>
-              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Store</span>
-              <span className="w-4 h-1 flex items-center justify-center">
-                {activeTab === "catalog" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-[var(--theme-primary)]" />}
-              </span>
-            </button>
-          
-
-            {/* Profile */}
             <button
-              onClick={() => setActiveTab("profile")}
-              className={`flex flex-col items-center gap-1 py-2 px-1 rounded-2xl border-0 transition-colors active:scale-[0.97] ${activeTab === "profile" ? "text-[var(--theme-primary)]" : "bg-transparent text-[var(--theme-text)] opacity-55"}`}
+              type="button"
+              onClick={() => setActiveTab("deposit")}
+              aria-current={activeTab === "deposit" ? "page" : undefined}
+              className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "deposit" ? "is-active" : ""}`}
+            >
+              <span className="grid h-6 w-6 place-items-center rounded-full border-[1.8px]">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Top up</span>
+              <span className="w-4 h-1 flex items-center justify-center">
+                {activeTab === "deposit" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-white" />}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("withdraw")}
+              aria-current={activeTab === "withdraw" ? "page" : undefined}
+              className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "withdraw" ? "is-active" : ""}`}
+            >
+              <span className="grid h-6 w-6 place-items-center rounded-full border-[1.8px]">
+                <Minus className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Withdraw</span>
+              <span className="w-4 h-1 flex items-center justify-center">
+                {activeTab === "withdraw" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-white" />}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setReferralView("overview"); setActiveTab("referral"); }}
+              aria-current={activeTab === "referral" ? "page" : undefined}
+              className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "referral" ? "is-active" : ""}`}
             >
               <span className="grid place-items-center w-6 h-6">
-                <User className="w-6 h-6 col-start-1 row-start-1" />
-                <User fill="currentColor" className={`w-6 h-6 col-start-1 row-start-1 transition-all duration-200 ${activeTab === "profile" ? "opacity-100 scale-100" : "opacity-0 scale-[0.4]"}`} />
+                <Users className="h-6 w-6" aria-hidden="true" />
               </span>
-              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Profile</span>
+              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Friends</span>
               <span className="w-4 h-1 flex items-center justify-center">
-                {activeTab === "profile" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-[var(--theme-primary)]" />}
+                {activeTab === "referral" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-white" />}
               </span>
             </button>
           </nav>
-        </div>
 
 
 

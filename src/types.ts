@@ -77,7 +77,6 @@ export interface SiteConfig {
   themeMode?: ThemeMode;
   authBgImage?: string;
   authSlideImages?: string[]; // Landing carousel art, one per slide (no fallback)
-  dashboardBgImage?: string;
   cardStyle?: CardStyle;
   buttonStyle?: ButtonStyle;
   borderRadius?: BorderRadiusStyle;
@@ -152,20 +151,21 @@ export interface VipTaskboard {
 }
 
 export interface UserProfile {
-  phone: string;
+  id: string;
+  phone?: string | null;
   telegramId?: string | null;
   username: string;
   password?: string;
   inviteCode: string;
   referredByCode?: string;
   operator?: string;
-  points: number; // withdrawable balance in UGX (daily income, reg bonus, checkins, gift codes, rewards)
-  rechargeBalance?: number; // account recharge balance in UGX (from deposits, used for buying products)
+  points: number; // unified balance in UGX (deposits, rentals, income, rewards, and withdrawals)
   withdrawnCash: number; // accumulated withdraw amount in UGX
   createdAt: string;
   // Referral stats
   invitesCount: number;
-  referralRewardsEarned: number;
+  referralRewardsEarned: number; // lifetime referral rewards, including unclaimed accruals
+  pendingReferralRewards: number; // aggregate ready to claim into the account balance
   totalDeposits?: number; // total deposits in UGX
   aiIncome?: number; // total passive yield claims built up
   claimedVipTasks?: string[]; // VIP tasks already claimed (e.g. ["vip-1"])
@@ -198,6 +198,8 @@ export interface SubscriptionItem {
   category: string; // "DS" | "D" | "G" | "E" | "F", etc.
   inviteBonusPercent: number; // custom invite bonus percentage for referrals
   imageUrl?: string; // Open-source graphic or illustration URL
+  eggImageUrl?: string;
+  dragonImageUrl?: string;
   outOfStock?: boolean; // mark if node is out of stock
   disabled?: boolean; // hidden or disabled node
 }
@@ -208,13 +210,15 @@ export interface SubscribedNode {
   itemId: string;
   itemName: string;
   image: string;
+  eggImageUrl?: string;
+  dragonImageUrl?: string;
   amount: number;
   duration: number;
   dailyYield: number;
   startDate: string; // ISO String
   endDate: string; // ISO String
-  lastClaimedDate: string; // ISO Date YYYY-MM-DD
-  totalEarned: number;
+  lastClaimedDate: string; // YYYY-MM-DD for legacy runs; dragon runs store the exact collection timestamp
+  totalEarned: number; // total returns claimed to date
   status: "active" | "completed" | "expired";
 }
 
@@ -269,6 +273,7 @@ export interface TransactionRow {
 }
 
 export interface ReferralStat {
+  id?: string;
   phone?: string;
   username?: string;
   totalDeposits?: number;
@@ -287,8 +292,8 @@ export interface ReferralStat {
 
 export interface ChatMessage {
   id: string;
-  roomId: string; // "shared" or "direct_<userPhone>"
-  sender: string; // userPhone or "admin" or "system"
+  roomId: string; // "shared" or "direct_<userId>"
+  sender: string; // userId or "admin" or "system"
   senderName: string;
   text: string;
   image?: string; // base64 or illustration URL

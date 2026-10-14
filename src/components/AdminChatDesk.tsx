@@ -215,8 +215,9 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
 
   const filteredUsersToStartChat = usersList.filter(u => {
     const matchesSearch = u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          u.phone.includes(searchQuery);
-    const alreadyConnected = conversations.some(c => c.userPhone === u.phone);
+                          String(u.phone || "").includes(searchQuery) ||
+                          u.id.includes(searchQuery);
+    const alreadyConnected = conversations.some(c => c.userPhone === u.id);
     return matchesSearch && !alreadyConnected && u.phone !== "admin";
   });
 
@@ -230,8 +231,8 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
 
   const getTargetRoomUserObj = () => {
     if (selectedRoomId === "shared") return null;
-    const phone = selectedRoomId.replace("direct_", "");
-    return usersList.find(u => u.phone === phone) || null;
+    const userId = selectedRoomId.replace("direct_", "");
+    return usersList.find(u => u.id === userId) || null;
   };
 
   const activeUser = getTargetRoomUserObj();
@@ -288,7 +289,7 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-[var(--theme-text)] opacity-50" />
             <input
               type="text"
-              placeholder="Start chat (search phone...)"
+              placeholder="Start chat (search username or phone...)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] focus:border-[var(--theme-primary)] rounded-[var(--theme-radius)] pl-9 pr-4 py-2 text-xs font-bold text-[var(--theme-text)] outline-none transition-all placeholder-[var(--theme-text)]/40"
@@ -306,9 +307,9 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
               ) : (
                 filteredUsersToStartChat.slice(0, 10).map((u) => (
                   <button
-                    key={u.phone}
+                    key={u.id}
                     onClick={() => {
-                      pickRoom(`direct_${u.phone}`);
+                      pickRoom(`direct_${u.id}`);
                       setSearchQuery("");
                     }}
                     className="w-full flex items-center gap-3 p-3 rounded-[var(--theme-radius)] hover:bg-[var(--theme-card-bg)] text-left outline-none transition-all group cursor-pointer"
@@ -318,7 +319,7 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-xs font-bold text-[var(--theme-text)] truncate">{u.username || "Anonymous User"}</div>
-                      <div className="text-[12px] font-sans text-[var(--theme-text)] opacity-60 truncate">{u.phone}</div>
+                      <div className="text-[12px] font-sans text-[var(--theme-text)] opacity-60 truncate">{u.phone || "No payment phone added"}</div>
                     </div>
                   </button>
                 ))
@@ -362,7 +363,7 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
                     const isActive = selectedRoomId === c.roomId;
                     const seen = seenRef.current[c.roomId];
                     const hasUnread = seen ? new Date(c.lastTimestamp).getTime() > new Date(seen).getTime() : true;
-                    const known = usersList.find((u) => u.phone === c.userPhone);
+                    const known = usersList.find((u) => u.id === c.userPhone);
                     const displayName = known?.username && !/admin/i.test(known.username) ? known.username : null;
                     return (
                       <button
@@ -472,7 +473,7 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
                   const failed = failedIds.has(m.id);
                   const prev = group.items[index - 1];
                   const showHeader = !prev || prev.sender !== m.sender;
-                  const rawName = usersList.find((u) => u.phone === m.sender)?.username || m.senderName;
+                  const rawName = usersList.find((u) => u.id === m.sender)?.username || m.senderName;
                   const senderLabel = uIsAdmin ? "👾 Support Agent" : !rawName || /admin/i.test(rawName) ? m.sender : rawName;
                   return (
                     <div

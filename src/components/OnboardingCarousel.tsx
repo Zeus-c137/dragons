@@ -35,7 +35,7 @@ export const DEFAULT_ONBOARDING_SLIDES: OnboardingSlide[] = [
   {
     eyebrow: "DAILY HABIT",
     title: <>One tap keeps<br /><span className="text-[var(--theme-primary)]">the streak.</span></>,
-    sub: "Check in daily, autocredit runs till the cycle is done, then claim your collectible.",
+    sub: "Check in daily, claim accumulated run returns, then claim your collectible.",
     ctaLabel: "Start a Run",
   },
 ];

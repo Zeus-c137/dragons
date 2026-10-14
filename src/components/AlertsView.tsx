@@ -73,7 +73,7 @@ export default function AlertsView({ profile, onBack, initialNotifications = [],
     controllerRef.current = ctrl;
     try {
       setLoading(true);
-      const res = await fetch(`/api/profile/notifications/${profile.phone}`, { signal: ctrl.signal });
+      const res = await fetch(`/api/profile/notifications/${profile.id}`, { signal: ctrl.signal });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `Unable to load alerts (${res.status}).`);
@@ -87,7 +87,7 @@ export default function AlertsView({ profile, onBack, initialNotifications = [],
     } finally {
       if (!ctrl.signal.aborted) setLoading(false);
     }
-  }, [profile.phone, onNotificationsChange]);
+  }, [profile.id, onNotificationsChange]);
 
   const refreshIfVisible = useCallback(() => {
     if (document.visibilityState === "visible") void fetchAlerts();
@@ -212,11 +212,11 @@ export default function AlertsView({ profile, onBack, initialNotifications = [],
         ? `${productName} Returns Credited`
         : title;
     const displayMessage = isMilestone && tierName && amount > 0
-      ? `${tierName} milestone bonus of ${formatCurrency(amount)} was credited to your withdrawable balance.`
+      ? `${tierName} milestone bonus of ${formatCurrency(amount)} was credited to your balance.`
       : isMilestone && !tierName && amount > 0
-        ? `A milestone bonus of ${formatCurrency(amount)} was credited to your withdrawable balance.`
+        ? `A milestone bonus of ${formatCurrency(amount)} was credited to your balance.`
         : isReturns && productName && amount > 0
-          ? `${formatCurrency(amount)} in returns from ${productName} was credited to your withdrawable balance.`
+          ? `${formatCurrency(amount)} in returns from ${productName} was credited to your balance.`
           : message;
 
     return { Icon, badgeClass, categoryLabel, image, displayTitle, displayMessage };
