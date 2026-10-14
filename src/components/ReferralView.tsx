@@ -252,8 +252,12 @@ function HowItWorksSheet({ metrics, onClose }: HowItWorksSheetProps) {
       description: "Your friend must enter your invite code to complete signup."
     },
     {
-      title: "Your friend hatch an egg",
+      title: "Your friend must hatch an egg",
       description: "A referral is verified when your friend hatches one egg. Visit Dragons page to get started."
+    },
+    {
+      title: "Tap on 'Claim referral income'",
+      description: "Come back and collect all your accumulated referral income across all levels anytime with that button."
     }
   ];
 
