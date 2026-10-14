@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Check, Coins, Copy, Info, Loader2, Share2, Users, X } from "lucide-react";
+import { ArrowLeft, Check, Coins, Copy, Info, Loader2, Share2, User2Icon, Users, X } from "lucide-react";
 import { useCurrency } from "@/src/currency";
 import {
   getLevelMetrics,
@@ -113,6 +113,7 @@ function OverviewView({
           onClick={onViewTeam}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/40 px-3 py-2 text-[11px] font-sans font-black text-[var(--theme-primary)] transition-colors hover:bg-[var(--theme-primary)]/10"
         >
+          <User2Icon className="h-4 w-4" aria-hidden="true" />
           My invites
         </button>
       </div>
@@ -125,7 +126,7 @@ function OverviewView({
           ) : (
             <p className="max-w-full truncate font-display text-[17px] font-black tabular-nums text-black">{formatCurrency(totalEarned)}</p>
           )}
-          <p className="text-[16px] font-sans opacity-60">Claimed to balance</p>
+          <p className="text-[16px] font-sans opacity-60">Referral income</p>
         </div>
         <div className="flex flex-col items-center gap-1.5 px-2 text-center">
         
@@ -149,14 +150,12 @@ function OverviewView({
           onClick={onClaimRewards}
           disabled={pendingReferralRewards <= 0 || isClaiming}
           aria-busy={isClaiming}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--theme-primary)] px-5 py-3 text-[14px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[var(--theme-primary)] px-5 py-3 text-[14px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
         >
           {isClaiming ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-          {isClaiming ? "Claiming…" : "Claim referral rewards"}
+          {isClaiming ? "Claiming…" : "Claim referral income"}
         </button>
-        <p className="text-center text-[11px] leading-relaxed opacity-60">
-          Claimed rewards are added to your account balance.
-        </p>
+       
       </section>
 
       <div className="space-y-3">

@@ -41,11 +41,11 @@ function TeamHero({ stats, isLoading, siteConfig }: { stats: ReferralStat[]; isL
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           <div>
-            <p className="text-[9px] font-sans font-bold uppercase tracking-[0.14em] text-[var(--theme-text)] opacity-50">People in your team</p>
+            <p className="text-[14px] font-sans  text-[var(--theme-text)] opacity-50">Friends referred</p>
             {isLoading && stats.length === 0 ? <div className="mt-2 h-7 w-16 rounded bg-white/10 animate-pulse" /> : <p className="mt-1 font-display text-[24px] font-black leading-none text-[var(--theme-text)]">{stats.length}</p>}
           </div>
           <div className="text-right">
-            <p className="text-[9px] font-sans font-bold uppercase tracking-[0.14em] text-[var(--theme-text)] opacity-50">Team income</p>
+            <p className="text-[14px] font-sans  text-[var(--theme-text)] opacity-50">Referral income</p>
             {isLoading && stats.length === 0 ? <div className="ml-auto mt-2 h-7 w-28 rounded bg-white/10 animate-pulse" /> : <p className="mt-1 font-display text-[24px] font-black leading-none text-[var(--theme-primary)]">{formatCurrency(totalEarned)}</p>}
           </div>
         </div>
