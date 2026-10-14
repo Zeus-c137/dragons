@@ -45,32 +45,32 @@ function darkenColor(hex: string, percent: number = 20): string {
 }
 
 export const HUT12_LIGHT: ThemePresetDetails = {
-  primary: "#65A30D",
-  primaryShadow: "#3F6212",
-  accent: "#4D7C0F",
-  accentShadow: "#365314",
-  secondary: "#84CC16",
-  secondaryShadow: "#4D7C0F",
-  bg: "#F7FEE7",
-  cardBg: "#ffffff",
-  cardBorder: "#E3E8CF",
-  cardShadow: "#E3E8CF",
-  textColor: "#1A2E05",
+  primary: "#4F46A5",
+  primaryShadow: "#302A75",
+  accent: "#9A7836",
+  accentShadow: "#6F5526",
+  secondary: "#7C75D4",
+  secondaryShadow: "#514AA1",
+  bg: "#F3F2FB",
+  cardBg: "#FCFBFF",
+  cardBorder: "#D7D4EE",
+  cardShadow: "#E3E1F3",
+  textColor: "#211F3A",
   isDark: false,
 };
 
 export const HUT12_DARK: ThemePresetDetails = {
-  primary: "#C6FF00",
-  primaryShadow: "#4D7C0F",
-  accent: "#C6FF00",
-  accentShadow: "#4D7C0F",
-  secondary: "#A3E635",
-  secondaryShadow: "#365314",
-  bg: "#000000",
-  cardBg: "rgba(255,255,255,0.06)",
-  cardBorder: "rgba(198,255,0,0.14)",
-  cardShadow: "#000000",
-  textColor: "#F7FEE7",
+  primary: "#A8A4FF",
+  primaryShadow: "#6E69D3",
+  accent: "#E8C983",
+  accentShadow: "#A28243",
+  secondary: "#7771CB",
+  secondaryShadow: "#4F498D",
+  bg: "#100F21",
+  cardBg: "#1D1B33",
+  cardBorder: "#3A3759",
+  cardShadow: "#090914",
+  textColor: "#F0EFFF",
   isDark: true,
 };
 
@@ -82,31 +82,30 @@ export const HUT12_PRESETS: Record<ThemePreset, ThemePresetDetails> = {
 export const HUT12_PRESET_OPTIONS: ThemePresetOption[] = [
   {
     id: "hut12-light",
-    name: "Operator Light",
+    name: "Dragon Den",
     icon: "☀️",
-    description: "Clean paper canvas with deep-lime operator accents.",
-    primary: "#65A30D",
-    accent: "#4D7C0F",
-    secondary: "#84CC16",
+    description: "Soft lavender, deep indigo, and restrained antique-gold accents.",
+    primary: "#4F46A5",
+    accent: "#9A7836",
+    secondary: "#7C75D4",
     cardStyle: "solid",
     radius: "rounded-2xl",
   },
   {
     id: "hut12-dark",
-    name: "Operator Dark",
+    name: "Moonlit Lair",
     icon: "🌙",
-    description: "True black with neon-lime operator accents.",
-    primary: "#C6FF00",
-    accent: "#C6FF00",
-    secondary: "#A3E635",
+    description: "A midnight indigo den with violet light and antique-gold highlights.",
+    primary: "#A8A4FF",
+    accent: "#E8C983",
+    secondary: "#7771CB",
     cardStyle: "glass",
     radius: "rounded-2xl",
   },
 ];
 
 export const HUT12_FONTS_MAP: Record<string, string> = {
-  Sora: "https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap",
-  Outfit: "https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap",
+  "Nunito Sans": "https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800&display=swap",
 };
 
 const DARK_PRESET_SET = new Set<string>([
@@ -152,8 +151,8 @@ export function migrateBorderRadius(_raw: string | undefined): BorderRadiusStyle
   return "rounded-2xl";
 }
 
-export function migrateFontFamily(raw: string | undefined): string {
-  return raw && raw in HUT12_FONTS_MAP ? raw : "Sora";
+export function migrateFontFamily(_raw: string | undefined): string {
+  return "Nunito Sans";
 }
 
 export function isHut12DarkPreset(preset: ThemePreset): boolean {

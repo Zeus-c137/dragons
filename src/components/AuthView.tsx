@@ -5,45 +5,26 @@
 
 import React, { useState, useEffect } from "react";
 import { UserProfile } from "../types";
-import { Phone, Lock, Eye, EyeOff, User, ChevronLeft, ChevronDown, ArrowRight, Gift, Link2, Mail, Send, CheckCircle2, X, Info } from "lucide-react";
+import { Phone, Lock, Eye, EyeOff, User, ChevronLeft, ArrowRight, Gift, Link2, Mail, Send, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { BrandLogo } from "./BrandLogo";
-import { GUIDE_SECTIONS } from "./GuideView";
 import { fixGitHubImageUrl } from "../utils/imageUtils";
-import TelegramLoginButton from "./TelegramLoginButton";
-import { useTelegramLogin } from "../hooks/useTelegramLogin";
+import dragonCelestial from "@/src/assets/svg/dragon-celestial.svg";
+import dragonSolar from "@/src/assets/svg/dragon-solar.svg";
 
 interface AuthViewProps {
   onAuthSuccess: (profile: UserProfile) => void;
   siteConfig?: any;
 }
 
-type AuthScreen = "welcome" | "login" | "register" | "support" | "about";
+type AuthScreen = "welcome" | "login" | "register" | "support";
 
 // Welcome hero: admin-customizable via Custom Wallpapers (authBgImage).
 // Blank until siteconfig loads — no flashing fallback image.
 
-const WELCOME_SLIDES = [
-  {
-    title: "Daily returns .",
-    sub: "Start a new run and collect returns every single day.",
-  },
-  {
-    title: "Art collectibles.",
-    sub: "Claim completed run cycles as art collectibles you own permanently.",
-  },
-  {
-    title: "Stay active with daily tasks",
-    sub: "Finish achievements,collect cash bonuses, unlock new stages, grow your status.",
-  },
-  {
-    title: "Daily bonuses",
-    sub: "Check in daily and watch your bonus grow with it.",
-  },
-];
-
 const PHONE_PATTERN = /^\d{9,10}$/;
+const USERNAME_PATTERN = /^[a-zA-Z0-9_.-]{3,32}$/;
 
 function AuthField({
   icon,
@@ -65,26 +46,13 @@ function AuthField({
 
 function PrimaryButton({
   children,
+  className,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className="w-full py-4 px-6 rounded-2xl bg-[var(--theme-primary)] text-[var(--theme-on-primary)] font-sans font-bold text-[15px] flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_4px_0_0_var(--theme-primary-shadow)] active:shadow-none active:translate-y-[3px]"
-    >
-      {children}
-    </button>
-  );
-}
-
-function GhostButton({
-  children,
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      {...props}
-      className="w-full py-4 px-6 rounded-2xl border border-[var(--theme-card-border)] text-[var(--theme-text)] font-sans font-semibold text-[15px] flex items-center justify-center gap-2 transition-all active:scale-[0.98] bg-transparent"
+      className={`w-full py-4 px-6 rounded-2xl bg-[var(--theme-primary)] text-[var(--theme-on-primary)] font-sans font-bold text-[15px] flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_4px_0_0_var(--theme-primary-shadow)] active:shadow-none active:translate-y-[3px] ${className || ""}`}
     >
       {children}
     </button>
@@ -93,20 +61,16 @@ function GhostButton({
 
 export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
   const [screen, setScreen] = useState<AuthScreen>("welcome");
-  const [slide, setSlide] = useState(0);
-  // Per-slide failure flags — one broken URL must never blank the other slides.
-  const [failedSlides, setFailedSlides] = useState<Record<number, boolean>>({});
-  // About-page FAQ accordion.
-  const [faqOpen, setFaqOpen] = useState<number | null>(0);
+  const [failedWelcomeImage, setFailedWelcomeImage] = useState(false);
+  const [failedAuthBackground, setFailedAuthBackground] = useState(false);
 
-  const [phone, setPhone] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  // Fire-and-forget recovery desk: phone is the ticket key (direct_<phone>),
-  // email + message ride inside the text — no schema change.
+  // Recovery is routed to the account's support conversation by username.
+  const [recoveryUsername, setRecoveryUsername] = useState("");
   const [recoveryPhone, setRecoveryPhone] = useState("");
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [recoveryMsg, setRecoveryMsg] = useState("");
@@ -125,21 +89,23 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
   }, []);
 
   const activeConfig = localSiteConfig || siteConfig;
+  const authBackgroundImage = fixGitHubImageUrl(String(activeConfig?.authBgImage || "").trim());
+  const isAuthFormScreen = screen === "login" || screen === "register" || screen === "support";
 
-  // Landing carousel art: per-slide URLs from siteconfig only.
+  useEffect(() => {
+    setFailedAuthBackground(false);
+  }, [authBackgroundImage]);
+
+  // Use the first configured welcome image when available; otherwise show local dragon art.
   const rawSlideImages: string[] = Array.isArray((activeConfig as any)?.authSlideImages)
     ? (activeConfig as any).authSlideImages
     : [];
-  const slides = WELCOME_SLIDES.map((s, i) => ({
-    ...s,
-    image: fixGitHubImageUrl(String(rawSlideImages[i] || "").trim()),
-  }));
+  const welcomeImage = fixGitHubImageUrl(String(rawSlideImages[0] || "").trim());
 
-  // When the admin config resolves, a previous per-slide failure must not
-  // permanently blank that slot.
+  // Reset a previous image-load failure when the admin changes the image.
   useEffect(() => {
-    setFailedSlides({});
-  }, [rawSlideImages.join("|")]);
+    setFailedWelcomeImage(false);
+  }, [welcomeImage]);
 
   // Invite-link landing: ?ref=CODE (search or hash) jumps straight to
   // register with the code applied, then cleans the URL.
@@ -188,16 +154,6 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
     }
   }, []);
 
-  // Welcome carousel auto-advance (pauses off-screen: AuthView unmounts at login).
-  useEffect(() => {
-    if (screen !== "welcome") return;
-    const timer = setInterval(() => {
-      setSlide((s) => (s + 1) % slides.length);
-    }, 9000);
-    return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen]);
-
   const goTo = (next: AuthScreen) => {
     setPassword("");
     setShowPassword(false);
@@ -207,13 +163,13 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
   const handleSubmit = async (e: React.FormEvent, mode: "login" | "register") => {
     e.preventDefault();
 
-    if (!phone || !password) {
-      toast.error("Please enter both phone and password.");
+    if (!username.trim() || !password) {
+      toast.error("Please enter both username and password.");
       return;
     }
 
-    if (!PHONE_PATTERN.test(phone)) {
-      toast.error("Phone number must be 9 or 10 digits.");
+    if (mode === "register" && !USERNAME_PATTERN.test(username.trim())) {
+      toast.error("Username must be 3–32 characters and use letters, numbers, dots, underscores, or hyphens.");
       return;
     }
 
@@ -226,12 +182,10 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
 
     try {
       const endpoint = mode === "register" ? "/api/auth/register" : "/api/auth/login";
-      // Single password field by design; the API contract still expects a
-      // matching confirmPassword, so echo it.
       const payload =
         mode === "register"
-          ? { phone, password, confirmPassword: password, inviteCode: inviteCode.trim().toUpperCase(), username: username.trim() || undefined, ...(telegramIdToken ? { id_token: telegramIdToken } : {}) }
-          : { phone, password };
+          ? { password, confirmPassword: password, inviteCode: inviteCode.trim().toUpperCase(), username: username.trim() }
+          : { username: username.trim(), password };
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -251,7 +205,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
           // flow. The dashboard uses this one-shot handoff to distinguish a
           // genuinely new account from a normal returning login.
           sessionStorage.setItem(
-            `pending_welcome_bonus_${phone}`,
+            `pending_welcome_bonus_${data.profile?.id}`,
             JSON.stringify({ amount: issuedBonus, issuedAt: Date.now() })
           );
         }
@@ -263,104 +217,30 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
         );
         setTimeout(() => {
           goTo("login");
-          setUsername("");
         }, 1200);
       } else {
         onAuthSuccess(data.profile);
       }
     } catch (err: any) {
-      // An expired pending Telegram token can't be reused — drop the pill
-      // back to idle so the user reconnects. Other failures keep the pill so
-      // only the flagged field needs fixing.
-      if (mode === "register" && err.message === "Telegram verification expired. Tap the pill to reconnect.") {
-        setTelegramIdToken(null);
-      }
       toast.error(err.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleTelegramLogin = async (payload: Record<string, unknown>) => {
-    setIsLoading(true);
-    try {
-      const response = await fetch("/api/auth/telegram/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Telegram sign-in failed.");
-      onAuthSuccess(data.profile);
-    } catch (error: any) {
-      toast.error(error.message || "Telegram sign-in failed.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Register-pill Telegram state: the verified id_token is held in memory
-  // only and attached to the register submit. Nothing is persisted until
-  // the account is created.
-  const [telegramIdToken, setTelegramIdToken] = useState<string | null>(null);
-  const [telegramChecking, setTelegramChecking] = useState(false);
-  const [telegramUnlinkOpen, setTelegramUnlinkOpen] = useState(false);
-
-  // Pill tap -> Telegram popup -> DB check via the existing login endpoint:
-  // 200 means this Telegram is already connected, so authenticate straight
-  // in; 401 means it is free, so the pill flips to Connected and registration
-  // continues as usual with the id_token attached at submit.
-  const handleTelegramRegisterAuth = async (payload: Record<string, unknown>) => {
-    const idToken = payload.id_token;
-    if (typeof idToken !== "string" || !idToken) return;
-    setTelegramChecking(true);
-    try {
-      const response = await fetch("/api/auth/telegram/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await response.json().catch(() => ({}));
-      if (response.ok) {
-        onAuthSuccess(data.profile);
-        return;
-      }
-      if (response.status === 401) {
-        setTelegramIdToken(idToken);
-        toast.success("Telegram connected. Finish registration to link it.");
-        return;
-      }
-      throw new Error((data as { error?: string }).error || "Telegram verification failed. Please try again.");
-    } catch (error: any) {
-      toast.error(error.message || "Telegram verification failed. Please try again.");
-    } finally {
-      setTelegramChecking(false);
-    }
-  };
-  const telegramRegister = useTelegramLogin(handleTelegramRegisterAuth);
-  const telegramPillBusy = telegramChecking || telegramRegister.status === "loading";
-
-  const handleTelegramPillClick = () => {
-    if (telegramIdToken || telegramChecking || isLoading) return;
-    if (telegramRegister.status === "failed") {
-      telegramRegister.retry();
-      return;
-    }
-    if (telegramRegister.status !== "ready") return;
-    telegramRegister.authenticate();
-  };
-
-  // (slide art now comes from authSlideImages, one image per slide.)
-
-  // Fire-and-forget recovery: lands in the admin Support Desk as a
-  // direct_<phone> ticket. No polling here — support reaches out.
+  // Recovery requests are attached to the account's direct support thread.
   const handleRecoverySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const accountUsername = recoveryUsername.trim();
     const tel = recoveryPhone.trim();
     const mail = recoveryEmail.trim();
     const msg = recoveryMsg.trim();
-    if (!PHONE_PATTERN.test(tel)) {
-      toast.error("Enter the 9–10 digit phone number on your account.");
+    if (!USERNAME_PATTERN.test(accountUsername)) {
+      toast.error("Enter the username on your account.");
+      return;
+    }
+    if (tel && !PHONE_PATTERN.test(tel)) {
+      toast.error("Contact phone number must be 9 or 10 digits.");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
@@ -373,14 +253,14 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
     }
     setRecoverySending(true);
     try {
-      const res = await fetch("/api/chat/send", {
+      const res = await fetch("/api/auth/recovery", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          roomId: `direct_${tel}`,
-          sender: tel,
-          senderName: "Recovery Guest",
-          text: `[recovery] Phone: ${tel} | Email: ${mail} | ${msg}`,
+          username: accountUsername,
+          contactPhone: tel,
+          email: mail,
+          message: msg,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -393,63 +273,63 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
       setRecoverySending(false);
     }
   };
-  const brandName = activeConfig?.brandName || "Loading";
+  const brandName = activeConfig?.brandName || "Cash Dragons";
   const inviteBonus = Number(activeConfig?.inviteBonus ?? 0);
   const regBonus = Number(activeConfig?.registrationBonus ?? activeConfig?.welcomeBonus ?? 0);
-
-  const currentSlide = slides[slide] || slides[0];
+  const authFormBrand = (
+    <div className="auth-form-brand flex items-center gap-3">
+      <BrandLogo siteConfig={activeConfig} className="flex h-9 w-9 shrink-0 items-center justify-center" />
+      <span className="font-display text-lg font-black tracking-tight">{brandName}</span>
+    </div>
+  );
 
   return (
-    <div className="min-h-[100dvh] bg-[var(--theme-bg)] text-[var(--theme-text)] font-[var(--theme-font-family)] transition-colors">
-      <div className="w-full max-w-md mx-auto min-h-[100dvh] flex flex-col px-6 pt-6 pb-8">
-        {/* Brand header */}
-        <div className="flex items-center gap-3">
-          {(screen === "login" || screen === "register" || screen === "support" || screen === "about") && (
-            <button
-              type="button"
-              aria-label="Back"
-              onClick={() => goTo(screen === "support" ? "login" : "welcome")}
-              className="w-9 h-9 -ml-2 flex items-center justify-center text-[var(--theme-text)] opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-          )}
-          <BrandLogo siteConfig={activeConfig} className="w-9 h-9 flex items-center justify-center shrink-0" />
-          <span className="font-display font-black text-lg tracking-tight uppercase">{brandName}</span>
-          <div className="flex-1" />
-          {screen !== "about" && (
-            <button
-              type="button"
-              onClick={() => goTo("about")}
-              className="shrink-0 px-4 py-2 rounded-full border border-[var(--theme-card-border)] text-[12px] font-sans font-black uppercase tracking-wider opacity-80 hover:opacity-100 active:scale-[0.97] transition-all cursor-pointer"
-            >
-              About us
-            </button>
-          )}
+    <div className="relative isolate min-h-[100dvh] overflow-x-hidden bg-[var(--theme-bg)] text-[var(--theme-text)] font-[var(--theme-font-family)] transition-colors">
+      {(isAuthFormScreen || screen === "welcome") && authBackgroundImage && !failedAuthBackground && (
+        <div className="auth-screen-backdrop" aria-hidden="true">
+          <img
+            src={authBackgroundImage}
+            alt=""
+            referrerPolicy="no-referrer"
+            onError={() => setFailedAuthBackground(true)}
+          />
         </div>
+      )}
+      {screen === "welcome" && authBackgroundImage && !failedAuthBackground && (
+        <div className="auth-welcome-frost" aria-hidden="true" />
+      )}
+      {isAuthFormScreen && authFormBrand}
+      {screen !== "welcome" && (
+        <button
+          type="button"
+          aria-label="Back"
+          onClick={() => goTo(screen === "support" ? "login" : "welcome")}
+          className="auth-form-back-button flex h-10 w-10 items-center justify-center text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary)]/10"
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </button>
+      )}
+      <div className={`relative z-10 w-full min-h-[100dvh] flex flex-col ${screen === "welcome" ? "mx-auto max-w-6xl px-5 pt-5 pb-6 sm:px-8 sm:pt-7" : isAuthFormScreen ? "m-0 p-0" : "mx-auto max-w-md px-6 pt-6 pb-8"}`}>
+        {/* Brand header */}
+        {!isAuthFormScreen && (
+          <div className="flex items-center gap-3">
+            <BrandLogo siteConfig={activeConfig} className="w-9 h-9 flex items-center justify-center shrink-0" />
+            <span className="font-display font-black text-lg tracking-tight">{brandName}</span>
+            <div className="flex-1" />
+            {screen === "welcome" && (
+              <button
+                type="button"
+                onClick={() => goTo("login")}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[13px] font-sans font-bold text-[var(--theme-primary)] transition-colors hover:bg-[var(--theme-primary)]/8"
+              >
+                Log in <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        )}
 
         {screen === "welcome" && (
-          <div className="flex items-center gap-1.5 pt-5">
-            {slides.map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                aria-label={`Go to slide ${i + 1}`}
-                onClick={() => setSlide(i)}
-                className="h-1.5 rounded-full cursor-pointer relative"
-              >
-                {i === slide ? (
-                  <motion.span
-                    layoutId="auth-dot"
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
-                    className="block h-1.5 w-5 rounded-full bg-[var(--theme-primary)]"
-                  />
-                ) : (
-                  <span className="block h-1.5 w-1.5 rounded-full bg-[var(--theme-text)] opacity-20" />
-                )}
-              </button>
-            ))}
-          </div>
+          <div className="hidden sm:block h-px mt-5 bg-[var(--theme-card-border)]/80" />
         )}
 
         <AnimatePresence mode="wait">
@@ -461,129 +341,61 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.25 }}
-              className="flex-1 flex flex-col pt-5"
+              className="auth-welcome-grid flex-1 grid grid-cols-1 lg:grid-cols-[0.92fr_1.08fr] items-center gap-x-8 gap-y-7 pt-5 lg:pt-8"
             >
-              <div className="min-h-[158px]">
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={slide}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.25 }}
-                  >
-                    <h1 className="font-display font-black text-[42px] leading-[1.05] tracking-tight">
-                      {currentSlide.title}
-                    </h1>
-                    <p className="mt-3 text-[15px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
-                      {currentSlide.sub}
-                    </p>
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-
-              <div className="mt-6 flex-1 min-h-[220px] rounded-[24px] overflow-hidden border border-[var(--theme-card-border)] relative bg-[var(--theme-card-bg)]">
-                <AnimatePresence mode="wait">
-                  {currentSlide.image && !failedSlides[slide] ? (
-                    <motion.div
-                      key={slide}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-                      className="absolute inset-0"
-                    >
-                      <img
-                        src={fixGitHubImageUrl(currentSlide.image)}
-                        alt=""
-                        loading="eager"
-                        referrerPolicy="no-referrer"
-                        onError={() => setFailedSlides((p) => ({ ...p, [slide]: true }))}
-                        className="absolute inset-0 w-full h-full object-cover block"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key={`blank-${slide}`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="absolute inset-0 bg-gradient-to-br from-[var(--theme-primary)]/20 via-transparent to-transparent"
-                    />
-                  )}
-                </AnimatePresence>
-              </div>
-
-              <div className="space-y-3 mt-6">
-                <PrimaryButton onClick={() => goTo("register")} disabled={isLoading}>
-                  Register
-                </PrimaryButton>
-                <GhostButton onClick={() => goTo("login")} disabled={isLoading}>
-                  Login
-                </GhostButton>
-              </div>
-            </motion.div>
-          )}
-
-          {/* ============ ABOUT US (public FAQ page) ============ */}
-          {screen === "about" && (
-            <motion.div
-              key="about"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.25 }}
-              className="flex-1 flex flex-col pt-10"
-            >
-              <h1 className="font-display font-black text-[38px] leading-[1.08] tracking-tight">
-                About us.
+              <h1 className="order-1 w-full font-display text-[clamp(3rem,6.5vw,5.5rem)] leading-[0.98] tracking-tight text-[var(--theme-text)] lg:col-span-2">
+                Awaken your legend.
               </h1>
-              <p className="mt-3 text-[15px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
-                {brandName === "Loading" ? "How it works." : `How ${brandName} works.`} Everything about balances, runs, withdrawals and rewards.
-              </p>
-              <div className="mt-6 space-y-1 flex-1">
-                {GUIDE_SECTIONS.map((s, i) => (
-                  <div key={s.title} className="border-b border-[var(--theme-card-border)]/60 last:border-0">
-                    <button
-                      type="button"
-                      onClick={() => setFaqOpen(faqOpen === i ? null : i)}
-                      className="w-full flex items-center justify-between gap-3 py-3 text-left cursor-pointer"
-                    >
-                      <span className="text-[15px] font-display font-black tracking-tight">{s.title}</span>
-                      <ChevronDown className={`w-4 h-4 text-[var(--theme-primary)] shrink-0 transition-transform ${faqOpen === i ? "rotate-180" : ""}`} />
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {faqOpen === i && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ type: "spring", damping: 26, stiffness: 300 }}
-                          className="overflow-hidden"
-                        >
-                          <ul className="pb-3 space-y-1.5">
-                            {s.body.map((line, j) => (
-                              <li key={j} className="text-[14px] font-sans opacity-80 leading-relaxed flex gap-2">
-                                <span className="text-[var(--theme-primary)] font-black shrink-0">•</span>
-                                <span>{line}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                ))}
-              </div>
-              <div className="space-y-3 mt-8">
-                <PrimaryButton onClick={() => goTo("register")} disabled={isLoading}>
-                  Register
-                </PrimaryButton>
-                <GhostButton onClick={() => goTo("login")} disabled={isLoading}>
-                  Login
-                </GhostButton>
+
+              <section className="auth-welcome-copy order-3 lg:order-2 flex w-full flex-col justify-center">
+                <p className="w-full text-[16px] font-sans text-[var(--theme-text-muted)] leading-[1.65]">
+                  Hatch eggs, collect dragons.<br />
+                  Every card is its own story.
+                </p>
+
+                <div className="mt-8">
+                  <PrimaryButton
+                    onClick={() => goTo("register")}
+                    disabled={isLoading}
+                    className="max-w-sm justify-between rounded-xl px-5 py-4 text-left text-[15px]"
+                  >
+                    <span>Create your account</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </PrimaryButton>
+                </div>
+              </section>
+
+              <div className="auth-welcome-art order-2 lg:order-3 relative min-h-[350px] sm:min-h-[340px] lg:min-h-[min(68vh,680px)] overflow-hidden bg-[#10264b]">
+                <div className="auth-welcome-art-grid absolute inset-0" aria-hidden="true" />
+
+                <AnimatePresence mode="wait">
+                  <motion.img
+                    key={failedWelcomeImage || !welcomeImage ? "celestial-dragon" : "custom-welcome"}
+                    src={welcomeImage && !failedWelcomeImage ? welcomeImage : dragonCelestial}
+                    alt=""
+                    loading="eager"
+                    referrerPolicy="no-referrer"
+                    onError={() => setFailedWelcomeImage(true)}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                    className={`auth-welcome-art-image auth-welcome-dragon-primary absolute block ${welcomeImage && !failedWelcomeImage ? "object-cover" : "object-contain"}`}
+                  />
+                </AnimatePresence>
+                <motion.img
+                  src={dragonSolar}
+                  alt=""
+                  aria-hidden="true"
+                  loading="eager"
+                  initial={{ opacity: 0, y: 8, rotate: 4 }}
+                  animate={{ opacity: 1, y: 0, rotate: 7 }}
+                  transition={{ duration: 0.45, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+                  className="auth-welcome-art-image auth-welcome-dragon-secondary absolute block object-contain"
+                />
+                <div className="absolute top-3 left-[7%] right-[7%] z-10 font-display text-[clamp(1.35rem,3vw,1.8rem)] leading-tight text-[#edf3ff] lg:left-[18%]">
+                  Your first dragon awaits.
+                </div>
               </div>
             </motion.div>
           )}
@@ -596,26 +408,28 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.25 }}
-              className="flex-1 flex flex-col pt-10"
+              className="auth-form-panel m-0 flex min-h-[100dvh] w-full flex-col"
             >
-              <h1 className="font-display font-black text-[38px] leading-[1.08] tracking-tight whitespace-nowrap">
-                Welcome back.
-              </h1>
-              <p className="mt-3 text-[15px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
-                Sign in to continue.
-              </p>
+              <div className="auth-form-content">
+                <h1 className="mt-10 text-center font-display font-black text-[clamp(2rem,5vw,2.6rem)] leading-[1.08] tracking-tight">
+                  Welcome back.
+                </h1>
+                <p className="mt-3 text-center text-[15px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
+                  Sign in to continue your collection.
+                </p>
 
-              <form onSubmit={(e) => handleSubmit(e, "login")} className="mt-8 space-y-3.5 flex-1 flex flex-col">
-                <AuthField
-                  icon={<Phone className="w-5 h-5" />}
-                  type="tel"
-                  required
-                  autoComplete="tel"
-                  aria-label="Phone Number"
-                  placeholder="Phone Number"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
+                <form onSubmit={(e) => handleSubmit(e, "login")} className="mt-8 space-y-3.5">
+                  <AuthField
+                    icon={<User className="w-5 h-5" />}
+                    type="text"
+                    required
+                    autoComplete="username"
+                    maxLength={64}
+                    aria-label="Username"
+                    placeholder="Username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                  />
                 <div className="relative">
                   <AuthField
                     icon={<Lock className="w-5 h-5" />}
@@ -637,7 +451,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   </button>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end pt-1">
                   <button
                     type="button"
                     onClick={() => goTo("support")}
@@ -647,9 +461,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   </button>
                 </div>
 
-                <div className="flex-1" />
-
-                <div className="pt-2">
+                <div className="pt-3">
                   <PrimaryButton type="submit" disabled={isLoading}>
                     {isLoading ? (
                       <>
@@ -663,30 +475,18 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                     )}
                   </PrimaryButton>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[13px] font-sans text-[var(--theme-text)] opacity-50">Or use</span>
-                  <span className="flex-1" />
-                  <TelegramLoginButton onAuth={handleTelegramLogin} disabled={isLoading} />
+                </form>
+
+                <div className="border-t border-[var(--theme-card-border)] mt-7 pt-5 text-center text-sm font-sans text-[var(--theme-text-muted)]">
+                  New here?{" "}
                   <button
                     type="button"
-                    aria-label="About Telegram login"
-                    onClick={() => toast.info("Connect Telegram to login without a password")}
-                    className="w-8 h-8 flex items-center justify-center text-[var(--theme-text)] opacity-40 hover:opacity-100 transition-opacity cursor-pointer shrink-0"
+                    onClick={() => goTo("register")}
+                    className="font-bold text-[var(--theme-primary)] hover:underline cursor-pointer"
                   >
-                    <Info className="w-4 h-4" />
+                    Register
                   </button>
                 </div>
-              </form>
-
-              <div className="border-t border-[var(--theme-card-border)] mt-6 pt-5 text-center text-sm font-sans text-[var(--theme-text-muted)]">
-                New here?{" "}
-                <button
-                  type="button"
-                  onClick={() => goTo("register")}
-                  className="font-bold text-[var(--theme-primary)] hover:underline cursor-pointer"
-                >
-                  Register
-                </button>
               </div>
             </motion.div>
           )}
@@ -699,16 +499,17 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.25 }}
-              className="flex-1 flex flex-col pt-10"
+              className="auth-form-panel m-0 flex min-h-[100dvh] w-full flex-col"
             >
-              <h1 className="font-display font-black text-[38px] leading-[1.08] tracking-tight whitespace-nowrap">
-                Let's get started
-              </h1>
-              <p className="mt-3 text-[15px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
-                Fill in your details...
-              </p>
+              <div className="auth-form-content">
+                <h1 className="mt-10 font-display font-black text-[clamp(2rem,5vw,2.6rem)] leading-[1.08] tracking-tight">
+                Start your collection.
+                </h1>
+                <p className="mt-3 text-[15px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
+                Choose a username. Add payment details when you need them.
+                </p>
 
-              <form onSubmit={(e) => handleSubmit(e, "register")} className="mt-8 space-y-3.5 flex-1 flex flex-col">
+                <form onSubmit={(e) => handleSubmit(e, "register")} className="mt-8 space-y-3.5">
                 <AuthField
                   icon={<User className="w-5 h-5" />}
                   type="text"
@@ -716,18 +517,9 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   maxLength={64}
                   aria-label="Username"
                   placeholder="Username"
+                  required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                />
-                <AuthField
-                  icon={<Phone className="w-5 h-5" />}
-                  type="tel"
-                  required
-                  autoComplete="tel"
-                  aria-label="Phone Number"
-                  placeholder="Phone Number"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
                 />
                 <div className="relative">
                   <AuthField
@@ -766,63 +558,6 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   )}
                 </div>
 
-                {/* Optional Telegram binding — pill floats right with the info
-                    icon outside it and an Optional subtext below. The
-                    verified id_token attaches to the register submit; the
-                    pill flips to Connected once this Telegram is confirmed
-                    unlinked. */}
-                <div>
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      type="button"
-                      onClick={handleTelegramPillClick}
-                      disabled={isLoading || telegramPillBusy || !!telegramIdToken}
-                      className="inline-flex items-center gap-2 rounded-full border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] px-4 py-2.5 text-[13px] font-sans font-semibold text-[var(--theme-text)] transition-all active:scale-[0.97] disabled:opacity-60 disabled:cursor-default cursor-pointer"
-                    >
-                      {telegramPillBusy ? (
-                        <>
-                          <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />
-                          <span className="opacity-70">Connecting…</span>
-                        </>
-                      ) : telegramIdToken ? (
-                        <>
-                          <img src="/telegram.svg" alt="" aria-hidden="true" className="h-4 w-4 shrink-0 object-contain" />
-                          <span>Connected</span>
-                          <CheckCircle2 className="w-4 h-4 text-[var(--theme-primary)]" />
-                        </>
-                      ) : (
-                        <>
-                          <img src="/telegram.svg" alt="" aria-hidden="true" className="h-4 w-4 shrink-0 object-contain" />
-                          <span>{telegramRegister.status === "failed" ? "Retry Telegram" : "Connect Telegram"}</span>
-                        </>
-                      )}
-                    </button>
-                    {telegramIdToken && (
-                      <button
-                        type="button"
-                        aria-label="Unlink Telegram"
-                        onClick={() => setTelegramUnlinkOpen(true)}
-                        className="w-8 h-8 flex items-center justify-center text-[var(--theme-text)] opacity-40 hover:opacity-100 transition-opacity cursor-pointer shrink-0"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      aria-label="About Telegram login"
-                      onClick={() => toast.info("Connect Telegram to login without a password")}
-                      className="w-8 h-8 flex items-center justify-center text-[var(--theme-text)] opacity-40 hover:opacity-100 transition-opacity cursor-pointer shrink-0"
-                    >
-                      <Info className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <p className="mt-1 text-right text-[11px] font-sans text-[var(--theme-text)] opacity-50">
-                    Optional
-                  </p>
-                </div>
-
-                <div className="flex-1" />
-
                 {regBonus > 0 && (
                   <div className="relative overflow-hidden rounded-2xl bg-[var(--theme-primary)]/10 px-3 py-2 tile-shimmer-5s">
                     <p className="flex items-center gap-1.5 text-xs font-sans text-[var(--theme-text-muted)]">
@@ -832,7 +567,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   </div>
                 )}
 
-                <div className="pt-2">
+                <div className="pt-3">
                   <PrimaryButton type="submit" disabled={isLoading}>
                     {isLoading ? (
                       <>
@@ -846,17 +581,18 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                     )}
                   </PrimaryButton>
                 </div>
-              </form>
+                </form>
 
-              <div className="border-t border-[var(--theme-card-border)] mt-6 pt-5 text-center text-sm font-sans text-[var(--theme-text-muted)]">
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => goTo("login")}
-                  className="font-bold text-[var(--theme-primary)] hover:underline cursor-pointer"
-                >
-                  Login
-                </button>
+                <div className="border-t border-[var(--theme-card-border)] mt-7 pt-5 text-center text-sm font-sans text-[var(--theme-text-muted)]">
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => goTo("login")}
+                    className="font-bold text-[var(--theme-primary)] hover:underline cursor-pointer"
+                  >
+                    Login
+                  </button>
+                </div>
               </div>
             </motion.div>
           )}
@@ -869,117 +605,113 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.25 }}
-              className="flex-1 flex flex-col pt-10"
+              className="auth-form-panel m-0 flex min-h-[100dvh] w-full flex-col"
             >
-              <h1 className="font-display font-black text-[38px] leading-[1.08] tracking-tight">
-                Need a<br />
-                hand?
-              </h1>
-              <p className="mt-3 text-[15px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
-                Send a note to the support desk to recover your account.
-              </p>
+              <div className="auth-form-content auth-recovery-content">
+                <h1 className="mt-10 text-center font-display font-black text-[clamp(2rem,5vw,2.6rem)] leading-[1.08] tracking-tight">
+                  Recover your account.
+                </h1>
+                <p className="mt-3 text-center text-[15px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
+                  Tell our support team how to find you and we’ll help you get back in.
+                </p>
 
-              {/* Primary: fire-and-forget recovery form */}
-              {recoverySent ? (
-                <div className="mt-8 rounded-2xl border border-[var(--theme-primary)]/30 bg-[var(--theme-primary)]/10 px-5 py-6 text-center">
-                  <CheckCircle2 className="w-10 h-10 mx-auto text-[var(--theme-primary)]" />
-                  <p className="mt-3 font-display font-black text-lg tracking-tight">Message sent.</p>
-                  <p className="mt-2 text-[14px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
-                    Support will reach out on your email or phone. Typical response time is 15 mins. Keep them handy.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => { setRecoverySent(false); setRecoveryMsg(""); }}
-                    className="mt-4 text-[13px] font-sans font-semibold text-[var(--theme-primary)] hover:underline cursor-pointer"
-                  >
-                    Send another message
-                  </button>
-                </div>
-              ) : (
-                <form onSubmit={handleRecoverySubmit} className="mt-8 space-y-3.5">
-                  <AuthField
-                    icon={<Phone className="w-5 h-5" />}
-                    type="tel"
-                    required
-                    autoComplete="tel"
-                    aria-label="Account phone number"
-                    placeholder="Account phone number"
-                    value={recoveryPhone}
-                    onChange={(e) => setRecoveryPhone(e.target.value)}
-                  />
-                  <AuthField
-                    icon={<Mail className="w-5 h-5" />}
-                    type="email"
-                    required
-                    autoComplete="email"
-                    aria-label="Email address"
-                    placeholder="Email address"
-                    value={recoveryEmail}
-                    onChange={(e) => setRecoveryEmail(e.target.value)}
-                  />
-                  <textarea
-                    required
-                    aria-label="Describe the issue"
-                    placeholder="Describe the issue e.g. locked out after number change"
-                    value={recoveryMsg}
-                    onChange={(e) => setRecoveryMsg(e.target.value)}
-                    rows={4}
-                    maxLength={1000}
-                    className="w-full px-4 py-4 bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] rounded-2xl text-[var(--theme-text)] placeholder:text-[var(--theme-text-muted)] text-[15px] font-sans font-medium outline-none transition-colors focus:border-[var(--theme-primary)] select-text resize-none"
-                  />
-                  <PrimaryButton type="submit" disabled={recoverySending}>
-                    {recoverySending ? (
-                      <>
-                        <span className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        Sending..
-                      </>
-                    ) : (
-                      <>
-                        Send message <Send className="w-4 h-4" />
-                      </>
-                    )}
-                  </PrimaryButton>
-                </form>
-              )}
+                {recoverySent ? (
+                  <div className="mt-8 border border-[var(--theme-primary)]/30 bg-[var(--theme-primary)]/10 px-5 py-6 text-center">
+                    <CheckCircle2 className="w-10 h-10 mx-auto text-[var(--theme-primary)]" />
+                    <p className="mt-3 font-display font-black text-lg tracking-tight">Message sent.</p>
+                    <p className="mt-2 text-[14px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
+                      If the username matches an account, support will reply using the contact details you provided.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => { setRecoverySent(false); setRecoveryMsg(""); }}
+                      className="mt-4 text-[13px] font-sans font-semibold text-[var(--theme-primary)] hover:underline cursor-pointer"
+                    >
+                      Send another message
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleRecoverySubmit} className="mt-8 space-y-3.5">
+                    <AuthField
+                      icon={<User className="w-5 h-5" />}
+                      type="text"
+                      required
+                      autoComplete="username"
+                      aria-label="Account username"
+                      placeholder="Account username"
+                      value={recoveryUsername}
+                      onChange={(e) => setRecoveryUsername(e.target.value)}
+                    />
+                    <AuthField
+                      icon={<Phone className="w-5 h-5" />}
+                      type="tel"
+                      autoComplete="tel"
+                      aria-label="Contact phone number (optional)"
+                      placeholder="Contact phone number (optional)"
+                      value={recoveryPhone}
+                      onChange={(e) => setRecoveryPhone(e.target.value)}
+                    />
+                    <AuthField
+                      icon={<Mail className="w-5 h-5" />}
+                      type="email"
+                      required
+                      autoComplete="email"
+                      aria-label="Email address"
+                      placeholder="Email address"
+                      value={recoveryEmail}
+                      onChange={(e) => setRecoveryEmail(e.target.value)}
+                    />
+                    <textarea
+                      required
+                      aria-label="Describe the issue"
+                      placeholder="Describe the issue"
+                      value={recoveryMsg}
+                      onChange={(e) => setRecoveryMsg(e.target.value)}
+                      rows={3}
+                      maxLength={1000}
+                      className="w-full px-4 py-4 bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] rounded-2xl text-[var(--theme-text)] placeholder:text-[var(--theme-text-muted)] text-[15px] font-sans font-medium outline-none transition-colors focus:border-[var(--theme-primary)] select-text resize-y"
+                    />
+                    <PrimaryButton type="submit" disabled={recoverySending}>
+                      {recoverySending ? (
+                        <>
+                          <span className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          Send recovery request <Send className="w-4 h-4" />
+                        </>
+                      )}
+                    </PrimaryButton>
+                  </form>
+                )}
 
-              {/* Secondary: external channels */}
-              <p className="mt-8 mb-2 text-[11px] font-sans font-black uppercase tracking-[0.14em] text-[var(--theme-text-muted)]">
-                Or try a channel
-              </p>
-              <div className="space-y-3 opacity-80">
+              <div className="mt-8 border-t border-[var(--theme-card-border)] pt-5">
+                <p className="mb-3 text-center text-[11px] font-sans font-black uppercase tracking-[0.14em] text-[var(--theme-text-muted)]">
+                  Other ways to reach us
+                </p>
+                <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-[13px] font-sans font-semibold">
                 <a
                   href={activeConfig?.whatsappLink || "https://t.me/#"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-4 px-5 flex items-center gap-3 rounded-2xl bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] transition-all active:scale-[0.98]"
+                  className="text-[var(--theme-primary)] hover:underline"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-6 h-6 shrink-0 fill-sky-500">
-                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.135-.954l11.566-4.458c.538-.196 1.006.128.832.94z" />
-                  </svg>
-                  <div className="text-left font-sans flex-1">
-                    <div className="font-bold text-[15px]">Telegram Support</div>
-                    <div className="text-[13px] text-[var(--theme-text-muted)]">Live agent chat</div>
-                  </div>
+                  WhatsApp support
                 </a>
 
                 <a
                   href={activeConfig?.telegramLink || "https://t.me/#"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-4 px-5 flex items-center gap-3 rounded-2xl bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] transition-all active:scale-[0.98]"
+                  className="text-[var(--theme-primary)] hover:underline"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-6 h-6 shrink-0 fill-sky-500">
-                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.135-.954l11.566-4.458c.538-.196 1.006.128.832.94z" />
-                  </svg>
-                  <div className="text-left font-sans flex-1">
-                    <div className="font-bold text-[15px]">Telegram Channel</div>
-                    <div className="text-[13px] text-[var(--theme-text-muted)]">Official community announcements</div>
-                  </div>
+                  Telegram support
                 </a>
               </div>
+              </div>
 
-              <div className="flex-1" />
-              <div className="border-t border-[var(--theme-card-border)] mt-8 pt-5 text-center text-sm font-sans text-[var(--theme-text-muted)]">
+              <div className="border-t border-[var(--theme-card-border)] mt-6 pt-5 text-center text-sm font-sans text-[var(--theme-text-muted)]">
                 Remembered it?{" "}
                 <button
                   type="button"
@@ -989,39 +721,11 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   Login
                 </button>
               </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Unlink confirm: discards the pending (never persisted) Telegram
-            token and drops the pill back to idle. */}
-        {telegramUnlinkOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-6" role="dialog" aria-modal="true" aria-label="Unlink Telegram account">
-            <div className="absolute inset-0 bg-black/60" onClick={() => setTelegramUnlinkOpen(false)} />
-            <div className="relative w-full max-w-xs rounded-2xl border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] p-5 text-center">
-              <h3 className="font-display font-black text-lg tracking-tight">Unlink Telegram account?</h3>
-              <p className="mt-2 text-[14px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
-                You can still register and log in with your phone and password.
-              </p>
-              <div className="mt-4 space-y-2">
-                <button
-                  type="button"
-                  onClick={() => { setTelegramIdToken(null); setTelegramUnlinkOpen(false); toast.success("Telegram unlinked."); }}
-                  className="w-full py-3 px-6 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-400 font-sans font-bold text-[14px] transition-all active:scale-[0.98] cursor-pointer"
-                >
-                  Unlink
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTelegramUnlinkOpen(false)}
-                  className="w-full py-3 px-6 rounded-2xl border border-[var(--theme-card-border)] text-[var(--theme-text)] font-sans font-semibold text-[14px] transition-all active:scale-[0.98] bg-transparent cursor-pointer"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

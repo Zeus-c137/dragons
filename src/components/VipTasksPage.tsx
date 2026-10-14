@@ -411,7 +411,7 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
       else if (data.claimedTierRewards) applyPointsDelta(0, { claimedTierRewards });
       setBoard((current) => ({ ...current, claimedTierRewards }));
       confirmMilestoneTierClaim(phone, stage.name);
-      toast.success(`Stage reward claimed: ${formatCurrency(reward)} added to withdrawable balance`);
+      toast.success(`Stage reward claimed: ${formatCurrency(reward)} added to your balance`);
       void load(true);
     } catch (error: any) {
       clearMilestoneTierClaim(phone, stage.name);
@@ -549,7 +549,7 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
           <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-white/5 bg-[var(--theme-card-bg)]/80 px-4 py-2 backdrop-blur-xl">
             <button type="button" onClick={() => setSelectedStage(null)} aria-label="Back to journey" className="w-9 h-9 rounded-full border border-white/10 bg-[var(--theme-card-bg)]/60 flex items-center justify-center text-[var(--theme-text)] cursor-pointer active:scale-95 transition-transform"><ArrowLeft className="w-4 h-4" /></button>
             <div ref={balanceRef} className="text-right">
-              <p className="text-[8px] font-sans font-normal tracking-[0.13em] text-[var(--theme-text)] opacity-65">WITHDRAWABLE BALANCE</p>
+              <p className="text-[8px] font-sans font-normal tracking-[0.13em] text-[var(--theme-text)] opacity-65">MY BALANCE</p>
               <p className="mt-0.5 font-display font-black text-[16px] leading-none text-[var(--theme-primary)]">{formatCurrency(Number(userProfile?.points || 0))}</p>
             </div>
           </div>
@@ -698,7 +698,7 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
         <div className="flex items-start justify-between gap-2">
           <h1 className="min-w-0 flex-1 font-display font-black text-[26px] leading-none tracking-tight text-[var(--theme-text)] sm:text-[30px]">YOUR <span className="text-[var(--theme-primary)]">JOURNEY</span></h1>
           <div ref={balanceRef} className="shrink-0 text-right">
-            <p className="whitespace-nowrap text-[7px] font-sans font-normal tracking-[0.08em] text-[var(--theme-text)] opacity-65">WITHDRAWABLE BALANCE</p>
+            <p className="whitespace-nowrap text-[7px] font-sans font-normal tracking-[0.08em] text-[var(--theme-text)] opacity-65">MY BALANCE</p>
             <p className="mt-0.5 font-display font-black text-[16px] leading-none text-[var(--theme-primary)]">{formatCurrency(Number(userProfile?.points || 0))}</p>
           </div>
         </div>

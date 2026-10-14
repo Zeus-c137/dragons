@@ -28,7 +28,7 @@ function formatJoinedDate(value?: string): string {
 function memberInitials(stat: ReferralStat): string {
   const name = String(stat.username || stat.inviteeName || "").trim();
   if (name) return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-  return String(stat.phone || stat.inviteePhone || "TM").slice(-2);
+  return String(stat.id || "TM").slice(-2).toUpperCase();
 }
 
 function TeamHero({ stats, isLoading, siteConfig }: { stats: ReferralStat[]; isLoading: boolean; siteConfig?: SiteConfig | null }) {
@@ -144,7 +144,7 @@ export default function InviteTeamView({ stats, isLoading, activeLevel, onActive
         {isLoading ? <ListSkeleton /> : activeLevelStats.length === 0 ? <EmptyState level={activeLevel} /> : (
           <AnimatePresence mode="wait">
             <motion.div key={`members-${activeLevel}`} initial={getInitial(reduced)} animate={{ opacity: 1, y: 0 }} exit={getExit(reduced)} transition={spring}>
-              {activeLevelStats.map((stat, index) => <MemberRow key={`${stat.phone || stat.inviteePhone || index}-${index}`} stat={stat} />)}
+              {activeLevelStats.map((stat, index) => <MemberRow key={`${stat.id || stat.phone || index}-${index}`} stat={stat} />)}
             </motion.div>
           </AnimatePresence>
         )}

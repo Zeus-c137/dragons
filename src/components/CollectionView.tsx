@@ -208,15 +208,15 @@ export default function CollectionView({
       ) : items.length === 0 ? (
         <div className="text-center py-12 px-4 space-y-4">
           <Award className="w-10 h-10 opacity-40 mx-auto" />
-          <p className="font-bold opacity-60 text-xs uppercase font-sans">No collectibles yet</p>
-          <p className="text-[13px] opacity-60 font-sans">Finish your first run cycle to mint a collectible.</p>
+          <p className="font-bold opacity-60 text-xs uppercase font-sans">No dragons hatched yet</p>
+          <p className="text-[13px] opacity-60 font-sans">Your dragon will appear here when an egg finishes incubating.</p>
           {onNavigateToCatalog && (
             <button
               type="button"
               onClick={onNavigateToCatalog}
               className="mx-auto inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[var(--theme-primary)] text-[var(--theme-on-primary)] text-[13px] font-sans font-black cursor-pointer active:scale-[0.97] transition-all"
             >
-              <Plus className="w-4 h-4" /> Explore Runs
+              <Plus className="w-4 h-4" /> Choose an egg
             </button>
           )}
         </div>
@@ -305,7 +305,7 @@ export default function CollectionView({
                         className="relative aspect-square rounded-2xl overflow-hidden bg-[var(--theme-text)]/5 cursor-zoom-in"
                       >
                         {expanded.image ? (
-                          <img src={expanded.image} alt={expanded.itemName} loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-cover pointer-events-none" draggable={false} />
+                          <img src={expanded.image} alt={expanded.itemName} loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-contain p-4 pointer-events-none" draggable={false} />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center opacity-40">
                             <Award className="w-12 h-12" />
@@ -366,7 +366,7 @@ export default function CollectionView({
                         >
                           <div className="relative aspect-square rounded-2xl overflow-hidden bg-[var(--theme-text)]/5">
                             {c.image ? (
-                              <img src={c.image} alt={c.itemName} loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-cover pointer-events-none" draggable={false} />
+                              <img src={c.image} alt={c.itemName} loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-contain p-3 pointer-events-none" draggable={false} />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center opacity-40">
                                 <Award className="w-12 h-12" />
@@ -411,7 +411,7 @@ export default function CollectionView({
                       className="relative aspect-square rounded-xl overflow-hidden bg-[var(--theme-text)]/5 cursor-zoom-in"
                     >
                       {c.image ? (
-                        <img src={c.image} alt={c.itemName} loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-cover" />
+                        <img src={c.image} alt={c.itemName} loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-contain p-3" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center opacity-40">
                           <Award className="w-8 h-8" />

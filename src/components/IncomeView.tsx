@@ -20,7 +20,7 @@ import MetricCard from "./MetricCard";
 import CellsProgress from "./CellsProgress";
 import { Button } from "./ui/button";
 import { useCurrency } from "../currency";
-import { getRunElapsedDays, getRunTotalDays, getRunDailyRate, getRunState } from "../utils/runs";
+import { getRunElapsedDays, getRunTotalDays, getRunDailyRate, getRunState, getRunClaimableReturns, isRunCycleFinished } from "../utils/runs";
 import { rarityMapForCatalog } from "../utils/rarity";
 import RarityBadge from "./RarityBadge";
 import confetti from "canvas-confetti";
@@ -28,6 +28,12 @@ import { toast } from "sonner";
 import dollar3d from "@/src/assets/3d/3dicons-dollar-iso-premium.png";
 
 const RUNS_LAYOUT_KEY = "rentdue_runs_layout";
+
+function getIncomeRunState(node: SubscribedNode, items: SubscriptionItem[]) {
+  if (getRunClaimableReturns(node).days > 0) return "active";
+  const state = getRunState(node, items);
+  return state === "done" && !isRunCycleFinished(node) ? "active" : state;
+}
 
 interface IncomeViewProps {
   profile: UserProfile;
@@ -37,7 +43,7 @@ interface IncomeViewProps {
   onNavigateToIncomeHistory: () => void;
   onNavigateToCollection?: () => void;
   onRenew?: (item: SubscriptionItem) => void;
-  onClaimSuccess?: (pointsEarned: number, newBalance: number, subId: string) => void;
+  onClaimSuccess?: (pointsEarned: number, newBalance: number, subId: string, lastClaimedDate: string, status: "active" | "expired") => void;
   onCollectibleClaimed?: () => void;
 }
 
@@ -71,9 +77,10 @@ export default function IncomeView({
   const horizontalRafRef = useRef<number>(0);
 
   const shownNodes = React.useMemo(
-    () => showCompleted
-      ? activeNodes.filter((n) => getRunState(n, items) !== "active")
-      : activeNodes.filter((n) => getRunState(n, items) === "active"),
+    () => activeNodes.filter((node) => {
+      const state = getIncomeRunState(node, items);
+      return showCompleted ? state !== "active" : state === "active";
+    }),
     [activeNodes, items, showCompleted]
   );
 
@@ -125,7 +132,7 @@ export default function IncomeView({
 
   const loadCollectibles = useCallback(async () => {
     try {
-      const res = await fetch(`/api/collectibles/${profile.phone}`, { cache: "no-store" });
+      const res = await fetch(`/api/collectibles/${profile.id}`, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok || !Array.isArray(data)) return;
       const map: Record<string, Collectible> = {};
@@ -134,16 +141,15 @@ export default function IncomeView({
     } catch {
       // gallery still works without the claimed flags
     }
-  }, [profile.phone]);
+  }, [profile.id]);
 
   useEffect(() => {
     void loadCollectibles();
   }, [loadCollectibles, activeNodes.length]);
 
-  const nodeStatus = (node: SubscribedNode): string => String(node.status || "").toLowerCase();
-  const activeCount = activeNodes.filter((n) => getRunState(n, items) === "active").length;
-  const activeTotalCollected = activeNodes.filter((n) => getRunState(n, items) === "active").reduce((acc, n) => acc + (Number(n.totalEarned) || 0), 0);
-  const completedNodes = activeNodes.filter((n) => getRunState(n, items) !== "active");
+  const activeCount = activeNodes.filter((n) => getIncomeRunState(n, items) === "active").length;
+  const activeTotalCollected = activeNodes.filter((n) => getIncomeRunState(n, items) === "active").reduce((acc, n) => acc + (Number(n.totalEarned) || 0), 0);
+  const completedNodes = activeNodes.filter((n) => getIncomeRunState(n, items) !== "active");
   const completedCount = completedNodes.length;
   const completedTotalCollected = completedNodes.reduce((acc, n) => acc + (Number(n.totalEarned) || 0), 0);
 
@@ -153,25 +159,27 @@ export default function IncomeView({
       const res = await fetch("/api/subscriptions/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subId, phone: profile.phone })
+        body: JSON.stringify({ subId, phone: profile.id })
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Failed to claim node earnings.");
       }
 
-      // Trigger Confetti!
-      confetti({
-        particleCount: 120,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+      if (Number(data.pointsClaimed) > 0) {
+        confetti({
+          particleCount: 120,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      }
 
-      toast.success(`Claimed UGX ${data.pointsClaimed.toLocaleString()} Shs income from ${data.itemName}!`);
+      toast.success(`Claimed ${formatCurrency(Number(data.pointsClaimed) || 0)} from ${data.itemName}!`);
 
       if (onClaimSuccess) {
-        onClaimSuccess(data.pointsClaimed, data.updatedPoints, subId);
+        onClaimSuccess(data.pointsClaimed, data.updatedPoints, subId, data.lastClaimedDate, data.status);
       }
+      void loadCollectibles();
     } catch (err: any) {
       toast.error(err.message || "Failed to claim earnings.");
     } finally {
@@ -185,7 +193,7 @@ export default function IncomeView({
       const res = await fetch("/api/collectibles/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: profile.phone, subscriptionId: node.id })
+        body: JSON.stringify({ phone: profile.id, subscriptionId: node.id })
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -302,16 +310,18 @@ export default function IncomeView({
             style={layout === "horizontal" ? { WebkitOverflowScrolling: "touch" } : undefined}
           >
             {runEntries.map(({ node, mappedItem }) => {
-              const imageUrl = mappedItem?.imageUrl || node.image;
               const itemName = mappedItem?.name || node.itemName;
               const totalDays = getRunTotalDays(node, items);
               const dailyYield = getRunDailyRate(node, items);
 
               const elapsedDays = getRunElapsedDays(node, items);
-              const runState = getRunState(node, items);
+              const runState = getIncomeRunState(node, items);
+              const imageUrl = runState !== "active" && node.dragonImageUrl
+                ? node.dragonImageUrl
+                : node.eggImageUrl || mappedItem?.eggImageUrl || mappedItem?.imageUrl || node.image;
+              const claimableReturns = getRunClaimableReturns(node);
               const isExpired = runState === "expired";
-              const isDone = runState !== "active";
-              const isReadyToClaim = nodeStatus(node) === "active" && elapsedDays >= totalDays;
+              const isDone = runState !== "active" && claimableReturns.days === 0;
               const progressPercent = Math.min(100, Math.max(0, (elapsedDays / totalDays) * 100));
               const collectible = collectibles[node.id];
               const rarity = collectible?.rarity || (mappedItem ? rarityMap[mappedItem.id] : undefined) || "common";
@@ -335,7 +345,7 @@ export default function IncomeView({
                           alt=""
                           loading="lazy"
                           referrerPolicy="no-referrer"
-                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500"
+                          className={`absolute inset-0 w-full h-full group-hover:scale-[1.04] transition-transform duration-500 ${node.eggImageUrl || node.dragonImageUrl ? "object-contain p-4" : "object-cover"}`}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-transparent text-[var(--theme-text)] opacity-40">
@@ -408,6 +418,19 @@ export default function IncomeView({
                     </button>
                   </div>
 
+                  {claimableReturns.amount > 0 && (
+                    <button
+                      type="button"
+                      disabled={claimingId === node.id}
+                      onClick={() => handleClaim(node.id)}
+                      className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-[var(--theme-primary)] text-[var(--theme-on-primary)] text-[13px] font-sans font-black cursor-pointer active:scale-[0.98] transition-all disabled:opacity-60"
+                    >
+                      {claimingId === node.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                      Claim {formatCurrency(claimableReturns.amount)}
+                      {claimableReturns.days > 1 ? ` · ${claimableReturns.days} days` : ""}
+                    </button>
+                  )}
+
                   {/* Finished-run ownership actions */}
                   {isDone && (
                     <div className="mt-2.5">
@@ -442,7 +465,7 @@ export default function IncomeView({
       <div className="rounded-[20px] border border-white/10 bg-[var(--theme-card-bg)]/40 p-3.5 flex items-start gap-2.5">
         <Calendar className="w-4 h-4 text-[var(--theme-primary)] shrink-0 mt-0.5" />
         <p className="text-[12px] font-sans opacity-70 leading-relaxed">
-          Earnings are credited to your withdrawable balance daily, once your run is active. Finished runs become collectibles. Claim them to own them permanently.
+          Returns accumulate while a run is active and can be claimed here. Finished runs become collectibles; claim them to own them permanently.
         </p>
       </div>
 

@@ -7,6 +7,7 @@ import { normalizeRarity, rarityForItem } from "../utils/rarity";
 import { sanitizeSiteConfig } from "../utils/themeTokens";
 import { canonicalTypeOf, normalizeExternalReference } from "../utils/transactionMeta";
 import { dedupeCategories, normalizeVipActionUrl, normalizeVipTask } from "../utils/vip";
+import { getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmount, getRunTotalDays } from "../utils/runs";
 
 
 export class DatabaseOperationError extends Error {
@@ -165,59 +166,34 @@ function addPlatformDays(dateKey: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-const dailyYieldCatchupDates = new Map<string, string>();
-const dailyYieldCatchupInFlight = new Map<string, Promise<number>>();
-
-export async function ensureUserDailyYields(phone: string): Promise<number> {
-  const normalizedPhone = String(phone || "").trim();
-  if (!normalizedPhone) return 0;
-
-  const today = getPlatformDateKey();
-  if (dailyYieldCatchupDates.get(normalizedPhone) === today) return 0;
-
-  const existingRun = dailyYieldCatchupInFlight.get(normalizedPhone);
-  if (existingRun) return existingRun;
-
-  const run = autoCollectUserYields(normalizedPhone)
-    .then((total) => {
-      dailyYieldCatchupDates.set(normalizedPhone, today);
-      return total;
-    })
-    .finally(() => {
-      dailyYieldCatchupInFlight.delete(normalizedPhone);
-    });
-  dailyYieldCatchupInFlight.set(normalizedPhone, run);
-  return run;
-}
-
 async function migrateUsernameInviteCodes(drizzleDb: any): Promise<void> {
   const migration = await drizzleDb.transaction(async (tx: any) => {
     const users = await tx.select({
-      phone: schema.users.phone,
+      id: schema.users.id,
       username: schema.users.username,
       inviteCode: schema.users.inviteCode,
       referredByCode: schema.users.referredByCode
     }).from(schema.users);
 
-    const normalizedUsernames = new Map<string, { username: string; phones: string[] }>();
+    const normalizedUsernames = new Map<string, { username: string; ids: string[] }>();
     for (const user of users) {
       const username = String(user.username || "").trim();
       if (!username) {
-        throw new Error(`Cannot use username invite codes: account ${user.phone} has an empty username. Set a unique username before restarting.`);
+        throw new Error(`Cannot use username invite codes: account ${user.id} has an empty username. Set a unique username before restarting.`);
       }
 
       const key = username.toLocaleLowerCase("en-US");
       const existing = normalizedUsernames.get(key);
       if (existing) {
-        existing.phones.push(user.phone);
+        existing.ids.push(user.id);
       } else {
-        normalizedUsernames.set(key, { username, phones: [user.phone] });
+        normalizedUsernames.set(key, { username, ids: [user.id] });
       }
     }
 
-    const duplicates = Array.from(normalizedUsernames.values()).filter((entry) => entry.phones.length > 1);
+    const duplicates = Array.from(normalizedUsernames.values()).filter((entry) => entry.ids.length > 1);
     if (duplicates.length > 0) {
-      const details = duplicates.map(({ username, phones }) => `"${username}" (${phones.join(", ")})`).join("; ");
+      const details = duplicates.map(({ username, ids }) => `"${username}" (${ids.join(", ")})`).join("; ");
       throw new Error(`Cannot migrate invite codes because usernames must be unique (case-insensitive). Resolve these duplicates and restart: ${details}`);
     }
 
@@ -236,11 +212,11 @@ async function migrateUsernameInviteCodes(drizzleDb: any): Promise<void> {
       const referredByCode = String(user.referredByCode || "").trim();
       const replacement = usernameByOldCode.get(referredByCode.toLocaleUpperCase("en-US"));
       return replacement && replacement !== referredByCode
-        ? [{ phone: user.phone, referredByCode: replacement }]
+        ? [{ id: user.id, referredByCode: replacement }]
         : [];
     });
     const codeUpdates = users.map((user: any) => ({
-      phone: user.phone,
+      id: user.id,
       originalUsername: String(user.username || ""),
       username: String(user.username).trim(),
       inviteCode: String(user.inviteCode || "")
@@ -253,7 +229,7 @@ async function migrateUsernameInviteCodes(drizzleDb: any): Promise<void> {
     for (const update of referralUpdates) {
       await tx.update(schema.users)
         .set({ referredByCode: update.referredByCode })
-        .where(eq(schema.users.phone, update.phone));
+        .where(eq(schema.users.id, update.id));
     }
 
     if (codeUpdates.length > 0) {
@@ -265,19 +241,19 @@ async function migrateUsernameInviteCodes(drizzleDb: any): Promise<void> {
           code = `MIG${crypto.randomBytes(12).toString("hex").toUpperCase()}`;
         } while (reservedCodes.has(code));
         reservedCodes.add(code);
-        temporaryCodes.set(user.phone, code);
+        temporaryCodes.set(user.id, code);
       }
 
       for (const user of users) {
         await tx.update(schema.users)
-          .set({ username: String(user.username).trim(), inviteCode: temporaryCodes.get(user.phone) })
-          .where(eq(schema.users.phone, user.phone));
+          .set({ username: String(user.username).trim(), inviteCode: temporaryCodes.get(user.id) })
+          .where(eq(schema.users.id, user.id));
       }
       for (const user of users) {
         const username = String(user.username).trim();
         await tx.update(schema.users)
           .set({ inviteCode: username })
-          .where(eq(schema.users.phone, user.phone));
+          .where(eq(schema.users.id, user.id));
       }
     }
 
@@ -314,8 +290,8 @@ export async function seedDatabaseIfEmpty() {
       WHERE type = 'deposit'
         AND UPPER(status) IN ('SUCCESSFUL', 'COMPLETED')
       GROUP BY user_id
-    ) d ON d.user_id = u.phone
-    SET u.recharge_balance = u.recharge_balance + GREATEST(d.successful_deposits - u.total_deposits, 0),
+    ) d ON d.user_id = u.id
+    SET u.points = u.points + GREATEST(d.successful_deposits - u.total_deposits, 0),
         u.total_deposits = GREATEST(d.successful_deposits, u.total_deposits)
     WHERE d.successful_deposits > u.total_deposits
   `) as any;
@@ -349,7 +325,7 @@ export async function seedDatabaseIfEmpty() {
       WHERE type = 'withdrawal'
         AND UPPER(status) IN ('SUCCESSFUL', 'COMPLETED')
       GROUP BY user_id
-    ) w ON w.user_id = u.phone
+    ) w ON w.user_id = u.id
     SET u.withdrawn_cash = GREATEST(w.settled_withdrawals, u.withdrawn_cash)
     WHERE w.settled_withdrawals > u.withdrawn_cash
   `) as any;
@@ -357,27 +333,31 @@ export async function seedDatabaseIfEmpty() {
   if (withdrawalAffected > 0) console.warn(`[Database] Reconciled settled withdrawals for ${withdrawalAffected} account(s).`);
 }
 
-export async function getUserProfile(phone: string): Promise<UserProfile | null> {
+export async function getUserProfile(id: string): Promise<UserProfile | null> {
   const drizzleDb = requireDatabase("load your account");
   try {
-      const rows = await drizzleDb.select().from(schema.users).where(eq(schema.users.phone, phone)).limit(1);
+      let rows = await drizzleDb.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
+      if (rows.length === 0) {
+        rows = await drizzleDb.select().from(schema.users).where(eq(schema.users.phone, id)).limit(1);
+      }
       if (rows.length > 0) {
         const u = rows[0];
         const user: UserProfile = {
+          id: u.id,
           phone: u.phone,
           telegramId: (u as any).telegramId || null,
           username: u.username,
           password: u.password,
-          inviteCode: u.username,
+          inviteCode: u.inviteCode,
           referredByCode: u.referredByCode || "",
           operator: u.operator || "MTN",
           points: u.points,
-          rechargeBalance: u.rechargeBalance,
           withdrawnCash: u.withdrawnCash,
           totalDeposits: u.totalDeposits,
           aiIncome: u.aiIncome,
           invitesCount: u.invitesCount,
           referralRewardsEarned: u.referralRewardsEarned,
+          pendingReferralRewards: u.pendingReferralRewards,
           claimedVipTasks: readJsonStringArray(u.claimedVipTasks),
           claimedTierRewards: readJsonStringArray((u as any).claimedTierRewards),
           locked: u.locked,
@@ -395,35 +375,56 @@ export async function getUserProfile(phone: string): Promise<UserProfile | null>
   return null;
 }
 
+export async function getUserProfileByPhone(phone: string): Promise<UserProfile | null> {
+  const drizzleDb = requireDatabase("find your account by phone");
+  try {
+    const rows = await drizzleDb.select().from(schema.users).where(eq(schema.users.phone, phone)).limit(1);
+    return rows[0] ? getUserProfile(rows[0].id) : null;
+  } catch (error) {
+    throw databaseFailure("find your account by phone", error);
+  }
+}
+
+export async function getUserProfileByUsername(username: string): Promise<UserProfile | null> {
+  const drizzleDb = requireDatabase("find your account by username");
+  try {
+    const rows = await drizzleDb.select().from(schema.users).where(eq(schema.users.username, username)).limit(1);
+    return rows[0] ? getUserProfile(rows[0].id) : null;
+  } catch (error) {
+    throw databaseFailure("find your account by username", error);
+  }
+}
+
 export async function getUserProfileByTelegramId(id: string): Promise<UserProfile | null> {
   const drizzleDb = requireDatabase("find your account");
   const rows = await drizzleDb.select().from(schema.users).where(eq(schema.users.telegramId, id)).limit(1);
-  return rows[0] ? getUserProfile(rows[0].phone) : null;
+  return rows[0] ? getUserProfile(rows[0].id) : null;
 }
 
-export async function linkTelegramAccount(phone: string, id: string): Promise<"linked" | "already_linked" | "conflict"> {
+export async function linkTelegramAccount(accountId: string, id: string): Promise<"linked" | "already_linked" | "conflict"> {
   const drizzleDb = requireDatabase("link Telegram");
-  const current = await drizzleDb.select({ telegramId: schema.users.telegramId }).from(schema.users).where(eq(schema.users.phone, phone)).limit(1);
+  const current = await drizzleDb.select({ telegramId: schema.users.telegramId }).from(schema.users).where(eq(schema.users.id, accountId)).limit(1);
   if (!current[0]) return "conflict";
   if (current[0].telegramId === id) return "already_linked";
   if (current[0].telegramId) return "conflict";
   try {
-    await drizzleDb.update(schema.users).set({ telegramId: id }).where(and(eq(schema.users.phone, phone), isNull(schema.users.telegramId)));
+    await drizzleDb.update(schema.users).set({ telegramId: id }).where(and(eq(schema.users.id, accountId), isNull(schema.users.telegramId)));
   } catch (error) {
     const details = rootCause(error);
     if (details?.code === "ER_DUP_ENTRY" || details?.errno === 1062) return "conflict";
     throw databaseFailure("link Telegram", error);
   }
-  const linked = await drizzleDb.select({ telegramId: schema.users.telegramId }).from(schema.users).where(eq(schema.users.phone, phone)).limit(1);
+  const linked = await drizzleDb.select({ telegramId: schema.users.telegramId }).from(schema.users).where(eq(schema.users.id, accountId)).limit(1);
   return linked[0]?.telegramId === id ? "linked" : "conflict";
 }
 
 export async function registerUserProfile(data: any): Promise<any> {
-  const phone = data.phone || "";
+  const accountId = String(data.id || crypto.randomBytes(16).toString("hex"));
+  const phone = typeof data.phone === "string" && data.phone ? data.phone : null;
   const drizzleDb = requireDatabase("create your account");
   const rawPassword = data.password || data.passwordHash || "";
   const password = rawPassword ? hashPassword(rawPassword) : "";
-  const username = String(data.username || "").trim().slice(0, 64) || "User_" + phone.slice(-4);
+  const username = String(data.username || "").trim().slice(0, 64) || `Dragon_${accountId.slice(-8)}`;
   const referredByCode = String(data.referredByCode || data.inviteCode || "").trim();
 
   const config = await getSiteConfig();
@@ -434,23 +435,22 @@ export async function registerUserProfile(data: any): Promise<any> {
   const inviteBonusAmt = (config.inviteBonus !== undefined && config.inviteBonus !== null) ? Number(config.inviteBonus) : 0;
 
   const newUser: UserProfile = {
+    id: accountId,
     phone,
-    // Optional Telegram binding (verified server-side from the OIDC id_token
-    // before this call). NULL for phone-only registrations; the unique index
-    // on telegram_id keeps one Telegram account to one user profile.
+    // Optional Telegram binding remains available for accounts that link it.
     telegramId: typeof data.telegramId === "string" && /^\d+$/.test(data.telegramId) ? data.telegramId : null,
     username,
     password,
     inviteCode: username,
     referredByCode,
     operator: data.operator || "MTN",
-    points: typeof data.points === "number" ? data.points : (regBonus > 0 ? regBonus : 0), // Registration bonus credited directly to withdrawable balance!
-    rechargeBalance: 0,
+    points: typeof data.points === "number" ? data.points : (regBonus > 0 ? regBonus : 0),
     withdrawnCash: 0,
     totalDeposits: 0,
     aiIncome: 0,
     invitesCount: 0,
     referralRewardsEarned: 0,
+    pendingReferralRewards: 0,
     claimedVipTasks: [],
     claimedTierRewards: [],
     locked: false,
@@ -467,7 +467,8 @@ export async function registerUserProfile(data: any): Promise<any> {
   // could never log in.
   try {
     await drizzleDb.insert(schema.users).values({
-      phone: newUser.phone,
+      id: newUser.id,
+      phone: newUser.phone || null,
       telegramId: newUser.telegramId || null,
       username: newUser.username,
       password: newUser.password || "",
@@ -475,12 +476,12 @@ export async function registerUserProfile(data: any): Promise<any> {
       referredByCode: newUser.referredByCode,
       operator: newUser.operator,
       points: newUser.points,
-      rechargeBalance: newUser.rechargeBalance,
       withdrawnCash: newUser.withdrawnCash,
       totalDeposits: newUser.totalDeposits,
       aiIncome: newUser.aiIncome,
       invitesCount: newUser.invitesCount,
       referralRewardsEarned: newUser.referralRewardsEarned,
+      pendingReferralRewards: newUser.pendingReferralRewards,
       claimedVipTasks: newUser.claimedVipTasks,
       claimedTierRewards: (newUser as any).claimedTierRewards || [],
       locked: newUser.locked,
@@ -499,22 +500,22 @@ export async function registerUserProfile(data: any): Promise<any> {
   if (regBonus > 0) {
     await saveTransaction({
       id: "reg_bonus_" + crypto.randomBytes(8).toString("hex"),
-      userId: phone,
+      userId: newUser.id,
       type: "registration_bonus",
       amount: regBonus,
       currency: "UGX",
       status: "SUCCESSFUL",
       paymentMethod: "REGISTRATION_BONUS",
-      phone: phone,
+      phone: newUser.phone || undefined,
       itemId: "welcome_bonus",
       mode: "auto",
       timestamp: new Date().toISOString()
     });
 
     await createNotification(
-      phone,
+      newUser.id,
       "Welcome Registration Bonus!",
-      `🎉 Welcome to our platform! You received a registration bonus of UGX ${regBonus.toLocaleString()} credited directly to your withdrawable balance.`,
+      `🎉 Welcome to our platform! You received a registration bonus of UGX ${regBonus.toLocaleString()} credited to your balance.`,
       "register"
     );
   }
@@ -524,60 +525,61 @@ export async function registerUserProfile(data: any): Promise<any> {
     const targetRefCode = newUser.referredByCode.toUpperCase();
     let referrer: UserProfile | null = null;
     
-    referrer = await getUserProfile(newUser.referredByCode);
+    referrer = await getUserProfileByUsername(newUser.referredByCode);
     if (!referrer) {
       const drizzleDb = getDb();
       if (drizzleDb) {
         const rows = await drizzleDb.select().from(schema.users)
           .where(sql`upper(trim(${schema.users.inviteCode})) = ${targetRefCode}`).limit(1);
-        if (rows[0]) referrer = await getUserProfile(rows[0].phone);
+        if (rows[0]) referrer = await getUserProfile(rows[0].id);
       }
     }
 
     if (referrer) {
-      referrer.invitesCount = (referrer.invitesCount || 0) + 1;
-      
-      if (inviteBonusAmt > 0) {
-        referrer.points = (referrer.points || 0) + inviteBonusAmt; // Base Invite Bonus to withdrawable balance!
-        referrer.referralRewardsEarned = (referrer.referralRewardsEarned || 0) + inviteBonusAmt;
+      const drizzleDb = requireDatabase("credit the referral signup reward");
+      await drizzleDb.update(schema.users).set({
+        invitesCount: sql`${schema.users.invitesCount} + 1`
+      }).where(eq(schema.users.id, referrer.id));
 
-        // Record transaction for referrer
-        await saveTransaction({
-          id: "ref_bonus_" + crypto.randomBytes(8).toString("hex"),
-          userId: referrer.phone,
-          type: "referral_signup_bonus",
-          amount: inviteBonusAmt,
-          currency: "UGX",
-          status: "SUCCESSFUL",
-          paymentMethod: "BASE_INVITE_BONUS",
-          phone: referrer.phone,
-          itemId: newUser.phone,
-          mode: "auto",
-          timestamp: new Date().toISOString()
+      if (inviteBonusAmt > 0) {
+        const timestamp = new Date().toISOString();
+        await drizzleDb.transaction(async (tx) => {
+          await tx.update(schema.users).set({
+            pendingReferralRewards: sql`${schema.users.pendingReferralRewards} + ${inviteBonusAmt}`,
+            referralRewardsEarned: sql`${schema.users.referralRewardsEarned} + ${inviteBonusAmt}`
+          }).where(eq(schema.users.id, referrer.id));
+          await tx.insert(schema.transactions).values({
+            id: "ref_bonus_" + crypto.randomBytes(8).toString("hex"),
+            userId: referrer.id,
+            type: "referral_signup_bonus",
+            amount: inviteBonusAmt,
+            currency: "UGX",
+            status: "CLAIMABLE",
+            paymentMethod: "BASE_INVITE_BONUS",
+            phone: referrer.phone || null,
+            itemId: newUser.id,
+            mode: "manual",
+            timestamp
+          });
         });
 
         // Create notification alert for referrer
         await createNotification(
-          referrer.phone,
+          referrer.id,
           "New Referral Signup Bonus!",
-          `🎉 User ${newUser.phone} registered using your invite code (${newUser.referredByCode})! Base Invite Bonus of UGX ${inviteBonusAmt.toLocaleString()} has been credited to your withdrawable balance!`,
+          `🎉 User ${newUser.username} registered using your invite code (${newUser.referredByCode})! Base invite bonus of UGX ${inviteBonusAmt.toLocaleString()} is ready for you to claim.`,
           "rewards"
         );
       }
 
-      await updateUserProfile(referrer.phone, {
-        invitesCount: referrer.invitesCount,
-        points: referrer.points,
-        referralRewardsEarned: referrer.referralRewardsEarned
-      });
     }
   }
 
   return { success: true, profile: newUser, ...newUser };
 }
 
-export async function loginUser(phone: string, pass: string): Promise<UserProfile | null> {
-  const user = await getUserProfile(phone);
+export async function loginUser(username: string, pass: string): Promise<UserProfile | null> {
+  const user = await getUserProfileByUsername(username);
   if (!user) return null;
   const { ok, needsRehash } = verifyPassword(user.password || "", pass);
   if (!ok) return null;
@@ -588,17 +590,17 @@ export async function loginUser(phone: string, pass: string): Promise<UserProfil
     try {
       const drizzleDb = getDb();
       if (drizzleDb) {
-        await drizzleDb.update(schema.users).set({ password: hashPassword(pass) }).where(eq(schema.users.phone, phone));
+        await drizzleDb.update(schema.users).set({ password: hashPassword(pass) }).where(eq(schema.users.id, user.id));
       }
     } catch (err) {
-      console.warn("[Database] transparent password rehash failed for", phone);
+      console.warn("[Database] transparent password rehash failed for account", user.id);
     }
   }
   return user;
 }
 
 export async function updateUserProfile(
-  phone: string,
+  accountId: string,
   updatesOrUsername: any,
   operator?: string,
   customPhone?: string,
@@ -612,6 +614,7 @@ export async function updateUserProfile(
     updates = {
       username: updatesOrUsername,
       operator: operator as any,
+      phone: customPhone?.trim() || null,
       usdtAddress: usdtAddress || undefined
     };
     if (newPassword) updates.password = newPassword;
@@ -621,20 +624,21 @@ export async function updateUserProfile(
     updates.password = hashPassword(updates.password);
   }
 
-  const existing = (await getUserProfile(phone)) || {
-    phone,
+  const existing = (await getUserProfile(accountId)) || {
+    id: accountId,
+    phone: null,
     username: "",
     password: "",
     inviteCode: "",
     referredByCode: "",
     operator: "MTN",
     points: 0,
-    rechargeBalance: 0,
     withdrawnCash: 0,
     totalDeposits: 0,
     aiIncome: 0,
     invitesCount: 0,
     referralRewardsEarned: 0,
+    pendingReferralRewards: 0,
     claimedVipTasks: [],
     claimedTierRewards: [],
     locked: false,
@@ -653,16 +657,17 @@ export async function updateUserProfile(
   const drizzleDb = requireDatabase("save your account changes");
   try {
       await drizzleDb.update(schema.users).set({
+        phone: updated.phone || null,
         username: updated.username,
         password: updated.password || "",
         operator: updated.operator,
         points: updated.points,
-        rechargeBalance: updated.rechargeBalance,
         withdrawnCash: updated.withdrawnCash,
         totalDeposits: updated.totalDeposits,
         aiIncome: updated.aiIncome,
         invitesCount: updated.invitesCount,
         referralRewardsEarned: updated.referralRewardsEarned,
+        pendingReferralRewards: updated.pendingReferralRewards,
         claimedVipTasks: updated.claimedVipTasks,
         claimedTierRewards: (updated as any).claimedTierRewards || [],
         locked: updated.locked,
@@ -670,7 +675,7 @@ export async function updateUserProfile(
         lastCheckinDate: updated.lastCheckinDate,
         checkinStreak: updated.checkinStreak,
         redeemedGiftCodes: updated.redeemedGiftCodes
-      }).where(eq(schema.users.phone, phone));
+      }).where(eq(schema.users.id, accountId));
   } catch (err) {
     throw databaseFailure("save your account changes", err);
   }
@@ -689,6 +694,8 @@ export async function getSubscriptionItems(): Promise<SubscriptionItem[]> {
           name: r.name,
           image: r.image,
           imageUrl: r.imageUrl || r.image,
+          eggImageUrl: r.eggImageUrl || "",
+          dragonImageUrl: r.dragonImageUrl || "",
           amount: r.amount,
           duration: r.duration,
           dailyYield: r.dailyYield,
@@ -712,114 +719,120 @@ export async function subscribeToItem(phone: string, itemId: string): Promise<Su
   const catalog = await getSubscriptionItems();
   const item = catalog.find(c => c.id === itemId);
   if (!item) throw new Error("Subscription package not found");
+  if (item.disabled || item.outOfStock) throw new Error("This product is currently out of stock.");
 
-  if ((user.rechargeBalance || 0) < item.amount) {
-    throw new Error("Insufficient recharge balance. Please deposit funds first.");
-  }
-
-  // Deduct rental cost from recharge balance
-  user.rechargeBalance = (user.rechargeBalance || 0) - item.amount;
-  
-  // IMMEDIATELY auto-credit 1st day daily yield to withdrawable balance (points)!
-  const immediateYield = item.dailyYield || 0;
-  user.points = (user.points || 0) + immediateYield;
-  user.aiIncome = (user.aiIncome || 0) + immediateYield;
-
-  await updateUserProfile(phone, {
-    rechargeBalance: user.rechargeBalance,
-    points: user.points,
-    aiIncome: user.aiIncome
-  });
-
+  const drizzleDb = requireDatabase("activate the product");
   const now = new Date();
-  const endDate = new Date(now.getTime() + item.duration * 24 * 60 * 60 * 1000);
+  const hasDragonArtwork = Boolean(item.eggImageUrl && item.dragonImageUrl);
+  const finalEarnDate = addPlatformDays(
+    getPlatformDateKey(now),
+    Math.max(0, Math.floor(Number(item.duration) || 1) - 1)
+  );
+  const endDate = hasDragonArtwork
+    ? new Date(now.getTime() + Math.max(1, Math.floor(Number(item.duration) || 1)) * 86_400_000)
+    : new Date(now.getTime() + item.duration * 24 * 60 * 60 * 1000);
 
   const node: SubscribedNode = {
     id: "sub_" + crypto.randomBytes(8).toString("hex"),
     userId: phone,
     itemId: item.id,
     itemName: item.name,
-    // Store a renderable image URL on the node. `item.image` is historically
-    // a Tailwind gradient key (not a URL) — claims copy sub.image into the
-    // ledger, so a gradient here poisons every future daily_yield row.
+    // Keep the legacy image column unchanged; egg and dragon art use their
+    // dedicated snapshot columns so long asset URLs are never truncated.
     image: item.imageUrl || item.image,
+    eggImageUrl: item.eggImageUrl || "",
+    dragonImageUrl: item.dragonImageUrl || "",
     amount: item.amount,
     duration: item.duration,
     dailyYield: item.dailyYield,
     startDate: now.toISOString(),
     endDate: endDate.toISOString(),
-    lastClaimedDate: getPlatformDateKey(now),
-    totalEarned: immediateYield,
+    lastClaimedDate: "",
+    totalEarned: 0,
     status: "active"
   };
 
+  const endedDragonNodes: any[] = [];
+  await drizzleDb.transaction(async (tx) => {
+    const rows = await tx.select().from(schema.users)
+      .where(eq(schema.users.id, phone))
+      .limit(1)
+      .for("update");
+    const currentUser = rows[0];
+    if (!currentUser) throw new Error("User not found");
+    if (hasDragonArtwork) {
+      const existingEggRows = await tx.select().from(schema.subscribedNodes)
+        .where(and(
+          eq(schema.subscribedNodes.userId, phone),
+          eq(schema.subscribedNodes.itemId, item.id)
+        ))
+        .for("update");
+      for (const existing of existingEggRows) {
+        if (String(existing.status).toLowerCase() !== "active") continue;
+        const cycleEndMs = getRunEndMs(existing as SubscribedNode);
+        if (cycleEndMs === null || now.getTime() < cycleEndMs) {
+          throw new Error("This dragon is still earning. You can hatch it again after its cycle ends.");
+        }
+        await tx.update(schema.subscribedNodes)
+          .set({ status: "expired" })
+          .where(eq(schema.subscribedNodes.id, existing.id));
+        endedDragonNodes.push({ ...existing, status: "expired" });
+      }
+    }
+    if ((Number(currentUser.points) || 0) < item.amount) {
+      throw new Error("Insufficient balance. Please deposit funds first.");
+    }
 
-  // Record node activation rental transaction
-  await saveTransaction({
-    id: createTransactionId("RNT", now),
-    userId: phone,
-    type: "product_activation",
-    amount: item.amount,
-    currency: "UGX",
-    status: "SUCCESSFUL",
-    paymentMethod: "RECHARGE_BALANCE",
-    phone: phone,
-    itemId: item.id,
-    mode: "auto",
-    metadata: { sourceItemId: item.id, sourceItemName: item.name },
-    timestamp: now.toISOString()
-  });
+    await tx.update(schema.users).set({
+      points: sql`${schema.users.points} - ${item.amount}`
+    }).where(eq(schema.users.id, phone));
 
-  // Record immediate initial yield payout transaction
-  if (immediateYield > 0) {
-    await saveTransaction({
-      id: "yield_init_" + crypto.randomBytes(8).toString("hex"),
+    await tx.insert(schema.subscribedNodes).values({
+      id: node.id,
+      userId: node.userId,
+      itemId: node.itemId,
+      itemName: node.itemName,
+      image: node.image,
+      eggImageUrl: node.eggImageUrl || "",
+      dragonImageUrl: node.dragonImageUrl || "",
+      amount: node.amount,
+      duration: node.duration,
+      dailyYield: node.dailyYield,
+      startDate: node.startDate,
+      endDate: node.endDate,
+      lastClaimedDate: node.lastClaimedDate,
+      totalEarned: node.totalEarned,
+      status: node.status
+    });
+
+    await tx.insert(schema.transactions).values({
+      id: createTransactionId("RNT", now),
       userId: phone,
-      type: "daily_yield",
-      amount: immediateYield,
+      type: "product_activation",
+      amount: item.amount,
       currency: "UGX",
       status: "SUCCESSFUL",
-      paymentMethod: "DAY_1_IMMEDIATE_YIELD",
-      phone: phone,
+      paymentMethod: "ACCOUNT_BALANCE",
+      phone: user.phone || undefined,
       itemId: item.id,
       mode: "auto",
-      metadata: { sourceItemId: item.id, sourceItemName: item.name, sourceItemImage: item.imageUrl || item.image },
+      metadata: { sourceItemId: item.id, sourceItemName: item.name },
       timestamp: now.toISOString()
     });
+  });
+
+  for (const endedNode of endedDragonNodes) {
+    await markNodeExpiredAndMint(endedNode);
   }
 
-  // Create alert/notification for renting the product!
   await createNotification(
     phone,
     "New run activated",
-    `${item.name} is active. Day 1 returns of UGX ${immediateYield.toLocaleString()} were credited to your withdrawable balance.`,
+    `${item.name} is active. Its daily returns are ready to claim from your active products.`,
     "rewards",
     undefined,
     { eventType: "product_activation", sourceItemId: item.id, sourceItemName: item.name, sourceItemImage: item.imageUrl || "" }
   );
-
-  const drizzleDb = getDb();
-  if (drizzleDb) {
-    try {
-      await drizzleDb.insert(schema.subscribedNodes).values({
-        id: node.id,
-        userId: node.userId,
-        itemId: node.itemId,
-        itemName: node.itemName,
-        image: node.image,
-        amount: node.amount,
-        duration: node.duration,
-        dailyYield: node.dailyYield,
-        startDate: node.startDate,
-        endDate: node.endDate,
-        lastClaimedDate: node.lastClaimedDate,
-        totalEarned: node.totalEarned,
-        status: node.status
-      });
-    } catch (err) {
-      console.warn("[Database] subscribeToItem error:", err);
-    }
-  }
 
   if (user.referredByCode) {
     // Referral earnings use the four commission levels configured in Site
@@ -827,7 +840,7 @@ export async function subscribeToItem(phone: string, itemId: string): Promise<Su
     // prevents product-level defaults from making progress disagree with the
     // bonus a user actually earns.
     await distributeReferralBonus(user.referredByCode, item.amount, undefined, {
-      sourceUserPhone: user.phone,
+      sourceUserPhone: user.id,
       sourceItemId: item.id,
       sourceItemName: item.name
     });
@@ -837,7 +850,7 @@ export async function subscribeToItem(phone: string, itemId: string): Promise<Su
     roomId: "shared",
     sender: "system",
     senderName: "SYSTEM BROADCAST",
-    text: `User ${phone.slice(0, 4)}*** rented "${item.name}"!`
+    text: `${user.username} rented "${item.name}"!`
   });
 
   return node;
@@ -859,12 +872,11 @@ export async function distributeReferralBonus(
 
   if (typeof amountOrItemId !== "number") return;
 
-  const drizzleDb = getDb();
-  if (!drizzleDb) return;
+  const drizzleDb = requireDatabase("accrue referral rewards");
   const allUsers = await drizzleDb.select().from(schema.users);
   const byReference = new Map<string, typeof allUsers[number]>();
   for (const candidate of allUsers) {
-    byReference.set(candidate.phone.trim().toUpperCase(), candidate);
+    byReference.set(candidate.id.trim().toUpperCase(), candidate);
     if (candidate.inviteCode) byReference.set(candidate.inviteCode.trim().toUpperCase(), candidate);
   }
 
@@ -873,45 +885,88 @@ export async function distributeReferralBonus(
     const commissionPct = commissionPcts[level];
     if (commissionPct > 0) {
       const bonus = (Number(amountOrItemId) * commissionPct) / 100;
-      await drizzleDb.update(schema.users).set({
-        points: sql`${schema.users.points} + ${bonus}`,
-        referralRewardsEarned: sql`${schema.users.referralRewardsEarned} + ${bonus}`
-      }).where(eq(schema.users.phone, current.phone));
-
       const referralLevel = level + 1;
       const sourceUserPhone = context?.sourceUserPhone || "";
-      await saveTransaction({
-        id: "ref_income_" + crypto.randomBytes(8).toString("hex"),
-        userId: current.phone,
-        type: "referral_level_income",
-        amount: bonus,
-        currency: "UGX",
-        status: "SUCCESSFUL",
-        paymentMethod: `LEVEL_${referralLevel}_REFERRAL_BONUS`,
-        phone: current.phone,
-        itemId: context?.sourceItemId || sourceUserPhone,
-        mode: "auto",
-        metadata: {
-          kind: "product_purchase",
-          level: referralLevel,
-          commissionPct,
-          sourceUserPhone,
-          sourceItemId: context?.sourceItemId || "",
-          sourceItemName: context?.sourceItemName || "",
-          sourceAmount: Number(amountOrItemId)
-        },
-        timestamp: new Date().toISOString()
+      const timestamp = new Date().toISOString();
+      await drizzleDb.transaction(async (tx) => {
+        await tx.update(schema.users).set({
+          pendingReferralRewards: sql`${schema.users.pendingReferralRewards} + ${bonus}`,
+          referralRewardsEarned: sql`${schema.users.referralRewardsEarned} + ${bonus}`
+        }).where(eq(schema.users.id, current.id));
+
+        await tx.insert(schema.transactions).values({
+          id: "ref_income_" + crypto.randomBytes(8).toString("hex"),
+          userId: current!.id,
+          type: "referral_level_income",
+          amount: bonus,
+          currency: "UGX",
+          status: "CLAIMABLE",
+          paymentMethod: `LEVEL_${referralLevel}_REFERRAL_BONUS`,
+          phone: current!.phone || null,
+          itemId: context?.sourceItemId || sourceUserPhone,
+          mode: "manual",
+          metadata: {
+            kind: "product_purchase",
+            level: referralLevel,
+            commissionPct,
+            sourceUserPhone,
+            sourceItemId: context?.sourceItemId || "",
+            sourceItemName: context?.sourceItemName || "",
+            sourceAmount: Number(amountOrItemId)
+          },
+          timestamp
+        });
       });
 
       await createNotification(
-        current.phone,
+        current.id,
         `Level ${level} Referral Bonus`,
-        `🎉 User ${sourceUserPhone || "your referral"} activated "${context?.sourceItemName || "a server machine"}". You earned UGX ${bonus.toLocaleString()} (${commissionPct}% Level ${referralLevel} referral income).`,
+        `🎉 User ${sourceUserPhone || "your referral"} activated "${context?.sourceItemName || "a server machine"}". UGX ${bonus.toLocaleString()} (${commissionPct}% Level ${referralLevel}) is ready to claim with your referral rewards.`,
         "rewards"
       );
     }
     current = current.referredByCode ? byReference.get(current.referredByCode.trim().toUpperCase()) : undefined;
   }
+}
+
+export async function claimReferralRewards(phone: string): Promise<{ claimed: number; updatedPoints: number }> {
+  const drizzleDb = requireDatabase("claim referral rewards");
+  let claimed = 0;
+  let updatedPoints = 0;
+  await drizzleDb.transaction(async (tx) => {
+    const rows = await tx.select().from(schema.users)
+      .where(eq(schema.users.id, phone))
+      .limit(1)
+      .for("update");
+    const user = rows[0];
+    if (!user) throw new Error("User not found");
+
+    claimed = Math.max(0, Number(user.pendingReferralRewards) || 0);
+    if (claimed <= 0) throw new Error("There are no referral rewards ready to claim.");
+    updatedPoints = (Number(user.points) || 0) + claimed;
+
+    await tx.update(schema.users).set({
+      points: sql`${schema.users.points} + ${claimed}`,
+      pendingReferralRewards: 0
+    }).where(eq(schema.users.id, user.id));
+    await tx.update(schema.transactions).set({
+      status: "SUCCESSFUL",
+      mode: "manual"
+    }).where(and(
+      eq(schema.transactions.userId, user.id),
+      inArray(schema.transactions.type, ["referral_signup_bonus", "referral_level_income"]),
+      eq(schema.transactions.status, "CLAIMABLE")
+    ));
+  });
+
+  await createNotification(
+    phone,
+    "Referral rewards claimed",
+    `UGX ${claimed.toLocaleString()} in referral rewards was added to your balance.`,
+    "rewards",
+    claimed
+  );
+  return { claimed, updatedPoints };
 }
 
 export async function getUserSubscriptions(phone: string): Promise<SubscribedNode[]> {
@@ -920,18 +975,74 @@ export async function getUserSubscriptions(phone: string): Promise<SubscribedNod
     try {
       const rows = await drizzleDb.select().from(schema.subscribedNodes).where(eq(schema.subscribedNodes.userId, phone));
       if (rows.length > 0) {
+        // Older dragon claims stored only the platform date. Recover the
+        // actual payout time from that claim's ledger row so the continuous
+        // accrual clock can resume immediately without re-crediting income
+        // from before the claim.
+        const legacyDragonRows = rows.filter((row) =>
+          Boolean(row.eggImageUrl && row.dragonImageUrl) &&
+          /^\d{4}-\d{2}-\d{2}$/.test(String(row.lastClaimedDate || ""))
+        );
+        const legacyClaimTimes = new Map<string, string>();
+        if (legacyDragonRows.length > 0) {
+          try {
+            const yieldTransactions = await drizzleDb.select({
+              metadata: schema.transactions.metadata,
+              timestamp: schema.transactions.timestamp
+            })
+              .from(schema.transactions)
+              .where(and(
+                eq(schema.transactions.userId, phone),
+                eq(schema.transactions.type, "daily_yield")
+              ))
+              .orderBy(desc(schema.transactions.timestamp));
+            const wantedClaims = new Map(legacyDragonRows.map((row) => [
+              row.id,
+              String(row.lastClaimedDate)
+            ]));
+            for (const transaction of yieldTransactions) {
+              let metadata: any = transaction.metadata;
+              if (typeof metadata === "string") {
+                try { metadata = JSON.parse(metadata); } catch { continue; }
+              }
+              const subscriptionId = String(metadata?.subscriptionId || "");
+              const platformDate = String(metadata?.platformDate || "");
+              const transactionTime = String(transaction.timestamp || "");
+              if (
+                !subscriptionId ||
+                wantedClaims.get(subscriptionId) !== platformDate ||
+                legacyClaimTimes.has(subscriptionId) ||
+                !Number.isFinite(new Date(transactionTime).getTime())
+              ) continue;
+
+              await drizzleDb.update(schema.subscribedNodes)
+                .set({ lastClaimedDate: transactionTime })
+                .where(and(
+                  eq(schema.subscribedNodes.id, subscriptionId),
+                  eq(schema.subscribedNodes.userId, phone),
+                  eq(schema.subscribedNodes.lastClaimedDate, platformDate)
+                ));
+              legacyClaimTimes.set(subscriptionId, transactionTime);
+            }
+          } catch (err) {
+            console.warn("[Database] Legacy dragon claim timestamp recovery failed:", err);
+          }
+        }
+
         return rows.map(r => ({
           id: r.id,
           userId: r.userId,
           itemId: r.itemId,
           itemName: r.itemName,
           image: r.image,
+          eggImageUrl: r.eggImageUrl || "",
+          dragonImageUrl: r.dragonImageUrl || "",
           amount: r.amount,
           duration: r.duration,
           dailyYield: r.dailyYield,
           startDate: r.startDate,
           endDate: r.endDate,
-          lastClaimedDate: r.lastClaimedDate,
+          lastClaimedDate: legacyClaimTimes.get(r.id) || r.lastClaimedDate,
           totalEarned: r.totalEarned,
           status: r.status as any
         }));
@@ -944,8 +1055,8 @@ export async function getUserSubscriptions(phone: string): Promise<SubscribedNod
 }
 
 // ================= COLLECTIBLES (virtual, off-chain) =================
-// Autocredit runs till the cycle is done; the finished run is minted with
-// claimedAt NULL, and the "Claim collectible" tap completes ownership.
+// Finished runs are minted with claimedAt NULL; the "Claim collectible" tap
+// completes ownership.
 
 function collectibleIdFor(subscriptionId: string): string {
   return `clm_${String(subscriptionId).replace(/^sub_/, "").slice(0, 56)}`;
@@ -970,13 +1081,19 @@ function toPublicCollectible(r: any): Collectible {
 }
 
 async function resolveCollectibleImage(sub: any): Promise<string> {
+  if (isUrlLikeImage(sub.dragonImageUrl)) return String(sub.dragonImageUrl);
   try {
     const drizzleDb = getDb();
     if (drizzleDb) {
       const rows = await drizzleDb.select().from(schema.catalogProducts)
         .where(eq(schema.catalogProducts.id, sub.itemId))
         .limit(1);
-      const catalogImage = String((rows[0] as any)?.imageUrl || (rows[0] as any)?.image || "");
+      const catalogImage = String(
+        (rows[0] as any)?.dragonImageUrl ||
+        (rows[0] as any)?.imageUrl ||
+        (rows[0] as any)?.image ||
+        ""
+      );
       if (isUrlLikeImage(catalogImage)) return catalogImage;
     }
   } catch {
@@ -1014,7 +1131,16 @@ export async function markNodeExpiredAndMint(sub: any): Promise<Collectible | nu
     const existing = await drizzleDb.select().from(schema.collectibles)
       .where(eq(schema.collectibles.subscriptionId, sub.id))
       .limit(1);
-    if ((existing as any[])[0]) return toPublicCollectible((existing as any[])[0]);
+    if ((existing as any[])[0]) {
+      const existingRow = (existing as any[])[0];
+      if (Number(existingRow.totalEarned || 0) !== Number(sub.totalEarned || 0)) {
+        await drizzleDb.update(schema.collectibles)
+          .set({ totalEarned: Number(sub.totalEarned || 0) })
+          .where(eq(schema.collectibles.subscriptionId, sub.id));
+        existingRow.totalEarned = Number(sub.totalEarned || 0);
+      }
+      return toPublicCollectible(existingRow);
+    }
     const countResult: any = await drizzleDb.execute(
       sql`SELECT COALESCE(COUNT(*), 0) AS n FROM collectibles WHERE item_id = ${sub.itemId}`
     );
@@ -1067,10 +1193,14 @@ export async function getUserCollectibles(phone: string): Promise<Collectible[]>
     const nodes = await drizzleDb.select().from(schema.subscribedNodes)
       .where(eq(schema.subscribedNodes.userId, phone));
     const today = getPlatformDateKey();
+    const nowMs = Date.now();
     for (const node of nodes as any[]) {
       const activation = getPlatformDateKey(new Date(node.startDate));
       const finalEarn = addPlatformDays(activation, Math.max(0, Number(node.duration || 1) - 1));
-      const finished = String(node.status).toLowerCase() !== "active" || today > finalEarn;
+      const isDragonRun = Boolean(node.eggImageUrl && node.dragonImageUrl);
+      const endMs = isDragonRun ? getRunEndMs(node) : null;
+      const finished = String(node.status).toLowerCase() !== "active" ||
+        (isDragonRun && endMs !== null ? nowMs >= endMs : today > finalEarn);
       if (!finished) continue;
       const existing = await drizzleDb.select().from(schema.collectibles)
         .where(eq(schema.collectibles.subscriptionId, node.id))
@@ -1103,7 +1233,10 @@ export async function claimCollectible(phone: string, subscriptionId: string): P
   const today = getPlatformDateKey();
   const activation = getPlatformDateKey(new Date(node.startDate));
   const finalEarn = addPlatformDays(activation, Math.max(0, Number(node.duration || 1) - 1));
-  const finished = String(node.status).toLowerCase() !== "active" || today > finalEarn;
+  const isDragonRun = Boolean(node.eggImageUrl && node.dragonImageUrl);
+  const endMs = isDragonRun ? getRunEndMs(node) : null;
+  const finished = String(node.status).toLowerCase() !== "active" ||
+    (isDragonRun && endMs !== null ? Date.now() >= endMs : today > finalEarn);
   if (!finished) throw new Error("This run is still active. Collectibles unlock when the cycle ends.");
   let collectible = await markNodeExpiredAndMint(node);
   if (!collectible) throw new Error("Could not prepare your collectible. Please try again.");
@@ -1136,7 +1269,7 @@ export async function getUserTransactions(phone: string): Promise<any[]> {
   // Admin balance adjustments are audit-only: the ledger row exists for
   // admins, but users must never see it in their history.
   return list
-    .filter((tx) => tx.type !== "admin_adjustment")
+    .filter((tx) => tx.type !== "admin_adjustment" && String(tx.status).toUpperCase() !== "CLAIMABLE")
     .sort((a, b) => {
       const tA = new Date(a.timestamp || a.createdAt || a.date || 0).getTime();
       const tB = new Date(b.timestamp || b.createdAt || b.date || 0).getTime();
@@ -1154,7 +1287,16 @@ function isUrlLikeImage(value: unknown): boolean {
   return v.startsWith("http://") || v.startsWith("https://") || v.startsWith("data:") || v.startsWith("/") || v.startsWith("blob:");
 }
 
-export async function claimDailyReward(arg1: string, arg2: string): Promise<{ success: boolean; reward: number }> {
+export async function claimDailyReward(arg1: string, arg2: string): Promise<{
+  success: boolean;
+  reward: number;
+  pointsClaimed: number;
+  updatedPoints: number;
+  itemName: string;
+  daysClaimed: number;
+  lastClaimedDate: string;
+  status: "active" | "expired";
+}> {
   let subId = arg1;
   let phone = arg2;
   if (!arg1.startsWith("sub_") && arg2.startsWith("sub_")) {
@@ -1162,21 +1304,22 @@ export async function claimDailyReward(arg1: string, arg2: string): Promise<{ su
     subId = arg2;
   }
 
-  const drizzleDb = requireDatabase("credit the daily product yield");
+  const drizzleDb = requireDatabase("claim the product returns");
   const today = getPlatformDateKey();
   let reward = 0;
+  let updatedPoints = 0;
+  let daysClaimed = 0;
+  let lastClaimedDate = "";
+  let status: "active" | "expired" = "active";
   let userId = phone;
   let itemName = "your product";
+  let itemId = "";
+  let claimImage = "";
+  let claimTimestamp = "";
+  let dragonRunClaim = false;
 
-  // A node past its final earn date is finished: the in-transaction status
-  // flip below is rolled back by the throw, so the flip + collectible mint
-  // are applied idempotently outside the transaction instead.
   let finishedNode: any = null;
-  try {
   await drizzleDb.transaction(async (tx) => {
-    // Lock the node before checking its date. This makes a cron run and a
-    // user-triggered retry mutually exclusive, so the same node cannot pay
-    // twice for one platform day.
     const nodeRows = await tx.select().from(schema.subscribedNodes)
       .where(and(
         eq(schema.subscribedNodes.id, subId),
@@ -1186,94 +1329,151 @@ export async function claimDailyReward(arg1: string, arg2: string): Promise<{ su
       .for("update");
     const sub = nodeRows[0];
     if (!sub) throw new Error("Subscription node not found");
-    if (String(sub.status).toLowerCase() !== "active") {
+    if (!["active", "expired", "completed"].includes(String(sub.status).toLowerCase())) {
       throw new Error("This product is no longer active.");
     }
-    // Duration is counted in platform calendar days, including the immediate
-    // Day 1 yield paid at activation. This prevents a product activated late
-    // at night from receiving an extra yield after its stated duration.
+    const claimNode = { ...sub, status: sub.status as SubscribedNode["status"] };
+
+    const claimNow = new Date();
+    const claimNowIso = claimNow.toISOString();
+    const isDragonRun = Boolean(sub.eggImageUrl && sub.dragonImageUrl);
+    dragonRunClaim = isDragonRun;
     const activationDate = getPlatformDateKey(new Date(sub.startDate));
     const finalEarnDate = addPlatformDays(activationDate, Math.max(0, Number(sub.duration || 1) - 1));
-    if (today > finalEarnDate) {
-      finishedNode = sub;
-      throw new Error("This product subscription has expired.");
-    }
-    if (sub.lastClaimedDate === today) {
-      throw new Error("Daily yield already collected today.");
-    }
-
     const userRows = await tx.select().from(schema.users)
-      .where(eq(schema.users.phone, phone))
+      .where(eq(schema.users.id, phone))
       .limit(1)
       .for("update");
     const user = userRows[0];
     if (!user) throw new Error("User not found");
 
-    reward = Number(sub.dailyYield || 0);
-    userId = user.phone;
+    userId = user.id;
     itemName = sub.itemName || itemName;
-    const transactionId = `yield_${crypto.createHash("sha256").update(`${sub.id}:${today}`).digest("hex").slice(0, 56)}`;
-    const creditedAt = new Date().toISOString();
+    itemId = sub.itemId;
 
-    await tx.update(schema.users).set({
-      points: sql`${schema.users.points} + ${reward}`,
-      aiIncome: sql`${schema.users.aiIncome} + ${reward}`
-    }).where(eq(schema.users.phone, user.phone));
+    const dailyRate = Number(sub.dailyYield || 0);
+    let firstUnclaimedDate = "";
+    let throughDate = today < finalEarnDate ? today : finalEarnDate;
+    const cycleEndMs = isDragonRun ? getRunEndMs(claimNode) : null;
+    let expired = isDragonRun && cycleEndMs !== null
+      ? claimNow.getTime() >= cycleEndMs
+      : today > finalEarnDate;
+    if (isDragonRun) {
+      if (!(dailyRate > 0)) throw new Error("This dragon is not configured to earn income.");
+      const accrued = getRunClaimableReturns(claimNode, claimNow);
+      const minimumClaimAmount = getRunMinimumClaimAmount(claimNode);
+      const eligibleOneDayFinish = getRunTotalDays(claimNode) === 1
+        && accrued.amount >= minimumClaimAmount;
+      if (eligibleOneDayFinish) expired = true;
+      const finalPartialClaim = expired && accrued.amount > 0;
+      if (accrued.amount >= minimumClaimAmount || finalPartialClaim) {
+        reward = Math.floor(accrued.amount);
+        daysClaimed = Math.floor(reward / Math.max(1, dailyRate));
+        throughDate = getPlatformDateKey(claimNow);
+        firstUnclaimedDate = sub.lastClaimedDate || sub.startDate;
+        claimTimestamp = claimNowIso;
+      } else {
+        throw new Error("At least half a day's income is needed before collection.");
+      }
+    } else {
+      const legacyClaimedDays = dailyRate > 0
+        ? Math.max(0, Math.floor(Number(sub.totalEarned || 0) / dailyRate))
+        : 0;
+      firstUnclaimedDate = sub.lastClaimedDate
+        ? addPlatformDays(sub.lastClaimedDate, 1)
+        : addPlatformDays(activationDate, legacyClaimedDays);
+      if (firstUnclaimedDate <= throughDate) {
+        const start = new Date(`${firstUnclaimedDate}T00:00:00Z`).getTime();
+        const end = new Date(`${throughDate}T00:00:00Z`).getTime();
+        daysClaimed = Math.floor((end - start) / 86_400_000) + 1;
+        reward = dailyRate * daysClaimed;
+      } else if (!expired) {
+        throw new Error("There are no product returns ready to claim yet.");
+      }
+    }
 
-    await tx.update(schema.subscribedNodes).set({
-      lastClaimedDate: today,
-      totalEarned: sql`${schema.subscribedNodes.totalEarned} + ${reward}`
-    }).where(eq(schema.subscribedNodes.id, sub.id));
-
-    // Resolve a renderable image for the ledger row. sub.image historically
-    // holds a Tailwind gradient key, so prefer the live catalog imageUrl and
-    // only fall back to sub.image when it is URL-like. Never store a gradient.
-    let claimImage = "";
     try {
       const catalogRows = await tx.select().from(schema.catalogProducts)
         .where(eq(schema.catalogProducts.id, sub.itemId))
         .limit(1);
-      const catalogImage = String(catalogRows[0]?.imageUrl || catalogRows[0]?.image || "");
+      const catalogImage = String(
+        catalogRows[0]?.eggImageUrl || catalogRows[0]?.imageUrl || catalogRows[0]?.image || ""
+      );
       if (isUrlLikeImage(catalogImage)) claimImage = catalogImage;
       else if (isUrlLikeImage(sub.image)) claimImage = String(sub.image);
     } catch {
       if (isUrlLikeImage(sub.image)) claimImage = String(sub.image);
     }
 
-    await tx.insert(schema.transactions).values({
-      id: transactionId,
-      userId: user.phone,
-      type: "daily_yield",
-      amount: reward,
-      currency: "UGX",
-      status: "SUCCESSFUL",
-      paymentMethod: "DAILY_PRODUCT_YIELD",
-      phone: user.phone,
-      itemId: sub.itemId,
-      mode: "auto",
-      metadata: { platformDate: today, subscriptionId: sub.id, sourceItemId: sub.itemId, sourceItemName: itemName, sourceItemImage: claimImage },
-      timestamp: creditedAt
-    });
-  });
-  } catch (error: any) {
-    if (finishedNode) {
-      await markNodeExpiredAndMint(finishedNode).catch((err) => console.warn("[Collectibles] expiry mint failed:", err));
+    updatedPoints = Number(user.points || 0) + reward;
+    if (reward > 0) {
+      await tx.update(schema.users).set({
+        points: sql`${schema.users.points} + ${reward}`,
+        aiIncome: sql`${schema.users.aiIncome} + ${reward}`
+      }).where(eq(schema.users.id, user.id));
+
+      const transactionKey = isDragonRun
+        ? `${sub.id}:${sub.lastClaimedDate || sub.startDate}:${claimTimestamp}`
+        : `${sub.id}:${throughDate}`;
+      const transactionId = `yield_${crypto.createHash("sha256").update(transactionKey).digest("hex").slice(0, 56)}`;
+      await tx.insert(schema.transactions).values({
+        id: transactionId,
+        userId: user.id,
+        type: "daily_yield",
+        amount: reward,
+        currency: "UGX",
+        status: "SUCCESSFUL",
+        paymentMethod: "DAILY_PRODUCT_YIELD",
+        phone: user.phone || null,
+        itemId: sub.itemId,
+        mode: "manual",
+        metadata: {
+          platformDate: throughDate,
+          claimFromDate: firstUnclaimedDate,
+          claimThroughDate: throughDate,
+          daysClaimed,
+          subscriptionId: sub.id,
+          sourceItemId: sub.itemId,
+          sourceItemName: itemName,
+          sourceItemImage: claimImage
+        },
+        timestamp: new Date().toISOString()
+      });
     }
-    throw error;
-  }
+
+    const updatedTotalEarned = Number(sub.totalEarned || 0) + reward;
+    lastClaimedDate = isDragonRun && reward > 0
+      ? claimTimestamp
+      : daysClaimed > 0 ? throughDate : String(sub.lastClaimedDate || "");
+    status = expired ? "expired" : "active";
+    await tx.update(schema.subscribedNodes).set({
+      lastClaimedDate,
+      totalEarned: updatedTotalEarned,
+      status: expired ? "expired" : "active"
+    }).where(eq(schema.subscribedNodes.id, sub.id));
+
+    if (expired) {
+      finishedNode = { ...sub, totalEarned: updatedTotalEarned, status: "expired" };
+    }
+  });
+
+  if (finishedNode) await markNodeExpiredAndMint(finishedNode);
 
   if (reward > 0) {
+    const notificationMessage = dragonRunClaim
+      ? `UGX ${reward.toLocaleString()} in accrued income from ${itemName} was added to your balance.`
+      : `UGX ${reward.toLocaleString()} in returns from ${itemName} (${daysClaimed} day${daysClaimed === 1 ? "" : "s"}) was added to your balance.`;
     await createNotification(
       userId,
       `${itemName} Returns Credited`,
-      `UGX ${reward.toLocaleString()} in returns from ${itemName} was credited to your withdrawable balance for ${today}.`,
+      notificationMessage,
       "daily accumulation",
       reward,
-      { eventType: "daily_yield", sourceItemId: sub.itemId, sourceItemName: itemName, sourceItemImage: claimImage }
+      { eventType: "daily_yield", sourceItemId: itemId, sourceItemName: itemName, sourceItemImage: claimImage }
     );
   }
 
-  return { success: true, reward };
+  return { success: true, reward, pointsClaimed: reward, updatedPoints, itemName, daysClaimed, lastClaimedDate, status };
 }
 
 export function getConfiguredWithdrawMode(config: SiteConfig): "automatic" | "manual" {
@@ -1353,18 +1553,18 @@ export async function requestCashout(phone: string, amount: number, paymentMetho
   // the wallet and transaction ledger consistent under retries/concurrency.
   await drizzleDb.transaction(async (tx) => {
     const rows = await tx.select().from(schema.users)
-      .where(eq(schema.users.phone, phone))
+      .where(eq(schema.users.id, phone))
       .limit(1)
       .for("update");
     const user = rows[0];
     if (!user) throw new Error("User not found");
     if (Number(user.points || 0) < amount) {
-      throw new Error(`Insufficient withdrawable balance. Available: UGX ${Number(user.points || 0).toLocaleString()}.`);
+      throw new Error(`Insufficient balance. Available: UGX ${Number(user.points || 0).toLocaleString()}.`);
     }
 
     await tx.update(schema.users)
       .set({ points: sql`${schema.users.points} - ${amount}` })
-      .where(eq(schema.users.phone, phone));
+      .where(eq(schema.users.id, phone));
 
     await tx.insert(schema.transactions).values({
       id: txId,
@@ -1374,7 +1574,7 @@ export async function requestCashout(phone: string, amount: number, paymentMetho
       currency: "UGX",
       status: "PENDING",
       paymentMethod,
-      phone: withdrawPhone || phone,
+      phone: withdrawPhone || "",
       usdtAddress: operator === "USDT" ? (withdrawPhone || "") : "",
       operator: operator || "",
       mode: currentWithdrawMode,
@@ -1408,7 +1608,7 @@ export async function requestCashout(phone: string, amount: number, paymentMetho
     currency: "UGX",
     status: "PENDING",
     paymentMethod,
-    phone: withdrawPhone || phone,
+    phone: withdrawPhone || "",
     usdtAddress: operator === "USDT" ? (withdrawPhone || "") : "",
     operator: operator || "",
     mode: currentWithdrawMode,
@@ -1422,14 +1622,15 @@ export async function getReferreeStatsList(phoneOrCode: string): Promise<Referra
   const drizzleDb = getDb();
   if (!drizzleDb) return [];
   
-  const userRows = await drizzleDb.select().from(schema.users).where(eq(schema.users.phone, phoneOrCode));
+  let userRows = await drizzleDb.select().from(schema.users).where(eq(schema.users.id, phoneOrCode));
   if (userRows.length === 0) {
     const userRowsCode = await drizzleDb.select().from(schema.users).where(eq(schema.users.inviteCode, phoneOrCode));
     if (userRowsCode.length === 0) return [];
-    phoneOrCode = userRowsCode[0].phone;
+    phoneOrCode = userRowsCode[0].id;
+    userRows = userRowsCode;
   }
   
-  const user = (await drizzleDb.select().from(schema.users).where(eq(schema.users.phone, phoneOrCode)))[0];
+  const user = userRows[0];
   const referralConfig = await getSiteConfig().catch(() => ({} as SiteConfig));
   const milestoneTierOrder: string[] = [];
   for (const task of Array.isArray(referralConfig.vipTasks) ? referralConfig.vipTasks : []) {
@@ -1445,26 +1646,26 @@ export async function getReferreeStatsList(phoneOrCode: string): Promise<Referra
   }
   const descendants: Array<{ user: typeof user; level: number }> = [];
   let frontier = [user];
-  const visited = new Set<string>([user.phone]);
+  const visited = new Set<string>([user.id]);
   for (let level = 1; level <= 4; level += 1) {
-    const parentReferences = Array.from(new Set(frontier.flatMap((parent) => [parent.phone, parent.inviteCode].filter(Boolean) as string[])));
+    const parentReferences = Array.from(new Set(frontier.flatMap((parent) => [parent.id, parent.inviteCode].filter(Boolean) as string[])));
     if (parentReferences.length === 0) break;
     const normalizedReferences = parentReferences.map((reference) => reference.toUpperCase());
     const referenceList = sql.join(normalizedReferences.map((reference) => sql`${reference}`), sql`, `);
     const nextLevelRows = await drizzleDb.select().from(schema.users)
       .where(sql`upper(trim(${schema.users.referredByCode})) in (${referenceList})`);
-    const nextLevel = nextLevelRows.filter((candidate) => !visited.has(candidate.phone));
+    const nextLevel = nextLevelRows.filter((candidate) => !visited.has(candidate.id));
     for (const candidate of nextLevel) {
-      visited.add(candidate.phone);
+      visited.add(candidate.id);
       descendants.push({ user: candidate, level });
     }
     frontier = nextLevel;
     if (frontier.length === 0) break;
   }
 
-  const descendantPhones = descendants.map((entry) => entry.user.phone);
-  const allSubs = descendantPhones.length > 0
-    ? await drizzleDb.select().from(schema.subscriptions).where(inArray(schema.subscriptions.userId, descendantPhones))
+  const descendantIds = descendants.map((entry) => entry.user.id);
+  const allSubs = descendantIds.length > 0
+    ? await drizzleDb.select().from(schema.subscriptions).where(inArray(schema.subscriptions.userId, descendantIds))
     : [];
   const subsByUser = new Map<string, typeof allSubs>();
   for (const sub of allSubs) {
@@ -1479,50 +1680,54 @@ export async function getReferreeStatsList(phoneOrCode: string): Promise<Referra
   // the signup bonus uses the referred user's phone as the legacy itemId.
   const incomeByUser = new Map<string, number>();
   let ledgerTotal = 0;
-  const descendantByPhone = new Map(descendants.map((entry) => [entry.user.phone.toUpperCase(), entry]));
+  const descendantById = new Map(descendants.map((entry) => [entry.user.id.toUpperCase(), entry]));
   const referralTransactions = await drizzleDb.select().from(schema.transactions)
-    .where(eq(schema.transactions.userId, user.phone));
+    .where(eq(schema.transactions.userId, user.id));
   for (const transaction of referralTransactions) {
     const canon = canonicalTypeOf(String(transaction.type), transaction.metadata) as string;
     if (!["referral_signup_bonus", "referral_level_income"].includes(canon) || !["SUCCESSFUL", "COMPLETED"].includes(String(transaction.status).toUpperCase())) continue;
     const metadata = readJsonRecord(transaction.metadata);
-    const sourceUserPhone = String(metadata.sourceUserPhone || transaction.itemId || "").trim();
-    const source = descendantByPhone.get(sourceUserPhone.toUpperCase());
+    const sourceUserId = String(metadata.sourceUserPhone || transaction.itemId || "").trim();
+    const source = descendantById.get(sourceUserId.toUpperCase());
     if (!source) continue;
     const amount = Number(transaction.amount || 0);
     if (!Number.isFinite(amount) || amount <= 0) continue;
-    incomeByUser.set(source.user.phone, (incomeByUser.get(source.user.phone) || 0) + amount);
+    incomeByUser.set(source.user.id, (incomeByUser.get(source.user.id) || 0) + amount);
     ledgerTotal += amount;
   }
 
   // Older purchase payouts updated referralRewardsEarned but were not written
   // to the transaction ledger. Keep those already-collected funds visible and
   // avoid replacing them with the referred user's full purchase amount.
-  const actualReferralIncome = Math.max(0, Number(user.referralRewardsEarned || 0));
+  const actualReferralIncome = Math.max(
+    0,
+    Number(user.referralRewardsEarned || 0) - Number(user.pendingReferralRewards || 0)
+  );
   const legacyUnallocated = Math.max(0, actualReferralIncome - ledgerTotal);
   if (legacyUnallocated > 0) {
     const fallbackRecipient = descendants.find((entry) => entry.level === 1) || descendants[0];
     if (fallbackRecipient) {
       incomeByUser.set(
-        fallbackRecipient.user.phone,
-        (incomeByUser.get(fallbackRecipient.user.phone) || 0) + legacyUnallocated
+        fallbackRecipient.user.id,
+        (incomeByUser.get(fallbackRecipient.user.id) || 0) + legacyUnallocated
       );
     }
   }
 
   const stats: ReferralStat[] = [];
   for (const { user: candidate, level } of descendants) {
-    const userSubs = subsByUser.get(candidate.phone) || [];
+    const userSubs = subsByUser.get(candidate.id) || [];
     const activeProducts = userSubs.filter((sub) => sub.status === "active");
     const claimedTiers = new Set(readJsonStringArray((candidate as any).claimedTierRewards).map((name) => name.trim().toLowerCase()));
     const activeTier = milestoneTierOrder.find((name) => !claimedTiers.has(name.toLowerCase())) || milestoneTierOrder[milestoneTierOrder.length - 1] || "";
     const milestoneTierImageUrl = milestoneTierImages.get(activeTier.toLowerCase()) || "";
     stats.push({
+      id: candidate.id,
       phone: candidate.phone,
       username: candidate.username || "",
       level,
       joinedDate: candidate.createdAt || "",
-      rewardAmount: incomeByUser.get(candidate.phone) || 0,
+      rewardAmount: incomeByUser.get(candidate.id) || 0,
       activeProductsCount: activeProducts.length,
       ...(milestoneTierImageUrl ? { milestoneTierImageUrl } : {})
     });
@@ -1730,7 +1935,7 @@ export async function processDeposit(phone: string, amount: number, operator?: s
     currency: "UGX",
     status: "SUCCESSFUL",
     paymentMethod: operator || "MTN",
-    phone: depositPhone || phone,
+    phone: depositPhone || "",
     operator: operator || "",
     mode: "direct",
     timestamp: new Date().toISOString()
@@ -1772,7 +1977,7 @@ export async function saveTransaction(
       currency: "UGX",
       status: "pending",
       paymentMethod: operator || "MTN",
-      phone: depositPhone || phone || "",
+      phone: depositPhone || "",
       itemId: itemId || "",
       mode: mode || "online",
       externalReference: canonType === "deposit" ? normalizeExternalReference(txOrId) : null,
@@ -1892,16 +2097,16 @@ export async function completeSuccessfulDeposit(
         }
 
         const userRows = await tx.select().from(schema.users)
-          .where(eq(schema.users.phone, transaction.userId))
+          .where(eq(schema.users.id, transaction.userId))
           .limit(1)
           .for("update");
         const user = userRows[0];
         if (!user) throw new DepositSettlementError("The account for this deposit no longer exists.");
 
         await tx.update(schema.users).set({
-          rechargeBalance: sql`${schema.users.rechargeBalance} + ${transaction.amount}`,
+          points: sql`${schema.users.points} + ${transaction.amount}`,
           totalDeposits: sql`${schema.users.totalDeposits} + ${transaction.amount}`
-        }).where(eq(schema.users.phone, user.phone));
+        }).where(eq(schema.users.id, user.id));
 
         await tx.update(schema.transactions).set({
           status: "SUCCESSFUL",
@@ -1935,7 +2140,7 @@ export async function completeSuccessfulDeposit(
     await createNotification(
       settledTransaction.userId,
       "Deposit Successful",
-      `Your deposit of ${depositLabel} has been confirmed and credited to your recharge balance. Reference: ${transactionId}.`,
+      `Your deposit of ${depositLabel} has been confirmed and credited to your balance. Reference: ${transactionId}.`,
       "deposit",
       settledAmount
     );
@@ -1978,13 +2183,13 @@ export async function completeSuccessfulWithdrawal(txId: string): Promise<any> {
     const payoutAmount = Math.max(0, Number(metadata.payoutAmount ?? transaction.amount));
     settledPayoutAmount = payoutAmount;
     const userRows = await tx.select().from(schema.users)
-      .where(eq(schema.users.phone, transaction.userId))
+      .where(eq(schema.users.id, transaction.userId))
       .limit(1)
       .for("update");
     if (!userRows[0]) throw new Error("The account for this withdrawal no longer exists.");
     await tx.update(schema.users)
       .set({ withdrawnCash: sql`${schema.users.withdrawnCash} + ${payoutAmount}` })
-      .where(eq(schema.users.phone, transaction.userId));
+      .where(eq(schema.users.id, transaction.userId));
     await tx.update(schema.transactions)
       .set({ status: "SUCCESSFUL" })
       .where(eq(schema.transactions.id, txId));
@@ -2061,13 +2266,13 @@ export async function completeFailedTransaction(txId: string) {
         : {};
       const refundAmount = Number(metadata.requestedAmount ?? transaction.amount);
       const userRows = await dbTx.select().from(schema.users)
-        .where(eq(schema.users.phone, transaction.userId))
+        .where(eq(schema.users.id, transaction.userId))
         .limit(1)
         .for("update");
       if (!userRows[0]) throw new Error("The account for this withdrawal no longer exists.");
       await dbTx.update(schema.users)
         .set({ points: sql`${schema.users.points} + ${refundAmount}` })
-        .where(eq(schema.users.phone, transaction.userId));
+        .where(eq(schema.users.id, transaction.userId));
       refunded = true;
     }
     await dbTx.update(schema.transactions)
@@ -2079,7 +2284,7 @@ export async function completeFailedTransaction(txId: string) {
     await createNotification(
       userId,
       "Withdrawal Failed",
-      `Your withdrawal of UGX ${transactionAmount.toLocaleString()} could not be completed. The requested amount has been returned to your withdrawable balance. Reference: ${txId}.`,
+      `Your withdrawal of UGX ${transactionAmount.toLocaleString()} could not be completed. The requested amount has been returned to your balance. Reference: ${txId}.`,
       "withdraw",
       transactionAmount
     );
@@ -2095,20 +2300,6 @@ export async function completeFailedTransaction(txId: string) {
   return { status: "FAILED" };
 }
 
-
-export async function autoCollectUserYields(phone: string) {
-  const subs = await getUserSubscriptions(phone);
-  let totalClaimed = 0;
-  for (const sub of subs) {
-    try {
-      const res = await claimDailyReward(phone, sub.id);
-      if (res.success) totalClaimed += res.reward;
-    } catch (e) {
-      // already claimed today
-    }
-  }
-  return totalClaimed;
-}
 
 export async function flushDatabase(): Promise<{ success: boolean; deletedCount: number }> {
   const drizzleDb = getDb();
@@ -2141,18 +2332,19 @@ export async function adminGetAllUsers(): Promise<UserProfile[]> {
       const rows = await drizzleDb.select().from(schema.users);
       if (rows.length > 0) {
         list = rows.map(u => ({
+          id: u.id,
           phone: u.phone,
           username: u.username,
           inviteCode: u.inviteCode,
           referredByCode: u.referredByCode || "",
           operator: u.operator || "MTN",
           points: u.points,
-          rechargeBalance: u.rechargeBalance,
           withdrawnCash: u.withdrawnCash,
           totalDeposits: u.totalDeposits,
           aiIncome: u.aiIncome,
           invitesCount: u.invitesCount,
           referralRewardsEarned: u.referralRewardsEarned,
+          pendingReferralRewards: u.pendingReferralRewards,
           claimedVipTasks: readJsonStringArray(u.claimedVipTasks),
           claimedTierRewards: readJsonStringArray((u as any).claimedTierRewards),
           locked: u.locked,
@@ -2179,7 +2371,7 @@ export async function adminGetAllUsers(): Promise<UserProfile[]> {
     else subsByUser.set(sub.userId, [sub]);
   }
   return list.map(u => {
-    const userActiveSubs = (subsByUser.get(u.phone) || []).filter(s => s.status === "active");
+    const userActiveSubs = (subsByUser.get(u.id) || []).filter(s => s.status === "active");
     return {
       ...u,
       activeNodesCount: userActiveSubs.length,
@@ -2224,7 +2416,6 @@ export async function adminUpdateTransactionStatus(txId: string, status: string)
   if (isAutomaticWithdrawal && normalizedStatus !== "PENDING") {
     throw new Error("This withdrawal is settled only by the payment-provider webhook.");
   }
-
   if (normalizedStatus === "SUCCESSFUL" || normalizedStatus === "COMPLETED") {
     if (transaction.type === "deposit") {
       await completeSuccessfulDeposit(transaction.userId, transaction.amount, transaction.phone || undefined, transaction.operator || undefined, transaction.id);
@@ -2265,6 +2456,28 @@ export async function adminGetCatalogItems() {
   });
 }
 
+export async function getPersistentArtworkUrls(): Promise<string[]> {
+  const drizzleDb = getDb();
+  if (!drizzleDb) return [];
+  const [products, activeNodes, collectibles] = await Promise.all([
+    drizzleDb.select({
+      imageUrl: schema.catalogProducts.imageUrl,
+      eggImageUrl: schema.catalogProducts.eggImageUrl,
+      dragonImageUrl: schema.catalogProducts.dragonImageUrl,
+    }).from(schema.catalogProducts),
+    drizzleDb.select({
+      eggImageUrl: schema.subscribedNodes.eggImageUrl,
+      dragonImageUrl: schema.subscribedNodes.dragonImageUrl,
+    }).from(schema.subscribedNodes).where(eq(schema.subscribedNodes.status, "active")),
+    drizzleDb.select({ image: schema.collectibles.image }).from(schema.collectibles),
+  ]);
+  return [
+    ...products.flatMap((row) => [row.imageUrl, row.eggImageUrl, row.dragonImageUrl]),
+    ...activeNodes.flatMap((row) => [row.eggImageUrl, row.dragonImageUrl]),
+    ...collectibles.map((row) => row.image),
+  ].filter((url): url is string => typeof url === "string" && url.length > 0);
+}
+
 export async function adminSaveCatalogItem(item: SubscriptionItem) {
   const drizzleDb = requireDatabase("save the catalog product");
   try {
@@ -2273,6 +2486,8 @@ export async function adminSaveCatalogItem(item: SubscriptionItem) {
       name: item.name,
       image: item.image || item.imageUrl || "",
       imageUrl: item.imageUrl || item.image || "",
+      eggImageUrl: item.eggImageUrl || "",
+      dragonImageUrl: item.dragonImageUrl || "",
       amount: item.amount,
       duration: item.duration,
       dailyYield: item.dailyYield,
@@ -2290,7 +2505,9 @@ export async function adminSaveCatalogItem(item: SubscriptionItem) {
       category: item.category || "DS",
       inviteBonusPercent: Number(item.inviteBonusPercent || 0),
       outOfStock: item.outOfStock === true,
-      disabled: item.disabled === true
+      disabled: item.disabled === true,
+      ...(item.eggImageUrl !== undefined ? { eggImageUrl: item.eggImageUrl || "" } : {}),
+      ...(item.dragonImageUrl !== undefined ? { dragonImageUrl: item.dragonImageUrl || "" } : {})
     } });
   } catch (err) {
     throw databaseFailure("save the catalog product", err);
@@ -2380,7 +2597,7 @@ export async function getAvailableGiftCodeCount(phone: string): Promise<number> 
     const now = Date.now();
     let redeemed: string[] = [];
     if (cleanPhone) {
-      const userRows = await drizzleDb.select().from(schema.users).where(eq(schema.users.phone, cleanPhone));
+      const userRows = await drizzleDb.select().from(schema.users).where(eq(schema.users.id, cleanPhone));
       // MariaDB hands JSON columns back as text — normalize before .map.
       if (userRows.length > 0) redeemed = readJsonStringArray(userRows[0].redeemedGiftCodes).map((c) => String(c).trim().toUpperCase());
     }
@@ -2405,15 +2622,17 @@ export async function redeemGiftCode(phone: string, code: string) {
     const gifts = await drizzleDb.select().from(schema.giftCodes).where(eq(schema.giftCodes.code, cleanCode));
     if (gifts.length === 0) throw new Error("Invalid or expired gift code.");
     const gift = gifts[0];
-    const userRows = await drizzleDb.select().from(schema.users).where(eq(schema.users.phone, phone));
+    const userRows = await drizzleDb.select().from(schema.users).where(eq(schema.users.id, phone));
     if (userRows.length === 0) throw new Error("User not found");
     const user = userRows[0];
     const redeemed = readJsonStringArray(user.redeemedGiftCodes);
     if (redeemed.includes(cleanCode)) throw new Error("You have already redeemed this code.");
     
     redeemed.push(cleanCode);
-    const newPoints = (user.points || 0) + gift.amount;
-    await drizzleDb.update(schema.users).set({ points: newPoints, redeemedGiftCodes: redeemed }).where(eq(schema.users.phone, phone));
+    await drizzleDb.update(schema.users).set({
+      points: sql`${schema.users.points} + ${gift.amount}`,
+      redeemedGiftCodes: redeemed
+    }).where(eq(schema.users.id, phone));
 
     const newTxId = "tx_" + Date.now();
     await drizzleDb.insert(schema.transactions).values({
@@ -2448,20 +2667,35 @@ export async function dailyCheckin(phone: string) {
   const config = await getSiteConfig();
   const base = (config.checkinBaseBonus !== undefined && config.checkinBaseBonus !== null) ? config.checkinBaseBonus : 0;
   const inc = (config.checkinIncrement !== undefined && config.checkinIncrement !== null) ? config.checkinIncrement : 0;
-  // A streak is consecutive platform days only: claiming after a missed day
-  // restarts at 1 instead of inflating forever. The calendar UI renders this
-  // same rule, so previews and payouts can never disagree.
-  const yesterday = addPlatformDays(today, -1);
-  const previousStreak = Number(user.checkinStreak || 0);
-  const streakKept = user.lastCheckinDate === yesterday;
-  const currentStreak = streakKept ? previousStreak + 1 : 1;
-  const bonus = base + ((currentStreak - 1) * inc);
+  const drizzleDb = requireDatabase("credit the daily check-in");
+  let currentStreak = 0;
+  let previousStreak = 0;
+  let streakKept = false;
+  let bonus = 0;
+  await drizzleDb.transaction(async (tx) => {
+    const rows = await tx.select().from(schema.users)
+      .where(eq(schema.users.id, phone))
+      .limit(1)
+      .for("update");
+    const currentUser = rows[0];
+    if (!currentUser) throw new Error("User not found");
+    if (currentUser.lastCheckinDate === today) {
+      throw new Error("You have already checked in today.");
+    }
 
-  // Credit directly to withdrawable balance (points)!
-  user.points = (user.points || 0) + bonus;
-  user.lastCheckinDate = today;
-  user.checkinStreak = currentStreak;
-  await updateUserProfile(phone, { points: user.points, lastCheckinDate: today, checkinStreak: user.checkinStreak });
+    // Recalculate under the row lock so simultaneous check-ins cannot double-credit.
+    const yesterday = addPlatformDays(today, -1);
+    previousStreak = Number(currentUser.checkinStreak || 0);
+    streakKept = currentUser.lastCheckinDate === yesterday;
+    currentStreak = streakKept ? previousStreak + 1 : 1;
+    bonus = base + ((currentStreak - 1) * inc);
+
+    await tx.update(schema.users).set({
+      points: sql`${schema.users.points} + ${bonus}`,
+      lastCheckinDate: today,
+      checkinStreak: currentStreak
+    }).where(eq(schema.users.id, phone));
+  });
 
   // Record transaction in history
   await saveTransaction({
@@ -2472,7 +2706,7 @@ export async function dailyCheckin(phone: string) {
     currency: "UGX",
     status: "SUCCESSFUL",
     paymentMethod: "CHECKIN",
-    phone: phone,
+    phone: user.phone || undefined,
     itemId: `day_${currentStreak}`,
     mode: "auto",
     timestamp: new Date().toISOString()
@@ -2482,11 +2716,11 @@ export async function dailyCheckin(phone: string) {
   await createNotification(
     phone,
     "Daily Check-in Reward",
-    `You checked in successfully for Day ${currentStreak} and earned UGX ${bonus.toLocaleString()} credited to your withdrawable balance!`,
+    `You checked in successfully for Day ${currentStreak} and earned UGX ${bonus.toLocaleString()} credited to your balance!`,
     "checkin"
   );
 
-  return { amount: bonus, bonus, streak: user.checkinStreak, reset: !streakKept && previousStreak > 1 };
+  return { amount: bonus, bonus, streak: currentStreak, reset: !streakKept && previousStreak > 1 };
 }
 
 export async function getVipTaskboard(phone: string) {
@@ -2500,13 +2734,16 @@ export async function getVipTaskboard(phone: string) {
   const level2Bonus = referrals.filter((ref) => Number(ref.level) === 2).reduce((sum, ref) => sum + Number(ref.rewardAmount || 0), 0);
   const level3Bonus = referrals.filter((ref) => Number(ref.level) === 3).reduce((sum, ref) => sum + Number(ref.rewardAmount || 0), 0);
   const level4Bonus = referrals.filter((ref) => Number(ref.level) === 4).reduce((sum, ref) => sum + Number(ref.rewardAmount || 0), 0);
-  const reportedReferralIncome = Math.max(0, Number(user.referralRewardsEarned || 0));
+  const reportedReferralIncome = Math.max(
+    0,
+    Number(user.referralRewardsEarned || 0) - Number(user.pendingReferralRewards || 0)
+  );
   const reportedByLevel = rawLevel1Bonus + level2Bonus + level3Bonus + level4Bonus;
   const legacyUnallocated = Math.max(0, reportedReferralIncome - reportedByLevel);
   const level1Bonus = rawLevel1Bonus + legacyUnallocated;
   const totalReferralBonus = Math.max(reportedReferralIncome, rawLevel1Bonus + level2Bonus + level3Bonus + level4Bonus);
   // Milestones qualify on operator lifetime points: gross credited ledger
-  // income across every type that pays withdrawable balance (yields,
+  // income across every type that pays the account balance (yields,
   // referrals, check-ins, gifts, milestones, registration). requiredBonus is
   // the points threshold. Keep accumulatedBonus populated for compatibility.
   const accumulatedBonus = totalReferralBonus;
@@ -2746,7 +2983,7 @@ export async function verifyVipTask(phone: string, taskId: string) {
 
   await drizzleDb.transaction(async (tx) => {
     const userRows = await tx.select().from(schema.users)
-      .where(eq(schema.users.phone, cleanPhone)).limit(1).for("update");
+      .where(eq(schema.users.id, cleanPhone)).limit(1).for("update");
     const user = userRows[0];
     if (!user) throw new Error("User not found.");
     if (user.locked) throw new Error("This account cannot claim milestone rewards.");
@@ -2783,7 +3020,7 @@ export async function verifyVipTask(phone: string, taskId: string) {
       await tx.update(schema.users).set({
         points: sql`${schema.users.points} + ${reward}`,
         claimedVipTasks
-      }).where(eq(schema.users.phone, cleanPhone));
+      }).where(eq(schema.users.id, cleanPhone));
       await tx.insert(schema.transactions).values({
         id: `vip_${claimId}`.slice(0, 64),
         userId: cleanPhone,
@@ -2792,7 +3029,7 @@ export async function verifyVipTask(phone: string, taskId: string) {
         currency: "UGX",
         status: "SUCCESSFUL",
         paymentMethod: "VIP_TASK",
-        phone: cleanPhone,
+        phone: user.phone || undefined,
         itemId: `task:${cleanTaskId}`.slice(0, 64),
         mode: "auto",
         metadata: { claimId, category, tierName: category, tierImageUrl, taskTitle: String(task.title || "Milestone task") },
@@ -2814,9 +3051,9 @@ export async function verifyVipTask(phone: string, taskId: string) {
 
   if (!requiresAdminCheck) {
     try {
-      await createNotification(cleanPhone, `${category} Bonus`, `${category} milestone bonus of ${formatCurrencyForDb(reward)} was credited to your withdrawable balance.`, "rewards", reward, { eventType: "milestone_bonus", tierName: category, tierImageUrl });
+      await createNotification(cleanPhone, `${category} Bonus`, `${category} milestone bonus of ${formatCurrencyForDb(reward)} was credited to your balance.`, "rewards", reward, { eventType: "milestone_bonus", tierName: category, tierImageUrl });
     } catch (error) {
-      logError("[VIP Task] Reward notification failed after successful credit:", error);
+      console.error("[VIP Task] Reward notification failed after successful credit:", error);
     }
   }
   return { success: true, claimId, status: taskStatus, reward };
@@ -2841,7 +3078,7 @@ export async function claimVerifiedVipTask(phone: string, taskId: string) {
   const timestamp = new Date().toISOString();
   await drizzleDb.transaction(async (tx) => {
     const userRows = await tx.select().from(schema.users)
-      .where(eq(schema.users.phone, cleanPhone)).limit(1).for("update");
+      .where(eq(schema.users.id, cleanPhone)).limit(1).for("update");
     const user = userRows[0];
     if (!user) throw new Error("User not found.");
     if (user.locked) throw new Error("This account cannot claim milestone rewards.");
@@ -2860,7 +3097,7 @@ export async function claimVerifiedVipTask(phone: string, taskId: string) {
     await tx.update(schema.users).set({
       points: sql`${schema.users.points} + ${reward}`,
       claimedVipTasks
-    }).where(eq(schema.users.phone, cleanPhone));
+    }).where(eq(schema.users.id, cleanPhone));
     await tx.insert(schema.transactions).values({
       id: `vip_${claim.id}`.slice(0, 64),
       userId: cleanPhone,
@@ -2869,7 +3106,7 @@ export async function claimVerifiedVipTask(phone: string, taskId: string) {
       currency: "UGX",
       status: "SUCCESSFUL",
       paymentMethod: "VIP_TASK",
-      phone: cleanPhone,
+      phone: user.phone || undefined,
       itemId: `task:${cleanTaskId}`.slice(0, 64),
       mode: "auto",
       metadata: { claimId: claim.id, category: claim.category, tierName, tierImageUrl, taskTitle: claim.taskTitle },
@@ -2878,9 +3115,9 @@ export async function claimVerifiedVipTask(phone: string, taskId: string) {
     await tx.update(schema.vipTaskClaims).set({ status: "approved" }).where(eq(schema.vipTaskClaims.id, claim.id));
   });
   try {
-    await createNotification(cleanPhone, `${tierName} Bonus`, `${tierName} milestone bonus of ${formatCurrencyForDb(reward)} was credited to your withdrawable balance.`, "rewards", reward, { eventType: "milestone_bonus", tierName, tierImageUrl });
+    await createNotification(cleanPhone, `${tierName} Bonus`, `${tierName} milestone bonus of ${formatCurrencyForDb(reward)} was credited to your balance.`, "rewards", reward, { eventType: "milestone_bonus", tierName, tierImageUrl });
   } catch (error) {
-    logError("[VIP Task] Reward notification failed after successful claim:", error);
+    console.error("[VIP Task] Reward notification failed after successful claim:", error);
   }
   return { success: true, status: "approved" as const, reward };
 }
@@ -2903,7 +3140,7 @@ export async function listPendingVipTaskClaims() {
     reward: schema.vipTaskClaims.reward,
     submittedAt: schema.vipTaskClaims.submittedAt
   }).from(schema.vipTaskClaims)
-    .leftJoin(schema.users, eq(schema.users.phone, schema.vipTaskClaims.userId))
+    .leftJoin(schema.users, eq(schema.users.id, schema.vipTaskClaims.userId))
     .where(and(
       eq(schema.vipTaskClaims.status, "pending"),
       inArray(schema.vipTaskClaims.taskId, socialTaskIds)
@@ -3024,7 +3261,7 @@ export async function claimTierReward(phone: string, category: string) {
   const claimedAt = new Date().toISOString();
   await drizzleDb.transaction(async (tx) => {
     const userRows = await tx.select().from(schema.users)
-      .where(eq(schema.users.phone, phone))
+      .where(eq(schema.users.id, phone))
       .limit(1)
       .for("update");
     const user = userRows[0];
@@ -3046,12 +3283,12 @@ export async function claimTierReward(phone: string, category: string) {
     }
     claimedTierRewards.push(stage);
 
-    // Credit directly to withdrawable balance (points)! The reward comes
+    // Credit directly to the account balance. The reward comes
     // from server-side site configuration, never the client.
     await tx.update(schema.users).set({
       points: sql`${schema.users.points} + ${reward}`,
       claimedTierRewards
-    }).where(eq(schema.users.phone, phone));
+    }).where(eq(schema.users.id, phone));
 
     await tx.insert(schema.transactions).values({
       id: transactionId,
@@ -3073,7 +3310,7 @@ export async function claimTierReward(phone: string, category: string) {
   await createNotification(
     phone,
     `${stage} Bonus`,
-    `${stage} milestone bonus of UGX ${reward.toLocaleString()} was credited to your withdrawable balance.`,
+    `${stage} milestone bonus of UGX ${reward.toLocaleString()} was credited to your balance.`,
     "rewards",
     reward,
     { eventType: "milestone_bonus", tierName: stage, tierImageUrl }
@@ -3093,28 +3330,27 @@ export async function adminUpdateUserLockStatus(phone: string, locked: boolean) 
   return await updateUserProfile(phone, { locked });
 }
 
-// Admin balance adjustment: atomic delta on withdrawable (points) or deposit
-// (rechargeBalance) with a paired audit ledger row. The row is intentionally
+// Admin balance adjustment: atomic delta on the unified account balance with a paired audit ledger row. The row is intentionally
 // invisible to the user (getUserTransactions filters it out) and sends no
 // notification — it exists for admin/support auditing only.
 export async function adminAdjustBalance(
   phone: string,
-  target: "points" | "rechargeBalance",
+  target: "points",
   amount: number,
   reason?: string
 ): Promise<{ balance: number }> {
-  if (target !== "points" && target !== "rechargeBalance") {
+  if (target !== "points") {
     throw new Error("Invalid balance target.");
   }
   if (!Number.isSafeInteger(amount) || amount === 0) {
     throw new Error("Amount must be a non-zero whole number of UGX.");
   }
-  const label = target === "points" ? "withdrawable" : "deposit";
+  const label = "account";
   const drizzleDb = requireDatabase("adjust the user balance");
 
   await drizzleDb.transaction(async (tx) => {
     const rows = await tx.select().from(schema.users)
-      .where(eq(schema.users.phone, phone))
+      .where(eq(schema.users.id, phone))
       .limit(1)
       .for("update");
     const user = rows[0];
@@ -3126,10 +3362,8 @@ export async function adminAdjustBalance(
     }
 
     await tx.update(schema.users)
-      .set(target === "points"
-        ? { points: sql`${schema.users.points} + ${amount}` }
-        : { rechargeBalance: sql`${schema.users.rechargeBalance} + ${amount}` })
-      .where(eq(schema.users.phone, phone));
+      .set({ points: sql`${schema.users.points} + ${amount}` })
+      .where(eq(schema.users.id, phone));
 
     await tx.insert(schema.transactions).values({
       id: createTransactionId("ADJ"),

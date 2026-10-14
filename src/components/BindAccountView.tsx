@@ -145,7 +145,7 @@ export default function BindAccountView({ userProfile, onProfileUpdate, onBack, 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: userProfile.phone,
+          phone: userProfile.id,
           username,
           operator,
           customPhone: withdrawalPhone,

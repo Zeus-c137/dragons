@@ -51,8 +51,8 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
   const otherAbortRef = useRef<AbortController | null>(null);
   const lastIdsRef = useRef<Record<string, string>>({});
 
-  const roomId = useMemo(() => activeRoom === "shared" ? "shared" : activeRoom === "admin" ? `direct_${userProfile.phone}` : "ai", [activeRoom, userProfile.phone]);
-  const otherRoomIds = useMemo(() => activeRoom === "shared" ? [`direct_${userProfile.phone}`] : activeRoom === "admin" ? ["shared"] : ["shared", `direct_${userProfile.phone}`], [activeRoom, userProfile.phone]);
+  const roomId = useMemo(() => activeRoom === "shared" ? "shared" : activeRoom === "admin" ? `direct_${userProfile.id}` : "ai", [activeRoom, userProfile.id]);
+  const otherRoomIds = useMemo(() => activeRoom === "shared" ? [`direct_${userProfile.id}`] : activeRoom === "admin" ? ["shared"] : ["shared", `direct_${userProfile.id}`], [activeRoom, userProfile.id]);
 
   useEffect(() => {
     setActiveRoom(initialRoom);
@@ -101,7 +101,7 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
         if (seen) {
           const since = new Date(seen).getTime();
           for (const m of list) {
-            if (m.sender === userProfile.phone) continue;
+            if (m.sender === userProfile.id) continue;
             const t = new Date(m.timestamp).getTime();
             if (!isNaN(t) && t > since) n++;
           }
@@ -112,7 +112,7 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
     } catch {
       /* badge poll is best-effort */
     }
-  }, [otherRoomIds, userProfile.phone]);
+  }, [otherRoomIds, userProfile.id]);
 
   useEffect(() => {
     void fetchOther();
@@ -167,14 +167,14 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
     if (!container) return;
     const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
     const lastMessage = messages[messages.length - 1];
-    const isMyMessage = lastMessage && lastMessage.sender === userProfile.phone;
+    const isMyMessage = lastMessage && lastMessage.sender === userProfile.id;
 
     if (distanceFromBottom < 150 || isMyMessage) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       if (messages.length > 0) markSeen(roomId, messages);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, userProfile.phone]);
+  }, [messages, userProfile.id]);
 
   const switchRoom = (room: ChatRoom) => {
     if (room !== activeRoom) {
@@ -212,7 +212,7 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           roomId,
-          sender: userProfile.phone,
+          sender: userProfile.id,
           senderName: userProfile.username || "Anonymous Member",
           text,
           image
@@ -245,7 +245,7 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
     const optimistic: ChatMessage = {
       id: tmpId,
       roomId,
-      sender: userProfile.phone,
+      sender: userProfile.id,
       senderName: userProfile.username || "Anonymous Member",
       text: textToSend,
       image: imageToSend || undefined,
@@ -413,7 +413,7 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
                     </span>
                   </div>
                   {group.items.map((m, index) => {
-                    const isMe = m.sender === userProfile.phone;
+                    const isMe = m.sender === userProfile.id;
                     const isSystem = m.sender === "system";
                     const isSupportAdmin = m.sender === "admin" || m.senderName.toLowerCase().includes("admin");
                     const failed = failedIds.has(m.id);

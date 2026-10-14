@@ -130,7 +130,7 @@ export default function AdminView() {
   const seedFiredRef = useRef(false);
 
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
-  const [uploadingField, setUploadingField] = useState<"logoUrl" | "authBgImage" | "dashboardBgImage" | null>(null);
+  const [uploadingField, setUploadingField] = useState<"logoUrl" | "authBgImage" | null>(null);
 
   useEffect(() => {
     if (!isActivateRoute) return;
@@ -263,6 +263,9 @@ export default function AdminView() {
   const [nodeDailyProfitPct, setNodeDailyProfitPct] = useState<number>(30);
   const [nodeBonusPct, setNodeBonusPct] = useState<number>(10);
   const [nodeImageUrl, setNodeImageUrl] = useState("");
+  const [nodeEggImageUrl, setNodeEggImageUrl] = useState("");
+  const [nodeDragonImageUrl, setNodeDragonImageUrl] = useState("");
+  const [catalogArtUpload, setCatalogArtUpload] = useState<"egg" | "dragon" | null>(null);
   const [nodeDisabled, setNodeDisabled] = useState(false);
   const [nodeOutOfStock, setNodeOutOfStock] = useState(false);
 
@@ -725,7 +728,6 @@ export default function AdminView() {
   const [newOverridePassword, setNewOverridePassword] = useState("");
   // Balance adjustment state
   const [userToAdjust, setUserToAdjust] = useState<UserProfile | null>(null);
-  const [adjustTarget, setAdjustTarget] = useState<"points" | "rechargeBalance">("points");
   const [adjustDirection, setAdjustDirection] = useState<"credit" | "debit">("credit");
   const [adjustAmount, setAdjustAmount] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
@@ -951,6 +953,8 @@ export default function AdminView() {
     setNodeDailyProfitPct((item.dailyYield / item.amount) * 100);
     setNodeBonusPct(item.inviteBonusPercent || 10);
     setNodeImageUrl(item.imageUrl || "");
+    setNodeEggImageUrl(item.eggImageUrl || "");
+    setNodeDragonImageUrl(item.dragonImageUrl || "");
     setNodeDisabled(!!(item as any).disabled);
     setNodeOutOfStock(!!item.outOfStock);
   };
@@ -966,6 +970,8 @@ export default function AdminView() {
     setNodeDailyProfitPct(37.5);
     setNodeBonusPct(10);
     setNodeImageUrl("");
+    setNodeEggImageUrl("");
+    setNodeDragonImageUrl("");
     setNodeDisabled(false);
     setNodeOutOfStock(false);
   };
@@ -1157,7 +1163,9 @@ export default function AdminView() {
         "Duration (Days)": "45 Days",
         "Daily Percentage (%)": "5.50%",
         "Daily Income (UGX)": "165,000",
-        "Image URL": "https://cdn.sanity.io/images/2iccs2ie/production/4b4bb6d904403cb2abe5c37ebc3115f353619e82-2500x2500.jpg"
+        "Image URL": "https://cdn.sanity.io/images/2iccs2ie/production/4b4bb6d904403cb2abe5c37ebc3115f353619e82-2500x2500.jpg",
+        "Egg Image URL (PNG)": "",
+        "Dragon Image URL (SVG)": ""
       },
       {
         "Series/Category": "U Series",
@@ -1166,7 +1174,9 @@ export default function AdminView() {
         "Duration (Days)": "50 Days",
         "Daily Percentage (%)": "6.00%",
         "Daily Income (UGX)": "300,000",
-        "Image URL": "https://cdn.sanity.io/images/2iccs2ie/production/ff8e575a2c98bd9772823afb29d0bd499a1b0b3a-2916x2916.jpg"
+        "Image URL": "https://cdn.sanity.io/images/2iccs2ie/production/ff8e575a2c98bd9772823afb29d0bd499a1b0b3a-2916x2916.jpg",
+        "Egg Image URL (PNG)": "",
+        "Dragon Image URL (SVG)": ""
       }
     ];
 
@@ -1251,7 +1261,10 @@ export default function AdminView() {
           calcYield = Math.round(amount * 0.05);
         }
 
-        const imageUrl = getVal(["image url", "imageurl", "image", "photo"]) || "https://cdn.sanity.io/images/2iccs2ie/production/4b4bb6d904403cb2abe5c37ebc3115f353619e82-2500x2500.jpg";
+        const uploadedImageUrl = getVal(["image url", "imageurl", "image", "photo"]);
+        const imageUrl = uploadedImageUrl || "https://cdn.sanity.io/images/2iccs2ie/production/4b4bb6d904403cb2abe5c37ebc3115f353619e82-2500x2500.jpg";
+        const dragonImageUrl = getVal(["dragon image url", "dragon image", "dinosaur image url", "dinosaur image", "hatched image url", "dragon url", "dinosaur url"]);
+        const eggImageUrl = getVal(["egg image url", "egg image", "egg url"]) || (dragonImageUrl && uploadedImageUrl ? uploadedImageUrl : "");
 
         parsedItems.push({
           id: `node-excel-${Date.now()}-${i}`,
@@ -1262,6 +1275,8 @@ export default function AdminView() {
           dailyYield: calcYield,
           inviteBonusPercent: 10,
           imageUrl,
+          eggImageUrl,
+          dragonImageUrl,
           image: "from-blue-600 via-cyan-600 to-blue-700",
           outOfStock: false,
           disabled: false
@@ -1288,6 +1303,7 @@ export default function AdminView() {
     setIsImportingBulk(true);
 
     const total = parsedExcelNodes.length;
+    const failedItems: string[] = [];
     for (let i = 0; i < total; i++) {
       const item = parsedExcelNodes[i];
       setBulkProgress({
@@ -1297,18 +1313,28 @@ export default function AdminView() {
       });
 
       try {
-        await fetch("/api/admin/catalog/save", {
+        const response = await fetch("/api/admin/catalog/save", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(item)
         });
+        if (!response.ok) {
+          const result = await response.json().catch(() => null);
+          failedItems.push(`${item.name}: ${result?.error || `HTTP ${response.status}`}`);
+        }
       } catch (err) {
-        console.error(`Bulk import error for node index ${i}:`, err);
+        const reason = err instanceof Error ? err.message : "Network error";
+        failedItems.push(`${item.name}: ${reason}`);
       }
       await new Promise((r) => setTimeout(r, 120));
     }
 
-    toast.success(`Successfully imported ${total} server nodes into catalog!`);
+    if (failedItems.length > 0) {
+      console.error("Bulk catalog import failures:", failedItems);
+      toast.error(`Imported ${total - failedItems.length} of ${total} products. ${failedItems.length} failed; check that each hatching product has both artwork URLs.`);
+    } else {
+      toast.success(`Successfully imported ${total} products into catalog!`);
+    }
     setIsImportingBulk(false);
     setBulkProgress(null);
     setParsedExcelNodes(null);
@@ -1318,6 +1344,10 @@ export default function AdminView() {
 
   const handleSaveNode = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (Boolean(nodeEggImageUrl.trim()) !== Boolean(nodeDragonImageUrl.trim())) {
+      toast.error("Add both the egg PNG and dragon SVG to configure a hatching product.");
+      return;
+    }
     try {
       setIsLoading(true);
       const res = await fetch("/api/admin/catalog/save", {
@@ -1332,6 +1362,8 @@ export default function AdminView() {
           dailyYield: Math.round(nodeAmount * (nodeDailyProfitPct / 100)),
           inviteBonusPercent: nodeBonusPct,
           imageUrl: nodeImageUrl,
+          eggImageUrl: nodeEggImageUrl.trim(),
+          dragonImageUrl: nodeDragonImageUrl.trim(),
           image: "from-blue-600 via-cyan-600 to-blue-700", // Standardized generic gradient
           disabled: nodeDisabled,
           outOfStock: nodeOutOfStock
@@ -1349,6 +1381,49 @@ export default function AdminView() {
       toast.error(err.message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCatalogArtFile = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+    kind: "egg" | "dragon"
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const expectedType = kind === "egg" ? "image/png" : "image/svg+xml";
+    if (file.type !== expectedType) {
+      toast.error(kind === "egg" ? "Egg artwork must be a PNG file." : "Dragon artwork must be an SVG file.");
+      return;
+    }
+    const maxBytes = kind === "egg" ? 4 * 1024 * 1024 : 2 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      toast.error(`Artwork must be smaller than ${maxBytes / (1024 * 1024)} MB.`);
+      return;
+    }
+
+    setCatalogArtUpload(kind);
+    try {
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Could not read the artwork file."));
+        reader.readAsDataURL(file);
+      });
+      const response = await fetch("/api/admin/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: kind === "egg" ? "eggart" : "dragonart", data }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.url) throw new Error(result.error || "Artwork upload failed.");
+      if (kind === "egg") setNodeEggImageUrl(result.url);
+      else setNodeDragonImageUrl(result.url);
+      toast.success(`${kind === "egg" ? "Egg PNG" : "Dragon SVG"} uploaded. Save the product to apply it.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Artwork upload failed.");
+    } finally {
+      setCatalogArtUpload(null);
     }
   };
 
@@ -1539,8 +1614,8 @@ export default function AdminView() {
 
   const handleSiteImageFile = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    kind: "logo" | "authbg" | "dashboardbg",
-    field: "logoUrl" | "authBgImage" | "dashboardBgImage",
+    kind: "logo" | "authbg",
+    field: "logoUrl" | "authBgImage",
     label: string
   ) => {
     const file = e.target.files?.[0];
@@ -1647,7 +1722,7 @@ export default function AdminView() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: userToOverride.phone,
+          phone: userToOverride.id,
           newPassword: newOverridePassword.trim()
         })
       });
@@ -1655,7 +1730,7 @@ export default function AdminView() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      toast.success(`Password updated for ${userToOverride.phone}`);
+      toast.success(`Password updated for ${userToOverride.username || userToOverride.id}`);
       setUserToOverride(null);
       setNewOverridePassword("");
       fetchAllAdminData();
@@ -1674,7 +1749,7 @@ export default function AdminView() {
       toast.error("Enter a whole number amount greater than zero.");
       return;
     }
-    const current = Number(adjustTarget === "points" ? userToAdjust.points : (userToAdjust as any).rechargeBalance) || 0;
+    const current = Number(userToAdjust.points) || 0;
     if (adjustDirection === "debit" && magnitude > current) {
       toast.error(`Debit exceeds the available balance of UGX ${current.toLocaleString()}.`);
       return;
@@ -1686,8 +1761,8 @@ export default function AdminView() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: userToAdjust.phone,
-          target: adjustTarget,
+          phone: userToAdjust.id,
+          target: "points",
           amount: delta,
           reason: adjustReason.trim()
         })
@@ -1713,14 +1788,14 @@ export default function AdminView() {
     
     setConfirmDialog({
       title: newLockStatus ? "Lock Account" : "Unlock Account",
-      message: `Are you sure you want to ${newLockStatus ? 'lock' : 'unlock'} account ${u.phone}?`,
+      message: `Are you sure you want to ${newLockStatus ? 'lock' : 'unlock'} account ${u.username || u.id}?`,
       onConfirm: async () => {
         try {
           setIsLoading(true);
           const res = await fetch("/api/admin/users/lock", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: u.phone, locked: newLockStatus })
+            body: JSON.stringify({ phone: u.id, locked: newLockStatus })
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error);
@@ -1763,7 +1838,8 @@ export default function AdminView() {
   const adminPh = siteConfig?.adminPhone || "admin";
   const filteredUsers = usersList.filter(u => 
     u.phone !== adminPh && (
-      u.phone.toLowerCase().includes(userSearchText.toLowerCase()) ||
+      String(u.phone || "").toLowerCase().includes(userSearchText.toLowerCase()) ||
+      u.id.toLowerCase().includes(userSearchText.toLowerCase()) ||
       (u.username && u.username.toLowerCase().includes(userSearchText.toLowerCase()))
     )
   );
@@ -1815,7 +1891,7 @@ export default function AdminView() {
       const searchLower = txSearchText.toLowerCase();
       const txIdMatch = tx.id?.toLowerCase().includes(searchLower);
       const phoneMatch = (tx.phone || "").toLowerCase().includes(searchLower) || (tx.userId || "").toLowerCase().includes(searchLower);
-      const user = usersList.find(u => u.phone === tx.userId);
+      const user = usersList.find(u => u.id === tx.userId);
       const usernameMatch = user?.username?.toLowerCase().includes(searchLower);
       
       if (!txIdMatch && !phoneMatch && !usernameMatch) {
@@ -2425,8 +2501,8 @@ export default function AdminView() {
                             <tr key={item.id} className="hover:bg-[var(--theme-bg)]/50 transition-colors border-b border-[var(--theme-card-border)]/30">
                               <td className="px-5 py-4">
                                 <div className="flex items-center gap-3">
-                                  {item.imageUrl ? (
-                                    <img src={item.imageUrl} alt="" className="w-8 h-8 rounded border border-[var(--theme-card-border)] object-cover bg-[var(--theme-card-bg)]" />
+                                  {(item.eggImageUrl || item.imageUrl) ? (
+                                    <img src={item.eggImageUrl || item.imageUrl} alt="" className="w-8 h-8 rounded border border-[var(--theme-card-border)] object-contain bg-[var(--theme-card-bg)]" />
                                   ) : (
                                     <div className="w-8 h-8 rounded bg-[var(--theme-bg)] flex items-center justify-center text-[var(--theme-text)] opacity-50">
                                       <Cpu className="w-4 h-4" />
@@ -2546,7 +2622,6 @@ export default function AdminView() {
                           <th className="px-5 py-4 font-bold text-[var(--theme-text)] opacity-70 text-center">Invites</th>
                           <th className="px-5 py-4 font-bold text-[var(--theme-text)] opacity-70 text-center">Products</th>
                           <th className="px-5 py-4 font-bold text-[var(--theme-text)] opacity-70 text-right">Balance</th>
-                          <th className="px-5 py-4 font-bold text-[var(--theme-text)] opacity-70 text-right">Deposit Balance</th>
                           <th className="px-5 py-4 font-bold text-[var(--theme-text)] opacity-70 text-right">Withdraws</th>
                           <th className="px-5 py-4 font-bold text-[var(--theme-text)] opacity-70 text-center">Status</th>
                           <th className="px-5 py-4 font-bold text-[var(--theme-text)] opacity-70 text-right">Actions</th>
@@ -2557,13 +2632,13 @@ export default function AdminView() {
                           const nodesCount = (u as any).activeNodesCount || 0;
                           const isLocked = !!(u as any).locked;
                           const successWithdrawals = transactionsList
-                            .filter(tx => tx.userId === u.phone && canonicalTypeOf(tx.type, tx.metadata) === "withdrawal" && isSettledTransaction(tx))
+                            .filter(tx => tx.userId === u.id && canonicalTypeOf(tx.type, tx.metadata) === "withdrawal" && isSettledTransaction(tx))
                             .reduce((sum, tx) => sum + (tx.amount || 0), 0);
                           return (
-                            <tr key={u.phone} className={`hover:bg-[var(--theme-bg)]/50 transition-colors border-b border-[var(--theme-card-border)]/30 ${isLocked ? 'opacity-60' : ''}`}>
+                            <tr key={u.id} className={`hover:bg-[var(--theme-bg)]/50 transition-colors border-b border-[var(--theme-card-border)]/30 ${isLocked ? 'opacity-60' : ''}`}>
                               <td className="px-5 py-4">
                                 <div className="font-bold text-[var(--theme-text)]">{u.username || "Unknown"}</div>
-                                <div className="text-xs text-[var(--theme-text)] opacity-60 mt-0.5">{u.phone}</div>
+                                <div className="text-xs text-[var(--theme-text)] opacity-60 mt-0.5">{u.phone || "No payment phone added"}</div>
                               </td>
                               <td className="px-5 py-4 text-center text-xs text-[var(--theme-text)] opacity-70 font-medium">
                                 {u.createdAt ? new Date(u.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : "—"}
@@ -2576,11 +2651,8 @@ export default function AdminView() {
                               </td>
                               <td className="px-5 py-4 text-right">
                                 <div className="font-bold text-[var(--theme-text)]">{formatCurrency(u.points || 0)}</div>
-                              </td>
-                              <td className="px-5 py-4 text-right">
-                                <div className="font-bold text-[var(--theme-text)]">{formatCurrency(u.rechargeBalance || 0)}</div>
-                                {Number(u.totalDeposits || 0) > 0 && Number(u.rechargeBalance || 0) !== Number(u.totalDeposits || 0) && (
-                                  <div className="text-[11px] text-[var(--theme-text)] opacity-50 mt-0.5">lifetime {formatCurrency(u.totalDeposits || 0)}</div>
+                                {Number(u.totalDeposits || 0) > 0 && (
+                                  <div className="text-[11px] text-[var(--theme-text)] opacity-50 mt-0.5">deposited {formatCurrency(u.totalDeposits || 0)}</div>
                                 )}
                               </td>
                               <td className="px-5 py-4 text-right">
@@ -2595,13 +2667,13 @@ export default function AdminView() {
                               </td>
                               <td className="px-5 py-4 text-right relative">
                                 <button 
-                                  onClick={() => setActiveDropdown(activeDropdown === u.phone ? null : u.phone)}
+                                  onClick={() => setActiveDropdown(activeDropdown === u.id ? null : u.id)}
                                   className="p-1.5 text-[var(--theme-text)] opacity-70 hover:opacity-100 hover:bg-[var(--theme-bg)] rounded-lg outline-none transition-colors cursor-pointer"
                                 >
                                   <MoreVertical className="w-4 h-4" />
                                 </button>
                                 
-                                {activeDropdown === u.phone && (
+                                {activeDropdown === u.id && (
                                   <>
                                     <div className="fixed inset-0 z-40" onClick={() => setActiveDropdown(null)}></div>
                                     <div className="absolute right-8 top-8 w-48 bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] text-[var(--theme-text)] rounded-[var(--theme-radius)] shadow-xl z-50 py-1 flex flex-col text-sm overflow-hidden animate-in fade-in zoom-in-95">
@@ -2618,7 +2690,6 @@ export default function AdminView() {
                                       <button
                                         onClick={() => {
                                           setUserToAdjust(u);
-                                          setAdjustTarget("points");
                                           setAdjustDirection("credit");
                                           setAdjustAmount("");
                                           setAdjustReason("");
@@ -2777,7 +2848,7 @@ export default function AdminView() {
                               </td>
                               <td className="px-5 py-4">
                                 <div className="font-bold text-[var(--theme-text)]">
-                                  {usersList.find((u) => u.phone === tx.userId)?.username || tx.userId}
+                                  {usersList.find((u) => u.id === tx.userId)?.username || tx.userId}
                                 </div>
                                 <div className="text-xs text-[var(--theme-text)] opacity-60 flex items-center gap-1.5 mt-0.5">
                                   <span className="truncate max-w-[150px]" title={tx.withdrawPhone || tx.senderPhone || tx.phone || tx.userId}>
@@ -2809,7 +2880,7 @@ export default function AdminView() {
                                 <span className={`px-2.5 py-1 rounded-md text-[12px] font-medium uppercase ${
                                   isWithdraw ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" : isAdjustment ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" : isRental ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                                 }`}>
-                                  {isWithdraw ? "Withdrawal Payout" : isAdjustment ? "Admin Balance Adjustment" : isRental ? "Product Rental (Recharge Balance)" : "Deposit: Account Credit"}
+                                  {isWithdraw ? "Withdrawal Payout" : isAdjustment ? "Admin Balance Adjustment" : isRental ? "Product Rental (Balance)" : "Deposit: Account Credit"}
                                 </span>
                               </td>
                               <td className="px-5 py-4 text-center">
@@ -3313,7 +3384,7 @@ export default function AdminView() {
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             <div className="p-3 rounded-xl border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]">
                               <div className="text-[11px] font-bold opacity-60 uppercase">Font</div>
-                              <div className="text-sm font-bold">Sora</div>
+                              <div className="text-sm font-bold">Nunito Sans + Bree Serif</div>
                             </div>
                             <div className="p-3 rounded-xl border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]">
                               <div className="text-[11px] font-bold opacity-60 uppercase">Card</div>
@@ -3391,35 +3462,6 @@ export default function AdminView() {
                                   })}
                                 </div>
                               </div>
-                              <div>
-                                <span className="text-[11px] opacity-70 block mb-1">Dashboard Wallpaper / Pattern URL</span>
-                                <div className="flex gap-3 items-center">
-                                  <input
-                                    type="text"
-                                    value={siteConfig.dashboardBgImage || ""}
-                                    onChange={(e) => setSiteConfig({ ...siteConfig, dashboardBgImage: e.target.value })}
-                                    placeholder="https://images.unsplash.com/..."
-                                    className="theme-input flex-1 px-3.5 py-2 text-xs font-mono"
-                                  />
-                                  <div className="w-10 h-10 rounded-lg bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] overflow-hidden shrink-0 flex items-center justify-center">
-                                    {siteConfig.dashboardBgImage ? (
-                                      <img src={fixGitHubImageUrl(siteConfig.dashboardBgImage)} referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="Dashboard Preview" />
-                                    ) : (
-                                      <div className="w-full h-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-400">N/A</div>
-                                    )}
-                                  </div>
-                                </div>
-                                <label className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] text-[11px] font-bold text-[var(--theme-text)] transition-all active:scale-[0.97] w-fit ${uploadingField === "dashboardBgImage" ? "opacity-60 pointer-events-none" : "cursor-pointer hover:border-[var(--theme-primary)]"}`}>
-                                  <input
-                                    type="file"
-                                    accept="image/png,image/jpeg,image/webp"
-                                    className="hidden"
-                                    disabled={uploadingField === "dashboardBgImage"}
-                                    onChange={(e) => handleSiteImageFile(e, "dashboardbg", "dashboardBgImage", "Dashboard wallpaper")}
-                                  />
-                                  {uploadingField === "dashboardBgImage" ? "Uploading…" : "Upload from disk (max 4 MB)"}
-                                </label>
-                              </div>
                             </div>
                           </div>
                         </div>
@@ -3470,10 +3512,7 @@ export default function AdminView() {
                                     color: pText,
                                     borderRadius: pRadius,
                                     fontSize: pFontSize,
-                                    fontFamily: "'Sora', sans-serif",
-                                    backgroundImage: siteConfig.dashboardBgImage ? `linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.4)), url('${siteConfig.dashboardBgImage}')` : undefined,
-                                    backgroundSize: "cover",
-                                    backgroundPosition: "center",
+                                    fontFamily: "'Nunito Sans', sans-serif",
                                   } as React.CSSProperties
                                 }
                               >
@@ -3487,7 +3526,7 @@ export default function AdminView() {
                                         {siteConfig.brandName || "System"}
                                       </h5>
                                       <p className="text-[11px] opacity-70" style={{ color: pText }}>
-                                        Sora · {cStyle}
+                                        Nunito Sans + Bree Serif · {cStyle}
                                       </p>
                                     </div>
                                   </div>
@@ -5028,7 +5067,7 @@ export default function AdminView() {
                         <div className="absolute inset-x-0 bottom-0 bg-[var(--theme-card-bg)] p-2 text-center text-[12px] text-[var(--theme-text)] font-bold border-t border-[var(--theme-card-border)]">Product Thumbnail</div>
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">Image URL</label>
+                        <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">Legacy product image URL</label>
                         <input type="text" placeholder="https://..." value={nodeImageUrl} onChange={(e) => setNodeImageUrl(e.target.value)} className="w-full px-3 py-2 bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] rounded-[var(--theme-radius)] text-[var(--theme-text)] text-sm focus:border-[var(--theme-primary)] outline-none" />
                       </div>
                     </div>
@@ -5078,27 +5117,70 @@ export default function AdminView() {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">Daily Profits (%)</label>
+                          <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">{nodeEggImageUrl && nodeDragonImageUrl ? "Daily Income (%)" : "Daily Profits (%)"}</label>
                           <input type="text" inputMode="decimal" required value={nodeDailyProfitPct} onChange={(e) => setNodeDailyProfitPct(parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] rounded-[var(--theme-radius)] text-[var(--theme-text)] text-sm focus:border-[var(--theme-primary)] outline-none" />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">Duration (Days)</label>
+                          <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">{nodeEggImageUrl && nodeDragonImageUrl ? "Incubation (Days)" : "Duration (Days)"}</label>
                           <input type="text" inputMode="numeric" required value={nodeDuration} onChange={(e) => setNodeDuration(parseInt(e.target.value, 10) || 0)} className="w-full px-3 py-2 bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] rounded-[var(--theme-radius)] text-[var(--theme-text)] text-sm focus:border-[var(--theme-primary)] outline-none" />
                         </div>
                       </div>
                       
                       <div className="bg-[var(--theme-bg)] p-3 rounded-[var(--theme-radius)] border border-[var(--theme-card-border)] space-y-1">
                         <div className="flex justify-between text-xs">
-                          <span className="text-[var(--theme-text)] opacity-70">Calculated Daily Profit:</span>
+                          <span className="text-[var(--theme-text)] opacity-70">{nodeEggImageUrl && nodeDragonImageUrl ? "Calculated Daily Income:" : "Calculated Daily Profit:"}</span>
                           <span className="font-bold text-[var(--theme-text)]">{formatCurrency(nodeAmount * (nodeDailyProfitPct / 100))}</span>
                         </div>
                         <div className="flex justify-between text-xs">
-                          <span className="text-[var(--theme-text)] opacity-70">Total Return ({nodeDuration || 0} days):</span>
+                          <span className="text-[var(--theme-text)] opacity-70">{nodeEggImageUrl && nodeDragonImageUrl ? `Income over ${nodeDuration || 0} days:` : `Total Return (${nodeDuration || 0} days):`}</span>
                           <span className="font-bold text-[var(--theme-text)]">{formatCurrency(nodeAmount * (nodeDailyProfitPct / 100) * (nodeDuration || 0))}</span>
                         </div>
                       </div>
                     </div>
                   </div>
+
+                  <section className="space-y-3 rounded-[var(--theme-radius)] border border-[var(--theme-card-border)] bg-[var(--theme-bg)] p-4">
+                    <div>
+                      <h4 className="text-sm font-extrabold text-[var(--theme-text)]">Egg → dragon artwork</h4>
+                      <p className="mt-1 text-[11px] leading-relaxed text-[var(--theme-text)] opacity-65">
+                        Add both images to make this product hatch. The egg appears while it incubates; the SVG is saved to the player’s dragon when the cycle finishes.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {([
+                        { key: "egg", label: "Egg artwork · PNG", value: nodeEggImageUrl, set: setNodeEggImageUrl, accept: ".png,image/png" },
+                        { key: "dragon", label: "Dragon artwork · SVG", value: nodeDragonImageUrl, set: setNodeDragonImageUrl, accept: ".svg,image/svg+xml" },
+                      ] as const).map((art) => (
+                        <div key={art.key} className="space-y-2">
+                          <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[var(--theme-radius)] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] p-3">
+                            {art.value ? (
+                              <img src={art.value} alt={`${art.key} artwork preview`} className="h-full w-full object-contain" />
+                            ) : (
+                              <span className="text-xs text-[var(--theme-text)] opacity-45">Artwork preview</span>
+                            )}
+                          </div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wide text-[var(--theme-text)] opacity-75">{art.label}</label>
+                          <input
+                            type="text"
+                            value={art.value}
+                            onChange={(event) => art.set(event.target.value)}
+                            placeholder="Paste artwork URL"
+                            className="w-full rounded-[var(--theme-radius)] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] px-3 py-2 text-sm text-[var(--theme-text)] outline-none focus:border-[var(--theme-primary)]"
+                          />
+                          <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-[var(--theme-card-border)] px-3 py-2 text-xs font-bold text-[var(--theme-text)] transition-colors hover:border-[var(--theme-primary)]">
+                            {catalogArtUpload === art.key ? "Uploading…" : `Upload ${art.key === "egg" ? "PNG" : "SVG"}`}
+                            <input
+                              type="file"
+                              accept={art.accept}
+                              disabled={catalogArtUpload !== null}
+                              onChange={(event) => void handleCatalogArtFile(event, art.key)}
+                              className="sr-only"
+                            />
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
 
                   {/* Toggles Row */}
                   <div className="grid grid-cols-1 gap-3">
@@ -5146,7 +5228,7 @@ export default function AdminView() {
               <div className="px-6 py-4 border-b border-[var(--theme-card-border)] bg-[var(--theme-bg)] flex justify-between items-center">
                 <div>
                   <h3 className="text-lg font-extrabold text-[var(--theme-text)]">Reset User Password</h3>
-                  <p className="text-xs text-[var(--theme-text)] opacity-70 mt-1">For {userToOverride.phone}</p>
+                  <p className="text-xs text-[var(--theme-text)] opacity-70 mt-1">For {userToOverride.username || userToOverride.id}</p>
                 </div>
                 <button onClick={() => setUserToOverride(null)} className="text-[var(--theme-text)] opacity-60 hover:opacity-100 transition-colors cursor-pointer">
                   <X className="w-5 h-5" />
@@ -5171,9 +5253,7 @@ export default function AdminView() {
         )}
 
         {userToAdjust && (() => {
-          const withdrawable = Number(userToAdjust.points) || 0;
-          const deposit = Number((userToAdjust as any).rechargeBalance) || 0;
-          const selectedBalance = adjustTarget === "points" ? withdrawable : deposit;
+          const currentBalance = Number(userToAdjust.points) || 0;
           return (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
               <motion.div
@@ -5193,7 +5273,7 @@ export default function AdminView() {
                   <div>
                     <h3 className="text-lg font-extrabold text-[var(--theme-text)]">Edit Balance</h3>
                     <p className="text-xs text-[var(--theme-text)] opacity-70 mt-1">
-                      {userToAdjust.phone}{userToAdjust.username ? ` · ${userToAdjust.username}` : ""}
+                      {userToAdjust.username || userToAdjust.id}{userToAdjust.phone ? ` · ${userToAdjust.phone}` : ""}
                     </p>
                   </div>
                   <button onClick={() => setUserToAdjust(null)} className="text-[var(--theme-text)] opacity-60 hover:opacity-100 transition-colors cursor-pointer">
@@ -5202,36 +5282,9 @@ export default function AdminView() {
                 </div>
                 <div className="p-6">
                   <form id="adjust-balance-form" onSubmit={handleAdjustBalance} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="px-3 py-2 rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)]/90 border border-[var(--theme-card-border)]">
-                        <div className="text-[10px] font-black uppercase tracking-wider opacity-60">Withdrawable</div>
-                        <div className="text-sm font-extrabold mt-0.5">{formatCurrency(withdrawable)}</div>
-                      </div>
-                      <div className="px-3 py-2 rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)]/90 border border-[var(--theme-card-border)]">
-                        <div className="text-[10px] font-black uppercase tracking-wider opacity-60">Deposit</div>
-                        <div className="text-sm font-extrabold mt-0.5">{formatCurrency(deposit)}</div>
-                      </div>
-                    </div>
-
                     <div className="space-y-1.5">
-                      <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">Balance</label>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setAdjustTarget("points")}
-                          className={`flex-1 px-3 py-2 rounded-[var(--theme-radius)] text-sm font-bold border transition-colors cursor-pointer ${adjustTarget === "points" ? "bg-[var(--theme-primary)]/15 border-[var(--theme-primary)] text-[var(--theme-primary)]" : "bg-[var(--theme-card-bg)]/90 border-[var(--theme-card-border)] opacity-70 hover:opacity-100"}`}
-                        >
-                          Withdrawable
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAdjustTarget("rechargeBalance")}
-                          className={`flex-1 px-3 py-2 rounded-[var(--theme-radius)] text-sm font-bold border transition-colors cursor-pointer ${adjustTarget === "rechargeBalance" ? "bg-[var(--theme-primary)]/15 border-[var(--theme-primary)] text-[var(--theme-primary)]" : "bg-[var(--theme-card-bg)]/90 border-[var(--theme-card-border)] opacity-70 hover:opacity-100"}`}
-                        >
-                          Deposit
-                        </button>
-                      </div>
-                      <div className="text-[11px] opacity-60">Current: {formatCurrency(selectedBalance)}</div>
+                      <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">Account balance</label>
+                      <div className="text-[11px] opacity-60">Current: {formatCurrency(currentBalance)}</div>
                     </div>
 
                     <div className="space-y-1.5">

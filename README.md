@@ -20,8 +20,12 @@ npm start              # node dist/server.cjs (production)
 Single Node process: `dist/server.cjs` serves the API and the built frontend from the same port. `dist/index.html` alone does nothing without the server behind it. Boot is self-provisioning — `ensureDatabaseSchema()` creates all tables, seeds `site_config`, and runs ledger reconciliations, so a fresh empty database is enough.
 
 - Health: `/healthz` (liveness) · `/readyz` (readiness — 503 until DB init finishes, use this for host health checks)
-- Scheduler hook: `GET /api/jobs/daily-credit?key=<DAILY_CREDIT_JOB_SECRET>` (idempotent; prefer an external cron over the in-process midnight job on sleeping hosts)
-- Uploads: all site images go to Cloudinary (`CLOUDINARY_*` required — no local-disk fallback); the returned `secure_url` is saved in the DB
+- Product returns and referral rewards are claimed manually by users; the server does not run a daily auto-credit job.
+- Dragon products use one catalog entry with an egg PNG, dragon SVG, price, incubation duration, and daily income. Egg artwork is snapshotted when opened; the dragon artwork is saved to the collectible when incubation finishes.
+- Product artwork uploads go to Cloudinary (`CLOUDINARY_*` required — no local-disk fallback); the returned `secure_url` is saved in the DB and retained while referenced by the catalog, an active incubation, or a collectible.
+
+## Dragon Products
+In Admin → Catalog, create one product per dragon species. Upload both the egg PNG and dragon SVG in the “Egg → dragon artwork” section. The existing duration is the incubation period, and the existing daily yield is the income earned during it. Players open eggs from the Dragons home screen, can claim accumulated income while an egg incubates, and see the dragon in their collection after the cycle ends. Existing catalog products without paired artwork remain supported.
 
 ## Render Deployment (Web Service, not Static Site)
 1. Create a hosted MySQL database (empty) and a Web Service from this repo.

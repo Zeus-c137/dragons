@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import RarityBadge from "./RarityBadge";
 import { rarityMapForCatalog } from "../utils/rarity";
+import { isDragonEggProduct } from "../utils/dragons";
 
 interface CatalogViewProps {
   items: SubscriptionItem[];
@@ -52,6 +53,10 @@ function dailyPct(item: SubscriptionItem): string {
   if (!(amt > 0)) return "-";
   const pct = (Number(item.dailyYield || 0) / amt) * 100;
   return `${pct >= 10 ? pct.toFixed(0) : pct.toFixed(1)}% Daily`;
+}
+
+function getProductArtwork(item: SubscriptionItem): string {
+  return item.eggImageUrl || item.imageUrl || "";
 }
 
 export default function CatalogView({
@@ -110,10 +115,10 @@ export default function CatalogView({
       return false;
     }
 
-    const rechargeBal = userProfile.rechargeBalance || 0;
-    if (rechargeBal < item.amount) {
+    const balance = Number(userProfile.points) || 0;
+    if (balance < item.amount) {
       toast.error(
-        `Insufficient recharge balance. Buying ${item.name} requires ${formatCurrency(item.amount)}. Your account recharge balance is ${formatCurrency(rechargeBal)}. Please deposit funds first.`
+        `Insufficient balance. Buying ${item.name} requires ${formatCurrency(item.amount)}. Your available balance is ${formatCurrency(balance)}. Please deposit funds first.`
       );
       return false;
     }
@@ -124,7 +129,7 @@ export default function CatalogView({
       const res = await fetch("/api/items/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: userProfile.phone, itemId: item.id }),
+        body: JSON.stringify({ phone: userProfile.id, itemId: item.id }),
       });
 
       const data = await res.json();
@@ -136,7 +141,7 @@ export default function CatalogView({
 
       // Deliberate confirmation: the activation modal carries the moment,
       // the user chooses when to continue to Income.
-      setActivated({ item, dayOne: Number(data.subscription?.totalEarned) || item.dailyYield || 0 });
+      setActivated({ item, dayOne: Number(data.subscription?.dailyYield ?? item.dailyYield) || 0 });
       setConfirmingItem(null);
       setModalPhase("success");
       return true;
@@ -261,18 +266,19 @@ export default function CatalogView({
 
   const renderStartButton = (item: SubscriptionItem) => {
     const isOutOfStock = item.outOfStock || item.disabled;
+    const isEgg = isDragonEggProduct(item);
     return (
       <button
         type="button"
         onClick={() => handleStartRun(item)}
         disabled={submittingItemId === item.id || isOutOfStock}
-        aria-label={`Start ${item.name} run`}
+        aria-label={isEgg ? `Open ${item.name} egg` : `Start ${item.name} run`}
         className="shrink-0 inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-full bg-[var(--theme-primary)] text-[var(--theme-on-primary)] text-[11px] font-sans font-black transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
       >
         {submittingItemId === item.id ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
         ) : (
-          <><Plus className="w-3.5 h-3.5" strokeWidth={3} /> Start Run</>
+          <><Plus className="w-3.5 h-3.5" strokeWidth={3} /> {isEgg ? "Open egg" : "Start Run"}</>
         )}
       </button>
     );
@@ -297,6 +303,7 @@ export default function CatalogView({
 
   const renderVerticalCard = (item: SubscriptionItem, idx: number) => {
     const isOutOfStock = item.outOfStock || item.disabled;
+    const artwork = getProductArtwork(item);
     const ownedQuantity = activeSubscriptions.filter(
       (sub) => (sub.itemId === item.id || sub.itemName === item.name) && sub.status === "active"
     ).length;
@@ -309,14 +316,14 @@ export default function CatalogView({
         transition={{ delay: prefersReducedMotion ? 0 : Math.min(idx, 5) * 0.03, duration: prefersReducedMotion ? 0.15 : 0.25, ease: [0.23, 1, 0.32, 1] }}
         className="relative flex flex-col bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] border border-white/10 rounded-[24px] overflow-hidden transition-all duration-150 group select-none shadow-sm hover:border-[var(--theme-primary)]/30"
       >
-        <div onClick={() => item.imageUrl && setPreviewImage(item.imageUrl)} className="relative aspect-[16/9] overflow-hidden cursor-zoom-in">
-          {item.imageUrl ? (
+        <div onClick={() => artwork && setPreviewImage(artwork)} className="relative aspect-[16/9] overflow-hidden cursor-zoom-in bg-[var(--theme-bg)]">
+          {artwork ? (
             <img
-              src={item.imageUrl}
+              src={artwork}
               alt={item.name}
               loading="lazy"
               referrerPolicy="no-referrer"
-              className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+              className={`absolute inset-0 w-full h-full ${isDragonEggProduct(item) ? "object-contain p-5" : "object-cover"} group-hover:scale-[1.02] transition-transform duration-500`}
             />
           ) : (
             <div className="absolute inset-0 bg-[var(--theme-bg)] flex items-center justify-center text-[var(--theme-text)] opacity-40 text-xs font-mono">
@@ -353,6 +360,7 @@ export default function CatalogView({
 
   const renderCarouselCard = (item: SubscriptionItem, idx: number) => {
     const isOutOfStock = item.outOfStock || item.disabled;
+    const artwork = getProductArtwork(item);
     const ownedQuantity = activeSubscriptions.filter(
       (sub) => (sub.itemId === item.id || sub.itemName === item.name) && sub.status === "active"
     ).length;
@@ -371,14 +379,14 @@ export default function CatalogView({
                   const left = target.offsetLeft - (scroller.clientWidth - target.offsetWidth) / 2;
                   scroller.scrollTo({ left, behavior: prefersReducedMotion ? "auto" : "smooth" });
                 }
-              } else if (item.imageUrl) {
-                setPreviewImage(item.imageUrl);
+              } else if (artwork) {
+                setPreviewImage(artwork);
               }
             }}
             className="relative aspect-[16/9] overflow-hidden cursor-zoom-in bg-[var(--theme-bg)]"
           >
-            {item.imageUrl ? (
-              <img src={item.imageUrl} alt={item.name} loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover pointer-events-none" />
+            {artwork ? (
+              <img src={artwork} alt={item.name} loading="lazy" referrerPolicy="no-referrer" className={`absolute inset-0 h-full w-full pointer-events-none ${isDragonEggProduct(item) ? "object-contain p-5" : "object-cover"}`} />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-xs font-mono opacity-40">No Image</div>
             )}
@@ -426,8 +434,8 @@ export default function CatalogView({
               <div className="rounded-[24px] border border-white/10 bg-[var(--theme-card-bg)]/60 backdrop-blur-[20px] p-4 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-sans text-[var(--theme-text)] opacity-60">Account Balance</p>
-                  <p className="font-display font-black text-[22px] text-[var(--theme-text)] tracking-tight leading-tight truncate">{formatCurrency(userProfile.rechargeBalance || 0)}</p>
-                  <p className="text-[10px] font-sans text-[var(--theme-text)] opacity-50">Available for runs</p>
+                  <p className="font-display font-black text-[22px] text-[var(--theme-text)] tracking-tight leading-tight truncate">{formatCurrency(userProfile.points || 0)}</p>
+                  <p className="text-[10px] font-sans text-[var(--theme-text)] opacity-50">Available to use or withdraw</p>
                 </div>
                 <button
                   type="button"
@@ -537,7 +545,7 @@ export default function CatalogView({
           Starting a run requires you to deposit funds into your wallet first.
         </p>
          <p className="text-[12px] mt-2 font-sans opacity-70 leading-relaxed">
-         The earnings are credited to your withdrawable balance daily. Completed runs become NFT art collectibles in your account.
+         Daily returns accumulate for you to claim from My Runs. Completed runs become collectibles in your account.
         </p>
       </div>
       {/* Single modal: confirm → loading → success */}
@@ -564,11 +572,13 @@ export default function CatalogView({
                     <Check className="w-7 h-7 text-black" strokeWidth={3} />
                   </span>
                   <div className="text-center">
-                    <h3 className="font-display font-black text-[22px] tracking-tight">Run Activated</h3>
-                    <p className="text-[13px] font-sans text-[var(--theme-text)] opacity-65 mt-1 leading-snug">{activated.item.name} is live and earning for you.</p>
+                    <h3 className="font-display font-black text-[22px] tracking-tight">
+                      {isDragonEggProduct(activated.item) ? "Egg is incubating!" : "Run Activated"}
+                    </h3>
+                    <p className="text-[13px] font-sans text-[var(--theme-text)] opacity-65 mt-1 leading-snug">{activated.item.name} is live. Returns will accumulate during its cycle.</p>
                   </div>
-                  {activated.item.imageUrl && (
-                    <img src={activated.item.imageUrl} alt={activated.item.name} loading="lazy" referrerPolicy="no-referrer" className="w-24 h-24 object-contain" />
+                  {getProductArtwork(activated.item) && (
+                  <img src={getProductArtwork(activated.item)} alt={activated.item.name} loading="lazy" referrerPolicy="no-referrer" className="w-24 h-24 object-contain" />
                   )}
                   <div className="w-full divide-y divide-[var(--theme-card-border)]/60 border-y border-[var(--theme-card-border)]/60">
                     <div className="flex items-center justify-between py-2.5">
@@ -576,17 +586,19 @@ export default function CatalogView({
                       <span className="font-display font-black text-[14px] text-[var(--theme-text)] tabular-nums">{formatCurrency(activated.item.amount)}</span>
                     </div>
                     <div className="flex items-center justify-between py-2.5">
-                      <span className="text-[12px] font-sans text-[var(--theme-text)] opacity-60">Day 1 return credited</span>
-                      <span className="font-display font-black text-[14px] text-[var(--theme-primary)] tabular-nums">+{formatCurrency(activated.dayOne)}</span>
+                      <span className="text-[12px] font-sans text-[var(--theme-text)] opacity-60">Day 1 return to claim</span>
+                      <span className="font-display font-black text-[14px] text-[var(--theme-primary)] tabular-nums">{formatCurrency(activated.dayOne)}</span>
                     </div>
                   </div>
                   <div className="w-full rounded-2xl border border-dashed border-[var(--theme-primary)]/50 bg-[var(--theme-primary)]/10 px-4 py-3">
                     <p className="text-[12px] font-sans text-[var(--theme-text)] leading-relaxed">
-                      When the {activated.item.duration}-day cycle ends, this run becomes a <span className="font-black">collectible</span>. Claim it to own it permanently.
+                      {isDragonEggProduct(activated.item)
+                        ? `Your egg incubates for ${activated.item.duration} days. The dragon appears when the cycle finishes.`
+                        : <>When the {activated.item.duration}-day cycle ends, this run becomes a <span className="font-black">collectible</span>. Claim it to own it permanently.</>}
                     </p>
                   </div>
                   <p className="text-[12px] font-sans text-[var(--theme-text)] opacity-60 leading-relaxed text-center -mt-1">
-                    Your first day&apos;s return is already in your withdrawable balance. New returns land daily while the run stays active.
+                    Claim returns from My Active Runs. Unclaimed days accumulate, including today&apos;s return.
                   </p>
                   <div className="w-full space-y-2 mt-1">
                     <button
@@ -607,21 +619,23 @@ export default function CatalogView({
                 </div>
               ) : confirmingItem ? (
                 <div className="w-full overflow-y-auto">
-                  {confirmingItem.imageUrl && (
+                  {getProductArtwork(confirmingItem) && (
                     <div className="w-full overflow-hidden rounded-t-[24px] bg-[var(--theme-bg)]">
                       <img
-                        src={confirmingItem.imageUrl}
+                        src={getProductArtwork(confirmingItem)}
                         alt={confirmingItem.name}
                         loading="lazy"
                         referrerPolicy="no-referrer"
-                        className="h-48 w-full object-cover sm:h-56"
+                        className={`h-48 w-full sm:h-56 ${isDragonEggProduct(confirmingItem) ? "object-contain p-6" : "object-cover"}`}
                       />
                     </div>
                   )}
                   <div className="flex w-full flex-col items-center gap-4 p-6 pt-5">
                     <div className="text-center">
                       <h3 className="font-display font-black text-[20px] tracking-tight">
-                        {modalPhase === "loading" ? "Starting your run..." : "Start this run?"}
+                        {modalPhase === "loading"
+                          ? (isDragonEggProduct(confirmingItem) ? "Opening your egg..." : "Starting your run...")
+                          : (isDragonEggProduct(confirmingItem) ? "Open this egg?" : "Start this run?")}
                       </h3>
                       <p className="text-[13px] font-sans text-[var(--theme-text)] opacity-65 mt-1 leading-snug">{confirmingItem.name}</p>
                     </div>
@@ -631,21 +645,21 @@ export default function CatalogView({
                         <span className="font-display font-black text-[14px] text-[var(--theme-text)] tabular-nums">{formatCurrency(confirmingItem.amount)}</span>
                       </div>
                       <div className="flex items-center justify-between py-2.5">
-                        <span className="text-[12px] font-sans text-[var(--theme-text)] opacity-60">Duration</span>
+                        <span className="text-[12px] font-sans text-[var(--theme-text)] opacity-60">{isDragonEggProduct(confirmingItem) ? "Hatch time" : "Duration"}</span>
                         <span className="font-display font-black text-[14px] text-[var(--theme-text)] tabular-nums">{confirmingItem.duration} Days</span>
                       </div>
                       <div className="flex items-center justify-between py-2.5">
-                        <span className="text-[12px] font-sans text-[var(--theme-text)] opacity-60">Daily return</span>
+                        <span className="text-[12px] font-sans text-[var(--theme-text)] opacity-60">Daily income</span>
                         <span className="font-display font-black text-[14px] text-[var(--theme-primary)] tabular-nums">{formatCurrency(confirmingItem.dailyYield)}</span>
                       </div>
                     </div>
                     {modalPhase === "loading" ? (
                       <p className="text-[12px] font-sans text-[var(--theme-text)] opacity-60 leading-relaxed">
-                        Processing payment and activating your run...
+                        {isDragonEggProduct(confirmingItem) ? "Processing payment and starting incubation..." : "Processing payment and activating your run..."}
                       </p>
                     ) : (
                       <p className="text-[12px] font-sans text-[var(--theme-text)] opacity-60 leading-relaxed">
-                        {formatCurrency(confirmingItem.amount)} will be deducted from your recharge balance.
+                        {formatCurrency(confirmingItem.amount)} will be deducted from your balance.
                       </p>
                     )}
                     <div className="w-full space-y-2 mt-1">
@@ -666,7 +680,7 @@ export default function CatalogView({
                             className="w-full inline-flex items-center justify-center gap-1.5 px-5 py-3 rounded-full bg-[var(--theme-primary)] text-[var(--theme-on-primary)] text-[14px] font-sans font-black cursor-pointer active:scale-[0.98] transition-all"
                           >
                             <Check className="w-4 h-4" strokeWidth={3} />
-                            Confirm & Start
+                            {isDragonEggProduct(confirmingItem) ? "Hatch egg" : "Confirm & Start"}
                           </button>
                           <button
                             type="button"

@@ -31,7 +31,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-full font-black uppercase tracking-wider transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+    "inline-flex items-center justify-center gap-2 rounded-md font-black uppercase tracking-wider transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
   const variantCls =
     variant === "primary"
       ? "bg-[var(--theme-primary)] text-[var(--theme-on-primary)] shadow-[0_3px_0_0_var(--theme-primary-shadow)] active:shadow-none active:translate-y-[3px]"
@@ -44,7 +44,7 @@ export function Button({
       disabled={disabled || loading}
       {...props}
     >
-      {loading ? <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : children}
+      {loading ? <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-md animate-spin" /> : children}
     </button>
   )
 }
