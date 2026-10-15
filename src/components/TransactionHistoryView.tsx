@@ -134,13 +134,37 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
     return matchesFilter;
   }), [transactions, historyFilter]);
 
-  const totals = useMemo(() => transactions.reduce((sum, tx) => {
-    if (!isSuccessfulStatus(String(tx.status || ""))) return sum;
-    const canon = canonicalTypeOf(tx.type, tx.metadata) as string;
-    if (canon === "deposit") sum.deposits += Math.max(0, Number(tx.amount) || 0);
-    if (canon === "withdrawal") sum.withdrawals += Math.max(0, getWithdrawalDisplayAmounts(tx).payout);
-    return sum;
-  }, { deposits: 0, withdrawals: 0 }), [transactions]);
+  const metric = useMemo(() => {
+    const metricTabs: Record<string, { label: string; icon: LucideIcon }> = {
+      all: { label: "Total volume", icon: TrendingUp },
+      deposit: { label: "Total deposits", icon: CirclePlus },
+      withdraw: { label: "Total withdrawals", icon: Wallet },
+      yield: { label: "Dragon income", icon: TrendingUp },
+      referral: { label: "Referral income", icon: Link2 },
+      voucher: { label: "Gift code total", icon: Gift },
+    };
+    const tab = metricTabs[historyFilter] ?? metricTabs.all;
+
+    const amount = transactions.reduce((sum, tx) => {
+      if (!isSuccessfulStatus(String(tx.status || ""))) return sum;
+      const canon = canonicalTypeOf(tx.type, tx.metadata) as string;
+      if (canon === "product_activation") return sum;
+      const matchesTab =
+        historyFilter === "all" ||
+        historyFilter === "deposit" && canon === "deposit" ||
+        historyFilter === "withdraw" && canon === "withdrawal" ||
+        historyFilter === "yield" && canon === "daily_yield" ||
+        historyFilter === "referral" && (canon === "referral_signup_bonus" || canon === "referral_level_income") ||
+        historyFilter === "voucher" && canon === "gift_code";
+      if (!matchesTab) return sum;
+      const value = canon === "withdrawal"
+        ? getWithdrawalDisplayAmounts(tx).payout
+        : Number(tx.amount) || 0;
+      return sum + Math.abs(value);
+    }, 0);
+
+    return { ...tab, amount };
+  }, [transactions, historyFilter]);
 
   const getMeta = (type: string, metadata?: any) => {
     const disp = getTransactionDisplayMeta(type, metadata);
@@ -164,20 +188,14 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
      
       </div>
 
-      <section aria-label="Deposit and withdrawal totals" className="grid shrink-0 grid-cols-2 gap-3 px-1 pb-3">
-        <div className="min-w-0 rounded-2xl border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/70 p-3.5 sm:p-4">
+      <section aria-label={metric.label} className="shrink-0 px-1 pb-3">
+        <div className="min-w-0 rounded-2xl border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/70 p-4">
           <div className="flex items-center gap-2 text-[var(--theme-primary)]">
-            <CirclePlus className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <h2 className="text-xs sm:text-sm font-bold">Total deposits</h2>
+            <metric.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <h2 className="text-xs sm:text-sm font-bold">{metric.label}</h2>
           </div>
-          <p className="mt-2 truncate font-display text-lg sm:text-xl font-black tabular-nums text-[var(--theme-text)]">{formatCurrency(totals.deposits)}</p>
-        </div>
-        <div className="min-w-0 rounded-2xl border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/70 p-3.5 sm:p-4">
-          <div className="flex items-center gap-2 text-[var(--theme-text)] opacity-75">
-            <Wallet className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <h2 className="text-xs sm:text-sm font-bold">Total withdrawals</h2>
-          </div>
-          <p className="mt-2 truncate font-display text-lg sm:text-xl font-black tabular-nums text-[var(--theme-text)]">{formatCurrency(totals.withdrawals)}</p>
+          <p className="mt-2 truncate font-display text-xl sm:text-2xl font-black tabular-nums text-[var(--theme-text)]">{formatCurrency(metric.amount)}</p>
+          <p className="mt-1 text-[11px] font-medium text-[var(--theme-text)] opacity-50">Successful transactions only</p>
         </div>
       </section>
 
@@ -187,7 +205,7 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
             { id: "all", label: "All" },
             { id: "deposit", label: "Deposit" },
             { id: "withdraw", label: "Withdraw" },
-            { id: "yield", label: "Income" },
+            { id: "yield", label: "Dragon income" },
             { id: "referral", label: "Referral income" },
             { id: "voucher", label: "Gift Code" },
           ].map(tab => (
