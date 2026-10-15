@@ -115,10 +115,10 @@ export default function CatalogView({
       return false;
     }
 
-    const balance = Number(userProfile.points) || 0;
+    const balance = Number(userProfile.rechargeableBalance) || 0;
     if (balance < item.amount) {
       toast.error(
-        `Insufficient balance. Buying ${item.name} requires ${formatCurrency(item.amount)}. Your available balance is ${formatCurrency(balance)}. Please deposit funds first.`
+        `Insufficient capital. Buying ${item.name} requires ${formatCurrency(item.amount)}. Your available capital is ${formatCurrency(balance)}. Please top up first.`
       );
       return false;
     }
@@ -429,13 +429,13 @@ export default function CatalogView({
           transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
           className="space-y-4 px-1"
         >
-            {/* Account balance — what can be deployed into runs (above shifting title) */}
+            {/* Rechargeable capital available for hatching eggs. */}
             <div className="sticky top-0 z-20 -mx-1 px-1 pt-1 pb-2">
               <div className="rounded-[24px] border border-white/10 bg-[var(--theme-card-bg)]/60 backdrop-blur-[20px] p-4 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-sans text-[var(--theme-text)] opacity-60">Account Balance</p>
-                  <p className="font-display font-black text-[22px] text-[var(--theme-text)] tracking-tight leading-tight truncate">{formatCurrency(userProfile.points || 0)}</p>
-                  <p className="text-[10px] font-sans text-[var(--theme-text)] opacity-50">Available to use or withdraw</p>
+                  <p className="text-[11px] font-sans text-[var(--theme-text)] opacity-60">My capital</p>
+                  <p className="font-display font-black text-[22px] text-[var(--theme-text)] tracking-tight leading-tight truncate">{formatCurrency(userProfile.rechargeableBalance || 0)}</p>
+                  <p className="text-[10px] font-sans text-[var(--theme-text)] opacity-50">Used to hatch eggs</p>
                 </div>
                 <button
                   type="button"

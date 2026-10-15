@@ -82,27 +82,26 @@ function OverviewView({
        
       </section>
 
-      <section aria-label="" className="space-y-3 rounded-[24px] border border-white/10 bg-[var(--theme-card-bg)]/40 p-4 backdrop-blur-[20px] backdrop-saturate-[180%]">
-
-        <p className="select-all break-all text-[16px] ">{inviteLink || "N/A"}</p>
-        <div className="grid grid-cols-2 gap-2">
+      <section aria-label="Your referral link" className="flex items-center gap-2 rounded-[24px] border border-white/15 bg-[var(--theme-card-bg)]/40 p-3 backdrop-blur-[20px] backdrop-saturate-[180%]">
+        <p className="min-w-0 flex-1 select-all break-all text-[14px] leading-relaxed text-[var(--theme-text)]">{inviteLink || "N/A"}</p>
+        <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
             onClick={onCopyLink}
             disabled={!inviteLink}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 text-[14px] font-sans font-bold text-[var(--theme-text)] transition-colors hover:bg-white/[0.08] disabled:opacity-45"
+            aria-label={copiedLink ? "Referral link copied" : "Copy referral link"}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/[0.08] text-[var(--theme-primary)] transition-colors hover:bg-white/[0.16] disabled:opacity-45"
           >
-            {copiedLink ? <Check className="h-4 w-4 text-[var(--theme-primary)]" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
-            {copiedLink ? "Copied" : "Copy"}
+            {copiedLink ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
           </button>
           <button
             type="button"
             onClick={onShare}
             disabled={!inviteLink}
-            className="inline-flex min-h-11 items-center justify-center gap-2  px-3 text-[14px] font-sans text-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:opacity-45"
+            aria-label="Share referral link"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/[0.08] text-[var(--theme-primary)] transition-colors hover:bg-white/[0.16] disabled:opacity-45"
           >
             <Share2 className="h-4 w-4" aria-hidden="true" />
-            Share
           </button>
         </div>
       </section>
@@ -111,7 +110,7 @@ function OverviewView({
         <button
           type="button"
           onClick={onViewTeam}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/40 px-3 py-2 text-[11px] font-sans font-black text-[var(--theme-primary)] transition-colors hover:bg-[var(--theme-primary)]/10"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--theme-primary)] px-4 py-2.5 text-[12px] font-sans font-black text-[var(--theme-on-primary)] shadow-lg shadow-black/10 ring-1 ring-white/30 transition-transform active:scale-[0.98]"
         >
           <User2Icon className="h-4 w-4" aria-hidden="true" />
           My invites
@@ -439,7 +438,7 @@ export default function ReferralView({ userProfile, siteConfig, onProfileChange,
     team: <InviteTeamView stats={stats} isLoading={isLoading} activeLevel={activeLevel} onActiveLevelChange={setActiveLevel as (l: 1 | 2 | 3 | 4) => void} activeLevelStats={activeLevelStats} siteConfig={liveSiteConfig ?? siteConfig} />,
   };
   return (
-    <div className="min-h-full w-full space-y-4 pb-16 text-[var(--theme-text)]">
+    <div className="min-h-full w-full space-y-4 rounded-[28px]  p-4 pb-16 text-[var(--theme-on-primary)]">
       {view !== "overview" && (
         <button type="button" onClick={goBack} className="inline-flex items-center gap-2 rounded-full px-2 py-1.5 text-xs font-semibold text-[var(--theme-text)] opacity-65 transition-opacity hover:opacity-100">
           <ArrowLeft className="h-3.5 w-3.5 text-[var(--theme-primary)]" />

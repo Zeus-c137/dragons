@@ -572,8 +572,9 @@ export default function App() {
     if (userProfile) {
       const updatedProfile = {
         ...userProfile,
-        // The server applies the rent and day-one yield to the unified balance.
-        points: Math.max(0, (userProfile.points || 0) - costAmt) + (Number(newSub.totalEarned) || 0)
+        points: Math.max(0, (userProfile.points || 0) - costAmt) + (Number(newSub.totalEarned) || 0),
+        rechargeableBalance: Math.max(0, (Number(userProfile.rechargeableBalance) || 0) - costAmt),
+        withdrawableBalance: (Number(userProfile.withdrawableBalance) || 0) + (Number(newSub.totalEarned) || 0),
       };
       setUserProfile(updatedProfile);
     }
@@ -599,14 +600,12 @@ export default function App() {
   };
 
   // Callback on manual points claims harvesting succeed
-  const handleClaimSuccess = (pointsEarned: number, newBalance: number, subId: string, lastClaimedDate: string, status: "active" | "expired") => {
-    if (userProfile) {
-      const updatedProfile = {
-        ...userProfile,
-        points: newBalance
-      };
-      setUserProfile(updatedProfile);
-    }
+  const handleClaimSuccess = (_pointsEarned: number, newBalance: number, subId: string, lastClaimedDate: string, status: "active" | "expired", newWithdrawableBalance?: number, daysFed?: number) => {
+    setUserProfile((current) => current ? {
+      ...current,
+      points: Math.max(Number(current.points) || 0, Number(newBalance) || 0),
+      withdrawableBalance: Math.max(Number(current.withdrawableBalance) || 0, Number(newWithdrawableBalance) || 0),
+    } : current);
     // Keep the local run card in sync without refetching the full signed-in shell.
     setActiveNodes((prev) =>
       prev.map((n) =>
@@ -615,7 +614,8 @@ export default function App() {
               ...n,
               status,
               lastClaimedDate,
-              totalEarned: (n.totalEarned || 0) + pointsEarned
+              daysFed: Number(daysFed ?? n.daysFed ?? 0),
+              totalEarned: (n.totalEarned || 0) + _pointsEarned
             }
           : n
       )
@@ -829,20 +829,25 @@ export default function App() {
         
         <header className="user-app-header sticky top-0 z-40 shrink-0">
           <div className="user-app-brand">
-            <BrandLogo siteConfig={siteConfig} className="flex h-7 w-7 shrink-0 items-center justify-center" />
-            <span className="user-app-brand-name" title={userProfile.username || userProfile.phone || "Player"}>
-              {userProfile.username?.trim() || userProfile.phone || "Player"}
-            </span>
+            <button
+              type="button"
+              onClick={() => { setHistoryFilterRequest("all"); setActiveTab("history"); }}
+              aria-label={`Open transaction history. My capital ${formatCurrency(Number(userProfile.rechargeableBalance) || 0)}`}
+              className="user-app-capital appearance-none border-0 bg-transparent p-0 text-inherit text-left cursor-pointer transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-on-primary)]"
+            >
+              <span><Wallet className="h-3.5 w-3.5" aria-hidden="true" />My capital</span>
+              <strong>{formatCurrency(Number(userProfile.rechargeableBalance) || 0)}</strong>
+            </button>
           </div>
           <div className="user-app-header-actions">
             <button
               type="button"
               onClick={() => { setHistoryFilterRequest("all"); setActiveTab("history"); }}
-              aria-label={`Open transaction history. Current balance ${formatCurrency(Number(userProfile.points) || 0)}`}
-              className="user-app-balance appearance-none border-0 bg-transparent p-0 text-inherit cursor-pointer transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-on-primary)]"
+              aria-label={`Open transaction history. Withdrawable balance ${formatCurrency(Number(userProfile.withdrawableBalance) || 0)}`}
+              className="user-app-balance user-app-withdrawable-balance appearance-none border-0 bg-transparent p-0 text-inherit cursor-pointer transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-on-primary)]"
             >
-              <span className="inline-flex items-center justify-end gap-1.5"><Wallet className="h-3.5 w-3.5" aria-hidden="true" />My balance</span>
-              <strong>{formatCurrency(Number(userProfile.points) || 0)}</strong>
+              <span className="inline-flex items-center justify-end gap-1.5"><Wallet className="h-3.5 w-3.5" aria-hidden="true" />Withdrawable</span>
+              <strong>{formatCurrency(Number(userProfile.withdrawableBalance) || 0)}</strong>
             </button>
           </div>
         </header>

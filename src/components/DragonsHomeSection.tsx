@@ -1,15 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Award, Check, Clock, Egg, Gift, History, Loader2, LogOut, Menu, Timer, Wallet, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ArrowRight, Award, Check, Clock, Egg, Gift, History, Loader2, LogOut, Menu, Timer, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 import { useCurrency } from "../currency";
 import { useGatedInterval } from "../hooks/useGatedInterval";
 import type { Collectible, SubscribedNode, SubscriptionItem, UserProfile } from "../types";
 import { readApiJson } from "../utils/api";
-import { getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmount, getRunTotalDays } from "../utils/runs";
+import { formatClock, getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmount, getRunTotalDays, msUntilPlatformMidnight } from "../utils/runs";
 import { isDragonEggProduct } from "../utils/dragons";
 
 import egg from "@/src/assets/svg/celestial.png";
+import coin3d from "@/src/assets/svg/coin.png";
+
+type CoinFlight = { id: number; startX: number; startY: number; dx: number; dy: number; delay: number };
 
 type Props = {
   isActive: boolean;
@@ -17,56 +21,12 @@ type Props = {
   activeNodes: SubscribedNode[];
   items: SubscriptionItem[];
   onSubscribeSuccess: (node: SubscribedNode, amount: number) => void;
-  onClaimSuccess: (amount: number, balance: number, subId: string, lastClaimedDate: string, status: "active" | "expired") => void;
+  onClaimSuccess: (amount: number, balance: number, subId: string, lastClaimedDate: string, status: "active" | "expired", withdrawableBalance?: number, daysFed?: number) => void;
   onProfileUpdate: (profile: UserProfile) => void;
   onNavigateToCollection: () => void;
   onNavigateToHistory: () => void;
   onSignOut: () => void;
 };
-
-function AnimatedUgxAmount({ amount }: { amount: number }) {
-  const target = Math.max(0, Math.floor(Number(amount) || 0));
-  const [displayedAmount, setDisplayedAmount] = useState(target);
-  const displayedAmountRef = useRef(displayedAmount);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-
-  useEffect(() => {
-    const startAmount = displayedAmountRef.current;
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (target <= startAmount || prefersReducedMotion) {
-      displayedAmountRef.current = target;
-      setDisplayedAmount(target);
-      return;
-    }
-
-    let startTime = 0;
-    let frameId = 0;
-    const durationMs = 420;
-    const animate = (time: number) => {
-      if (startTime === 0) startTime = time;
-      const progress = Math.min(1, (time - startTime) / durationMs);
-      const easedProgress = 1 - Math.pow(1 - progress, 4);
-      const nextAmount = progress === 1
-        ? target
-        : Math.floor(startAmount + (target - startAmount) * easedProgress);
-      displayedAmountRef.current = nextAmount;
-      setDisplayedAmount(nextAmount);
-      if (progress < 1) frameId = window.requestAnimationFrame(animate);
-    };
-
-    frameId = window.requestAnimationFrame(animate);
-    return () => window.cancelAnimationFrame(frameId);
-  }, [target]);
-
-  return (
-    <span aria-live="off" className="inline-flex items-baseline gap-1.5">
-      <span className="font-sans text-[11px] font-bold tracking-wide text-[var(--theme-text)] opacity-55">UGX</span>
-      <span className="font-display text-[28px] font-black text-[var(--theme-primary)]">
-        {displayedAmount.toLocaleString("en-UG", { maximumFractionDigits: 0 })}
-      </span>
-    </span>
-  );
-}
 
 function formatWholeUgx(amount: number): string {
   return Math.max(0, Math.floor(Number(amount) || 0)).toLocaleString("en-UG", { maximumFractionDigits: 0 });
@@ -92,6 +52,8 @@ export default function DragonsHomeSection({
   const [hatchingEggId, setHatchingEggId] = useState<string | null>(null);
   const [revealingDragonId, setRevealingDragonId] = useState<string | null>(null);
   const [claimingNodeId, setClaimingNodeId] = useState<string | null>(null);
+  const [isFeedingAll, setIsFeedingAll] = useState(false);
+  const [coinFlights, setCoinFlights] = useState<CoinFlight[]>([]);
   const [collectibles, setCollectibles] = useState<Collectible[]>([]);
   const [collectiblesLoaded, setCollectiblesLoaded] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
@@ -101,6 +63,33 @@ export default function DragonsHomeSection({
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const closeSettingsButtonRef = useRef<HTMLButtonElement>(null);
   const homeGiftCodeInputRef = useRef<HTMLInputElement>(null);
+
+  const animateCoinsToBalance = (sourceRect: DOMRect, count = 9) => {
+    if (prefersReducedMotion) return;
+    const target = document.querySelector<HTMLElement>(".user-app-balance")?.getBoundingClientRect();
+    if (!target) return;
+    const startX = sourceRect.left + sourceRect.width / 2;
+    const startY = sourceRect.top + sourceRect.height / 2;
+    const dx = target.left + target.width / 2 - startX;
+    const dy = target.top + target.height / 2 - startY;
+    const now = Date.now();
+    setCoinFlights(Array.from({ length: count }, (_, index) => ({
+      id: now + index,
+      startX: startX + (Math.random() - 0.5) * 26,
+      startY: startY + (Math.random() - 0.5) * 16,
+      dx: dx + (Math.random() - 0.5) * 28,
+      dy: dy + (Math.random() - 0.5) * 18,
+      delay: index * 0.045,
+    })));
+    window.setTimeout(() => setCoinFlights([]), 1150);
+  };
+
+  const matureChickenAfterFeed = (node: SubscribedNode, nextDaysFed: number) => {
+    const midpointFeed = Math.ceil(getRunTotalDays(node, items) / 2);
+    if (Number(node.daysFed || 0) >= midpointFeed || nextDaysFed < midpointFeed) return;
+    setRevealingDragonId(node.itemId);
+    window.setTimeout(() => setRevealingDragonId((current) => current === node.itemId ? null : current), 900);
+  };
 
   useEffect(() => {
     if (!settingsMenuOpen) return;
@@ -138,7 +127,13 @@ export default function DragonsHomeSection({
       });
       const data = await readApiJson<{ amount: number }>(response);
       const amount = Math.max(0, Number(data.amount) || 0);
-      onProfileUpdate({ ...profile, points: (Number(profile.points) || 0) + amount });
+      onProfileUpdate({
+        ...profile,
+        points: (Number(profile.points) || 0) + amount,
+        withdrawableBalance: (Number(profile.withdrawableBalance) || 0) + amount,
+      });
+      const submitButton = document.getElementById("home-gift-code-submit");
+      if (submitButton) animateCoinsToBalance(submitButton.getBoundingClientRect(), 12);
       toast.success(`Redeemed gift code of ${formatCurrency(amount)}.`);
       setGiftCodeValue("");
       setHomeGiftCodeOpen(false);
@@ -238,7 +233,7 @@ export default function DragonsHomeSection({
       await new Promise((resolve) => window.setTimeout(resolve, hatchDuration));
       setRevealingDragonId(egg.id);
       window.setTimeout(() => setRevealingDragonId((current) => current === egg.id ? null : current), 900);
-      toast.success(`${egg.name} hatched! Your dragon is now in your valley.`);
+      toast.success(`${egg.name} hatched! Your chick is now in your flock.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The egg could not be opened.");
     } finally {
@@ -247,14 +242,16 @@ export default function DragonsHomeSection({
     }
   };
 
-  const handleClaimIncome = async (node: SubscribedNode) => {
+  const handleClaimIncome = async (node: SubscribedNode, sourceRect: DOMRect) => {
     const now = new Date();
     const accrued = getRunClaimableReturns(node, now).amount;
     const nodeEndMs = getRunEndMs(node);
     const cycleFinished = String(node.status).toLowerCase() !== "active" || nodeEndMs !== null && now.getTime() >= nodeEndMs;
     const minimumClaimAmount = getRunMinimumClaimAmount(node);
-    if (!cycleFinished && accrued < minimumClaimAmount) {
-      toast.error(`You need at least ${formatCurrency(minimumClaimAmount)} accrued before collecting.`);
+    if (accrued < minimumClaimAmount) {
+      toast.error(minimumClaimAmount > 0
+        ? "You have already fed this chick today. Come back tomorrow."
+        : "This chicken is not configured to earn income.");
       return;
     }
     if (cycleFinished && accrued <= 0) {
@@ -274,17 +271,69 @@ export default function DragonsHomeSection({
         success: boolean;
         pointsClaimed: number;
         updatedPoints: number;
+        updatedWithdrawableBalance: number;
         lastClaimedDate: string;
         status: "active" | "expired";
         itemName: string;
+        daysFed: number;
       }>(response);
       if (!data.success) throw new Error("Income could not be collected. Please try again.");
-      onClaimSuccess(data.pointsClaimed, data.updatedPoints, node.id, data.lastClaimedDate, data.status);
-      toast.success(`${formatCurrency(data.pointsClaimed)} collected from ${data.itemName}.`);
+      onClaimSuccess(data.pointsClaimed, data.updatedPoints, node.id, data.lastClaimedDate, data.status, data.updatedWithdrawableBalance, data.daysFed);
+      matureChickenAfterFeed(node, data.daysFed);
+      animateCoinsToBalance(sourceRect);
+      toast.success(`${formatCurrency(data.pointsClaimed)} fed to your hen from ${data.itemName}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Income could not be collected.");
     } finally {
       setClaimingNodeId(null);
+    }
+  };
+
+  const handleFeedAll = async (sourceRect: DOMRect) => {
+    if (isFeedingAll || claimingNodeId) return;
+    const ready = activeNodes.filter((node) => {
+      if (!node.eggImageUrl || !node.dragonImageUrl) return false;
+      return getRunClaimableReturns(node, new Date()).amount >= getRunMinimumClaimAmount(node)
+        && getRunMinimumClaimAmount(node) > 0;
+    });
+    if (!ready.length) {
+      toast.error("Your chickens have all been fed today. Come back tomorrow.");
+      return;
+    }
+
+    setIsFeedingAll(true);
+    try {
+      const results = await Promise.allSettled(ready.map(async (node) => {
+        const response = await fetch("/api/subscriptions/claim", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ subId: node.id, phone: profile.id }),
+        });
+        const data = await readApiJson<{
+          success: boolean;
+          pointsClaimed: number;
+          updatedPoints: number;
+          updatedWithdrawableBalance: number;
+          lastClaimedDate: string;
+          status: "active" | "expired";
+          itemName: string;
+          daysFed: number;
+        }>(response);
+        if (!data.success) throw new Error("Income could not be collected.");
+        onClaimSuccess(data.pointsClaimed, data.updatedPoints, node.id, data.lastClaimedDate, data.status, data.updatedWithdrawableBalance, data.daysFed);
+        matureChickenAfterFeed(node, data.daysFed);
+        return Number(data.pointsClaimed) || 0;
+      }));
+      const collected = results.reduce((sum, result) => sum + (result.status === "fulfilled" ? result.value : 0), 0);
+      const failures = results.filter((result) => result.status === "rejected").length;
+      if (collected > 0) {
+        animateCoinsToBalance(sourceRect, 14);
+        toast.success(`${formatCurrency(collected)} fed to your hens.`);
+      }
+      if (failures > 0) toast.error("Some chickens could not be fed. Please try again.");
+    } finally {
+      setIsFeedingAll(false);
     }
   };
 
@@ -298,7 +347,7 @@ export default function DragonsHomeSection({
         body: JSON.stringify({ phone: profile.id, subscriptionId: node.id }),
       });
       const data = await readApiJson<{ success: boolean; collectible: Collectible }>(response);
-      if (!data.success || !data.collectible) throw new Error("Dragon could not be added to your collection. Please try again.");
+      if (!data.success || !data.collectible) throw new Error("Hen could not be added to your collection. Please try again.");
       setCollectibles((current) => [
         ...current.filter((collectible) => collectible.subscriptionId !== node.id),
         data.collectible,
@@ -306,7 +355,7 @@ export default function DragonsHomeSection({
       toast.success(`${data.collectible.itemName} added to your collection!`);
       onNavigateToCollection();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Dragon could not be added to your collection.");
+      toast.error(error instanceof Error ? error.message : "Hen could not be added to your collection.");
     } finally {
       setClaimingNodeId(null);
     }
@@ -314,6 +363,26 @@ export default function DragonsHomeSection({
 
   return (
     <section className="space-y-5">
+      {coinFlights.length > 0 && typeof document !== "undefined" ? createPortal(
+        <AnimatePresence>
+          <div className="pointer-events-none fixed inset-0 z-[120] overflow-hidden" aria-hidden="true">
+            {coinFlights.map((coin) => (
+              <motion.img
+                key={coin.id}
+                src={coin3d}
+                alt=""
+                initial={{ x: 0, y: 0, scale: 0.8, rotate: 0, opacity: 1 }}
+                animate={{ x: coin.dx, y: coin.dy, scale: 0.35, rotate: 360, opacity: 0.1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: prefersReducedMotion ? 0.01 : 0.72, delay: coin.delay, ease: [0.22, 1, 0.36, 1] }}
+                className="absolute h-7 w-7 object-contain drop-shadow-md"
+                style={{ left: coin.startX - 14, top: coin.startY - 14 }}
+              />
+            ))}
+          </div>
+        </AnimatePresence>,
+        document.body
+      ) : null}
       <div className="sticky top-2 z-40 ml-auto -mb-[88px] h-[88px] w-11">
         <button
           ref={settingsButtonRef}
@@ -465,6 +534,7 @@ export default function DragonsHomeSection({
                  
                 </div>
                 <button
+                  id="home-gift-code-submit"
                   type="submit"
                   disabled={!giftCodeValue.trim() || isRedeemingGiftCode}
                   className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[var(--theme-primary)] px-4 font-sans text-sm font-black text-[var(--theme-on-primary)] shadow-lg shadow-[var(--theme-primary)]/20 transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
@@ -478,10 +548,10 @@ export default function DragonsHomeSection({
         ) : null}
       </AnimatePresence>
 
-      <section aria-label="Dragon collection progress and daily income" className="grid min-h-[130px] grid-cols-2 gap-4 rounded-[24px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/65 p-4">
+      <section aria-label="Chicken flock progress and daily income" className="grid min-h-[130px] grid-cols-2 gap-4 rounded-[24px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/65 p-4">
         <div className="min-w-0">
-          <p className="text-[14px] text-[var(--theme-text)] opacity-65">Dragons hatched</p>
-          <p aria-label={`${hatchedCount} dragons hatched out of ${eggs.length}`} className="mt-2 flex items-baseline gap-1.5 font-display leading-none tabular-nums text-[var(--theme-text)]">
+          <p className="text-[14px] text-[var(--theme-text)] opacity-65">Eggs hatched</p>
+          <p aria-label={`${hatchedCount} chickens raised from ${eggs.length} eggs`} className="mt-2 flex items-baseline gap-1.5 font-display leading-none tabular-nums text-[var(--theme-text)]">
             <span className="text-[32px] font-black sm:text-[36px]">{hatchedCount}</span>
             <span className="text-[15px] font-bold opacity-45 sm:text-[17px]">/ {eggs.length}</span>
           </p>
@@ -496,6 +566,20 @@ export default function DragonsHomeSection({
           </p>
         </div>
       </section>
+
+      {activeNodes.some((node) => node.eggImageUrl && node.dragonImageUrl && isNodeInCycle(node)) && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={(event) => void handleFeedAll(event.currentTarget.getBoundingClientRect())}
+            disabled={isFeedingAll || !!claimingNodeId}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--theme-accent)]/45 bg-[var(--theme-accent)]/12 px-5 py-2.5 text-sm font-black text-[var(--theme-text)] transition-transform active:scale-[0.98] disabled:opacity-60"
+          >
+            {isFeedingAll ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <img src={coin3d} alt="" className="h-5 w-5 object-contain" />}
+            Feed all
+          </button>
+        </div>
+      )}
 
       <section aria-label="Eggs available to hatch" className="space-y-3">
         {eggs.length > 0 ? (
@@ -512,32 +596,29 @@ export default function DragonsHomeSection({
               const hatchCount = hatchCounts.get(egg.id) || 0;
               const isHatching = hatchingEggId === egg.id;
               const claimable = ownedNode ? getRunClaimableReturns(ownedNode, new Date(nowMs)) : null;
-              const endMs = ownedNode ? getRunEndMs(ownedNode) : null;
-              const daysLeft = endMs === null ? null : Math.max(0, Math.ceil((endMs - nowMs) / (24 * 60 * 60 * 1000)));
               const totalDays = ownedNode
                 ? getRunTotalDays(ownedNode, items)
                 : Math.max(1, Math.floor(Number(egg.duration) || 15));
-              const startMs = ownedNode ? new Date(ownedNode.startDate).getTime() : NaN;
-              const matureStageStartsAt = startMs + totalDays * 24 * 60 * 60 * 1000 / 2;
-              const isMatureDragon = dragonOwned && Number.isFinite(matureStageStartsAt) && nowMs >= matureStageStartsAt;
+              const daysFed = ownedNode ? Math.max(0, Math.floor(Number(ownedNode.daysFed) || 0)) : 0;
+              const isMatureDragon = dragonOwned && daysFed >= Math.ceil(totalDays / 2);
               const activeDragonArtwork = ownedNode
                 ? (isMatureDragon ? ownedNode.dragonImageUrl : ownedNode.youngDragonImageUrl || ownedNode.dragonImageUrl)
                 : "";
-              const currentCycleDay = daysLeft === null
-                ? 1
-                : Math.min(totalDays, Math.max(1, totalDays - daysLeft + 1));
-              const cycleFinished = ownedNode
-                ? String(ownedNode.status).toLowerCase() !== "active" || endMs !== null && nowMs >= endMs
-                : false;
-              const dailyPercent = ownedNode && claimable && Number(ownedNode.dailyYield) > 0
-                ? Math.max(0, (claimable.amount / Number(ownedNode.dailyYield)) * 100)
-                : null;
+              const currentCycleDay = Math.min(totalDays, daysFed + 1);
+              const dailyIncomePercent = Number(egg.amount) > 0
+                ? Math.max(0, Math.round((Number(egg.dailyYield) / Number(egg.amount)) * 100))
+                : 0;
+              const cycleProgress = ownedNode && totalDays > 0
+                ? Math.min(100, Math.max(0, (daysFed / totalDays) * 100))
+                : 0;
+              const minimumClaimAmount = ownedNode ? getRunMinimumClaimAmount(ownedNode) : 0;
+              const isFeedReady = Boolean(claimable && minimumClaimAmount > 0 && claimable.amount >= minimumClaimAmount);
               return (
                 <article key={egg.id} className="overflow-hidden rounded-[24px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/75">
-                  <div className={`relative flex aspect-[1.08] items-center justify-center overflow-hidden p-5 ${dragonOwned ? "bg-[var(--theme-primary)]/8" : "bg-[var(--theme-primary)]/6"}`}>
+                  <div className={`relative flex aspect-[1.3] items-center justify-center overflow-hidden p-4 ${dragonOwned ? "bg-[var(--theme-primary)]/8" : "bg-[var(--theme-primary)]/6"}`}>
                     <img
                       src={isHatching ? egg.eggImageUrl : dragonOwned ? activeDragonArtwork : egg.eggImageUrl}
-                      alt={isHatching ? `${egg.name} egg hatching` : dragonOwned ? `${egg.name} ${isMatureDragon ? "mature" : "young"} dragon` : egg.name}
+                      alt={isHatching ? `${egg.name} egg hatching` : dragonOwned ? `${egg.name} ${isMatureDragon ? "mature hen" : "young chicken"}` : egg.name}
                       loading="lazy"
                       className={`${isHatching
                         ? "h-full w-full object-contain dragon-egg-hatching"
@@ -548,6 +629,9 @@ export default function DragonsHomeSection({
                     />
                     <span className="absolute left-3 top-3 rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[14px] font-bold text-[var(--theme-text)]">
                       {egg.category}
+                    </span>
+                    <span className="absolute bottom-3 left-3 rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[11px] font-black text-[var(--theme-primary)] shadow-sm">
+                      {dailyIncomePercent}% daily
                     </span>
                     {hatchCount > 0 && !dragonOwned ? (
                       <span className="absolute left-3 top-11 rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[var(--theme-text)]">
@@ -560,21 +644,12 @@ export default function DragonsHomeSection({
                     ) : null}
 
                   </div>
-                  <div className="space-y-3 p-4">
+                  <div className="space-y-2.5 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <h3 className="truncate font-display text-[19px] font-black text-[var(--theme-text)] sm:text-[21px]">{egg.name}</h3>
-
+                        <h3 className="truncate font-display text-[18px] font-black text-[var(--theme-text)] sm:text-[20px]">{egg.name}</h3>
                       </div>
-                      {dragonOwned && daysLeft !== null ? (
-                        <span
-                          aria-label={`Currently on day ${currentCycleDay} of ${totalDays}`}
-                          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-right text-[11px] font-sans font-bold tabular-nums text-[var(--theme-primary)]"
-                        >
-                          <Timer className="h-3.5 w-3.5" aria-hidden="true" />
-                          Day {currentCycleDay}/{totalDays}
-                        </span>
-                      ) : !dragonOwned ? (
+                      {!dragonOwned ? (
                         <div className="flex shrink-0 flex-col items-end gap-1.5">
                           <p className="font-display text-[20px] font-black tabular-nums text-[var(--theme-primary)] sm:text-[22px]">{formatCurrency(egg.amount)}</p>
                           <span
@@ -589,31 +664,55 @@ export default function DragonsHomeSection({
                     </div>
                     {dragonOwned && ownedNode && claimable ? (
                       <>
-                        <div className="flex items-end justify-between gap-2 border-b border-[var(--theme-card-border)] pb-3">
-                          <div>
-                            <p className="text-[14px] text-[var(--theme-text)] opacity-65">Earned on this card</p>
-                            <p className="mt-0.5 leading-none tabular-nums">
-                              <AnimatedUgxAmount amount={claimable.amount} />
-                            </p>
-                          </div>
+                        <div className="flex items-center justify-between text-[14px]">
+                          <span className="text-[var(--theme-text)] opacity-70">Price</span>
+                          <span className="font-display text-[17px] font-black tabular-nums text-[var(--theme-primary)]">{formatCurrency(egg.amount)}</span>
                         </div>
-                        <div className="flex items-center justify-between  py-3 text-[14px] sm:text-[13px]">
+                        <div className="flex items-center justify-between text-[14px]">
                           <span className="inline-flex items-center gap-1.5 text-[var(--theme-text)] opacity-70">
                             <Clock className="h-3.5 w-3.5" aria-hidden="true" /> Income per day
                           </span>
                           <span className="font-display text-[17px] font-black tabular-nums text-[var(--theme-primary)]">{formatCurrency(ownedNode.dailyYield)}</span>
                         </div>
+                        <div className="space-y-2" aria-label={`Cycle progress: day ${currentCycleDay} of ${totalDays}`}>
+                          <div className="flex justify-end">
+                            <span
+                              aria-label={`Cycle day ${currentCycleDay} of ${totalDays}`}
+                              className="inline-flex items-center gap-1 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-[10px] font-sans font-bold tabular-nums text-[var(--theme-primary)]"
+                            >
+                              <Timer className="h-3.5 w-3.5" aria-hidden="true" />
+                              Day {currentCycleDay}/{totalDays}
+                            </span>
+                          </div>
+                          <div
+                            role="progressbar"
+                            aria-label="Chicken cycle progress"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.round(cycleProgress)}
+                            className="h-2.5 overflow-hidden rounded-full bg-[var(--theme-card-border)]/70"
+                          >
+                            <div className="h-full rounded-full bg-[var(--theme-primary)] transition-[width] duration-500" style={{ width: `${cycleProgress}%` }} />
+                          </div>
+                          {minimumClaimAmount > 0 && claimable.amount === 0 ? (
+                            <p className="text-right text-[12px] font-medium tabular-nums text-[var(--theme-text)] opacity-60">
+                              Next feeding in {formatClock(msUntilPlatformMidnight(nowMs))}
+                            </p>
+                          ) : null}
+                        </div>
                         <button
                           type="button"
-                          onClick={() => void handleClaimIncome(ownedNode)}
-                          disabled={claimingNodeId === ownedNode.id}
-                          aria-label={cycleFinished
-                            ? "Collect remaining accrued income."
-                            : `Collect income. At least half of ${formatCurrency(ownedNode.dailyYield)} must accrue first.`}
-                          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-[var(--theme-primary)] px-4 py-3 text-[14px] font-sans font-black text-[var(--theme-on-primary)] transition-transform duration-200 hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-100"
+                          onClick={(event) => void handleClaimIncome(ownedNode, event.currentTarget.getBoundingClientRect())}
+                          disabled={claimingNodeId === ownedNode.id || isFeedingAll}
+                          aria-label={isFeedReady
+                            ? "Feed chick. Today's income is ready to collect."
+                            : "Today's feed has been claimed. come back tomorrow."}
+                          className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-3 py-2.5 text-[13px] font-sans font-black transition-colors duration-200 disabled:cursor-not-allowed ${isFeedReady
+                            ? "bg-[var(--theme-primary)] text-[var(--theme-on-primary)] hover:brightness-105"
+                            : "bg-slate-300/70 text-slate-600 dark:bg-slate-700/70 dark:text-slate-300"}`}
                         >
-                          {claimingNodeId === ownedNode.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
-                          Collect income
+                          {claimingNodeId === ownedNode.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <img src={coin3d} alt="" className="h-5 w-5 object-contain" />}
+                          Feed chick
                         </button>
                       </>
                     ) : (
@@ -639,7 +738,7 @@ export default function DragonsHomeSection({
                               className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--theme-primary)] px-4 py-3 text-[14px] font-sans font-black text-[var(--theme-on-primary)] transition-transform duration-200 hover:scale-[1.01] disabled:opacity-60"
                             >
                               {claimingNodeId === completedNode.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Award className="h-4 w-4" aria-hidden="true" />}
-                              Collect dragon
+                              Collect hen
                             </button>
                           ) : null}
                         </div>
@@ -656,8 +755,8 @@ export default function DragonsHomeSection({
             <p className="mt-2 font-display text-[15px] font-black text-[var(--theme-text)]">The nest is waiting</p>
             <p className="mx-auto mt-1 max-w-[26rem] text-[14px] leading-relaxed text-[var(--theme-text)] opacity-60">
               {enabledProductCount > 0
-                ? `${enabledProductCount} store product${enabledProductCount === 1 ? "" : "s"} found, but no egg and mature dragon artwork is configured yet. Add it in Admin or re-import with Egg Image URL, Young Dragon Image URL, and Mature Dragon Image URL columns.`
-                : "Egg products with both egg and dragon artwork will appear here when they are added to the store."}
+                ? `${enabledProductCount} store product${enabledProductCount === 1 ? "" : "s"} found, but egg and mature chicken artwork are not configured yet. Add egg, young chicken, and mature chicken artwork in Admin.`
+                : "Egg products with egg and chicken artwork will appear here when they are added to the store."}
             </p>
           </div>
         )}
@@ -675,14 +774,14 @@ export default function DragonsHomeSection({
             <p className="text-[14px] font-black uppercase tracking-[0.18em] text-[var(--theme-primary)]">Hatching</p>
             <h2 id="egg-confirm-title" className="mt-2 font-display text-[25px] font-black leading-tight">{confirmingEgg.name}</h2>
             <p className="mt-2 text-[14px] leading-relaxed opacity-75">
-            Your dragon appears in your valley immediately. It earns income for {confirmingEgg.duration} day{confirmingEgg.duration === 1 ? "" : "s"}, which you can collect daily as it accrues.
+                  Your chick joins the flock immediately, and today&apos;s income is ready to collect. Feed it once per day; a new day starts at midnight. Each feed advances its {confirmingEgg.duration}-day cycle.
             </p>
             <p className="mt-3 flex items-center gap-2 text-[14px] font-bold text-[var(--theme-primary)]">
               <Check className="h-4 w-4" aria-hidden="true" />
-              Balance after hatch: {formatCurrency((Number(profile.points) || 0) - confirmingEgg.amount)}
+              My capital after hatch: {formatCurrency((Number(profile.rechargeableBalance) || 0) - confirmingEgg.amount)}
             </p>
-            {(Number(profile.points) || 0) < confirmingEgg.amount ? (
-              <p className="mt-3 text-[14px] font-semibold text-rose-700">Your account balance is too low to open this egg.</p>
+            {(Number(profile.rechargeableBalance) || 0) < confirmingEgg.amount ? (
+              <p className="mt-3 text-[14px] font-semibold text-rose-700">Your capital is too low to open this egg.</p>
             ) : null}
             <div className="mt-5 flex gap-3">
               <button type="button" onClick={() => setConfirmingEgg(null)} disabled={!!openingEggId} className="min-h-11 flex-1 rounded-full bg-[var(--theme-card-bg)] px-4 py-3 text-[13px] font-bold disabled:opacity-50">
@@ -691,7 +790,7 @@ export default function DragonsHomeSection({
               <button
                 type="button"
                 onClick={() => void handleOpenEgg()}
-                disabled={!!openingEggId || (Number(profile.points) || 0) < confirmingEgg.amount}
+                disabled={!!openingEggId || (Number(profile.rechargeableBalance) || 0) < confirmingEgg.amount}
                 className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-[var(--theme-primary)] px-4 py-3 text-[13px] font-black text-[var(--theme-on-primary)] disabled:opacity-50"
               >
                 {openingEggId === confirmingEgg.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

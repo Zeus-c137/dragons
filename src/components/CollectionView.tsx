@@ -208,17 +208,9 @@ export default function CollectionView({
       ) : items.length === 0 ? (
         <div className="text-center py-12 px-4 space-y-4">
           <Award className="w-10 h-10 opacity-40 mx-auto" />
-          <p className="font-bold opacity-60 text-xs uppercase font-sans">No dragons hatched yet</p>
-          <p className="text-[13px] opacity-60 font-sans">Your dragon will appear here when an egg finishes incubating.</p>
-          {onNavigateToCatalog && (
-            <button
-              type="button"
-              onClick={onNavigateToCatalog}
-              className="mx-auto inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[var(--theme-primary)] text-[var(--theme-on-primary)] text-[13px] font-sans font-black cursor-pointer active:scale-[0.97] transition-all"
-            >
-              <Plus className="w-4 h-4" /> Choose an egg
-            </button>
-          )}
+          <p className="font-bold opacity-60 text-xs uppercase font-sans">No chickens hatched yet</p>
+          <p className="text-[13px] opacity-60 font-sans">Your grown chicken will appear here when the cycle completes.</p>
+          
         </div>
       ) : (
         <div className="space-y-5">

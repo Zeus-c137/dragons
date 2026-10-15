@@ -287,7 +287,7 @@ app.get("/readyz", (_req, res) => {
 const SEO_PUBLIC_PATHS = ["/welcome", "/faq"];
 
 const SEO_KEYWORDS = "Cash Dragons, hatch eggs, collect dragons, daily rewards, referral bonuses, mobile money deposits and withdrawals";
-const SEO_DESCRIPTION = "Hatch eggs, collect dragon artwork, track daily rewards, invite friends, and manage eligible deposits and withdrawals with Cash Dragons.";
+const SEO_DESCRIPTION = "Hatch eggs, raise chickens, and collect daily income. Invite friends, track rewards, and manage eligible deposits and withdrawals.";
 const SEO_SHARE_IMAGE = "/seo-share-image";
 
 function seoTitle(brand: string): string {
@@ -379,10 +379,10 @@ ${jsonLdTag}
 }
 
 const SEO_FAQS: Array<{ q: string; a: string }> = [
-  { q: "How does Cash Dragons work?", a: "Deposit into your balance, activate a product, then claim its accumulated daily returns into that same balance during the product cycle." },
-  { q: "How do withdrawals work?", a: "Withdrawals come from your balance, require at least one product, and are paid to MTN, Airtel or USDT. Fees and minimums are shown in the app before you confirm." },
+  { q: "How does Cash Dragons work?", a: "Top up My capital and use it to hatch eggs. Feed your chickens when a full day of income has accrued; earnings go to your withdrawable balance." },
+  { q: "How do withdrawals work?", a: "Withdrawals come from your withdrawable balance, require at least one product, and are paid to MTN, Airtel or USDT. Fees and minimums are shown in the app before you confirm." },
   { q: "How do referrals earn?", a: "Share your invite link. You earn Level 1–4 commissions when invitees activate products, paid while the invitee keeps an active product." },
-  { q: "What is the daily check-in?", a: "Open the app every day to claim a check-in bonus into your balance. Longer streaks unlock bigger rewards." },
+  { q: "What is the daily check-in?", a: "Open the app every day to claim a check-in bonus into your withdrawable balance. Longer streaks unlock bigger rewards." },
   { q: "Do I need the app installed?", a: "No — the app works in the browser. You can also install it from your phone browser for faster access." },
 ];
 
@@ -1464,8 +1464,8 @@ app.post("/api/payment/withdraw", async (req, res) => {
     if (!currentUser) {
       return res.status(404).json({ error: "User account not found." });
     }
-    if (Number(currentUser.points || 0) < withAmt) {
-      return res.status(400).json({ error: `Insufficient balance. Available: UGX ${Number(currentUser.points || 0).toLocaleString()}.` });
+    if (Number(currentUser.withdrawableBalance || 0) < withAmt) {
+      return res.status(400).json({ error: `Insufficient withdrawable balance. Available: UGX ${Number(currentUser.withdrawableBalance || 0).toLocaleString()}.` });
     }
 
     // USDT has no gateway provider (the gateway is mobile-money only), so it is
@@ -1817,7 +1817,8 @@ app.post("/api/copilot/chat", async (req, res) => {
   // Client-supplied figures as fallback; refreshed from the database below so
   // the AI never quotes a stale balance the user saw minutes ago.
   let liveUsername = userProfile?.username || "Guest";
-  let liveBalance = Number(userProfile?.points || 0);
+  let liveCapital = Number(userProfile?.rechargeableBalance || 0);
+  let liveWithdrawable = Number(userProfile?.withdrawableBalance || 0);
   let liveWithdrawn = Number(userProfile?.withdrawnCash || 0);
   let liveReferralEarned = Number(userProfile?.referralRewardsEarned || 0);
   let liveInvites = Number(userProfile?.invitesCount || 0);
@@ -1857,7 +1858,8 @@ app.post("/api/copilot/chat", async (req, res) => {
 
     if (freshProfile) {
       liveUsername = freshProfile.username || liveUsername;
-      liveBalance = Number(freshProfile.points || 0);
+      liveCapital = Number(freshProfile.rechargeableBalance || 0);
+      liveWithdrawable = Number(freshProfile.withdrawableBalance || 0);
       liveWithdrawn = Number(freshProfile.withdrawnCash || 0);
       liveReferralEarned = Number(freshProfile.referralRewardsEarned || 0);
       liveInvites = Number(freshProfile.invitesCount || 0);
@@ -1918,7 +1920,8 @@ ${catalogProductsList || "No products currently listed."}
 Current User Details (fresh from the database as of this message):
 - Username: ${liveUsername}
 - Phone: ${userProfile?.phone || "None"}
-- Account balance: UGX ${liveBalance.toLocaleString()} (deposits, rentals, income, bonuses, rewards and withdrawals all use this balance)
+- My capital: UGX ${liveCapital.toLocaleString()} (deposits add to it and hatching eggs spends it)
+- Withdrawable balance: UGX ${liveWithdrawable.toLocaleString()} (daily income, referrals, gifts and rewards add to it; withdrawals spend it)
 - Referral rewards ready to claim: UGX ${Number(userProfile?.pendingReferralRewards || 0).toLocaleString()}
 - Total withdrawn to date: UGX ${liveWithdrawn.toLocaleString()}
 - Referral income earned: UGX ${liveReferralEarned.toLocaleString()} across ${liveInvites} invites${liveLevelBonus ? ` (by level — ${liveLevelBonus})` : ""}
@@ -1929,15 +1932,15 @@ Their milestone board (progress is their live operator points total):
 ${vipTasksList || "Sign-in data unavailable — speak generally about milestones."}
 
 How ${brand} works (always explain it this way):
-- Users deposit funds into one account balance. That balance is used to rent products and receive daily income, bonuses and rewards.
-- Each product has a cycle (duration in days) and accumulates daily returns for the user to claim into the account balance.
-- Referral signup and product commissions accumulate separately and can be claimed as one total into the account balance.
-- Withdrawals come from the account balance to Mobile Money or USDT. Withdrawals only work if the user has a product — users without any product cannot withdraw.
+- Users deposit funds into My capital. My capital is used to hatch eggs.
+- Each chicken has a cycle (duration in days) and accumulates daily income. Feeding is allowed after one full day's income has accrued, and income is credited to the withdrawable balance.
+- Referral signup and product commissions accumulate separately and can be claimed into the withdrawable balance.
+- Withdrawals come from the withdrawable balance to Mobile Money or USDT. Withdrawals only work if the user has a product — users without any product cannot withdraw.
 - We support both instant Mobile Money (MTN/Airtel) and USDT payments.
 
 Knowledge & Capabilities:
-- **Deposit**: Users can deposit via instant Mobile Money (MTN/Airtel) or USDT TRC20 into their account balance.
-- **Withdrawal**: Withdraw from the account balance to Mobile Money or USDT. Only works with an active product. Withdrawal fee is exactly ${siteConfig?.withdrawFee || 0}%.
+- **Deposit**: Users can deposit via instant Mobile Money (MTN/Airtel) or USDT TRC20 into My capital.
+- **Withdrawal**: Withdraw from withdrawable balance to Mobile Money or USDT. Only works with an active product. Withdrawal fee is exactly ${siteConfig?.withdrawFee || 0}%.
 - **Invite Program**: Users share referral links and earn ${siteConfig?.level1InviteIncomePct ?? 15}% on Level 1, ${siteConfig?.level2InviteIncomePct ?? 5}% on Level 2, ${siteConfig?.level3InviteIncomePct ?? 0}% on Level 3, and ${siteConfig?.level4InviteIncomePct ?? 0}% on Level 4 when invited friends activate products (referrals only pay while the invitee has an active product).
 - **Gift Codes**: New gift codes are given out daily in the community groups set by the admin (WhatsApp: ${siteConfig?.whatsappLink || "N/A"}, Telegram: ${siteConfig?.telegramLink || "N/A"}). Tell users to join the community groups to claim them.
 - **Milestones**: Journey stages with achievements. A stage reward is claimed once, only when every achievement in that stage is done. Quote their real figures, and direct them to claim finished stages on the Journey page.
@@ -2198,10 +2201,10 @@ app.post("/api/admin/catalog/save", async (req, res) => {
       return res.status(400).json({ error: "Amount and duration must be positive whole numbers; yields and bonuses must be valid non-negative numbers." });
     }
     if (Boolean(eggImageUrl) !== Boolean(dragonImageUrl)) {
-      return res.status(400).json({ error: "Egg products need both egg and mature dragon artwork." });
+      return res.status(400).json({ error: "Chicken farm products need both egg and mature chicken artwork." });
     }
     if (youngDragonImageUrl && (!eggImageUrl || !dragonImageUrl)) {
-      return res.status(400).json({ error: "Young dragon artwork requires egg and mature dragon artwork." });
+      return res.status(400).json({ error: "Young chicken artwork requires egg and mature chicken artwork." });
     }
     if (eggImageUrl.length > 512 || youngDragonImageUrl.length > 512 || dragonImageUrl.length > 512) {
       return res.status(400).json({ error: "Artwork URLs must be 512 characters or fewer." });
@@ -2279,7 +2282,7 @@ app.post("/api/admin/users/lock", async (req, res) => {
   }
 });
 
-// Admin API: Credit or debit a user's unified balance by a signed delta. Writes an audit-only ledger
+// Admin API: Credit or debit a user's rechargeable capital by a signed delta. Writes an audit-only ledger
 // row that is hidden from the user's own history.
 app.post("/api/admin/users/adjust-balance", async (req, res) => {
   const { phone, target, amount, reason } = req.body;
@@ -2295,11 +2298,11 @@ app.post("/api/admin/users/adjust-balance", async (req, res) => {
   }
   try {
     const { balance } = await adminAdjustBalance(phone, target, delta, typeof reason === "string" ? reason.trim().slice(0, 200) : undefined);
-    const label = "account";
+    const label = "My capital";
     res.json({
       success: true,
       balance,
-      message: `${delta > 0 ? "Credited" : "Debited"} UGX ${Math.abs(delta).toLocaleString()} ${label}. New ${label} balance: UGX ${balance.toLocaleString()}.`
+      message: `${delta > 0 ? "Credited" : "Debited"} UGX ${Math.abs(delta).toLocaleString()} ${delta > 0 ? "to" : "from"} ${label}. New ${label} balance: UGX ${balance.toLocaleString()}.`
     });
   } catch (err: any) {
     logError("[Admin API Error] Balance adjustment failed:", err);
@@ -2651,7 +2654,7 @@ app.post("/api/admin/logout", (_req, res) => {
 const SITE_IMAGE_KINDS: Record<string, { exts: string[]; maxBytes: number; prefix: string; field: string }> = {
   logo: { exts: ["png", "jpg", "jpeg", "webp", "svg"], maxBytes: 2 * 1024 * 1024, prefix: "logo", field: "logoUrl" },
   authbg: { exts: ["png", "jpg", "jpeg", "webp"], maxBytes: 4 * 1024 * 1024, prefix: "authbg", field: "authBgImage" },
-  eggart: { exts: ["png"], maxBytes: 4 * 1024 * 1024, prefix: "egg", field: "" },
+  eggart: { exts: ["png", "svg"], maxBytes: 4 * 1024 * 1024, prefix: "egg", field: "" },
   dragonart: { exts: ["png", "jpg", "jpeg", "webp", "svg"], maxBytes: 4 * 1024 * 1024, prefix: "dragon", field: "" },
   youngdragonart: { exts: ["png", "jpg", "jpeg", "webp", "svg"], maxBytes: 4 * 1024 * 1024, prefix: "young-dragon", field: "" },
   // Milestone art attaches to vipTasks[].imageUrl (no top-level field), so
@@ -2679,7 +2682,7 @@ app.post("/api/admin/upload", async (req, res) => {
     };
     const ext = extFromMime[dataMime];
     if (!ext || !spec.exts.includes(ext)) {
-      return res.status(400).json({ error: kind === "eggart" ? "Egg artwork must be a PNG file." : "Dragon artwork must be PNG, JPG, WebP, or SVG." });
+      return res.status(400).json({ error: kind === "eggart" ? "Egg artwork must be PNG or SVG." : "Chicken artwork must be PNG, JPG, WebP, or SVG." });
     }
 
     const buffer = Buffer.from(match[2], "base64");
@@ -2719,8 +2722,8 @@ app.post("/api/admin/upload", async (req, res) => {
     if (uploaded.resource_type !== "image") {
       throw new Error(`Cloudinary stored ${kind} as ${uploaded.resource_type}, expected image.`);
     }
-    if ((kind === "dragonart" || kind === "youngdragonart") && !spec.exts.includes(String(uploaded.format || "").toLowerCase())) {
-      throw new Error(`Cloudinary stored dragon artwork as ${uploaded.format}, which is not a supported image type.`);
+    if ((kind === "eggart" || kind === "dragonart" || kind === "youngdragonart") && !spec.exts.includes(String(uploaded.format || "").toLowerCase())) {
+      throw new Error(`Cloudinary stored chicken farm artwork as ${uploaded.format}, which is not a supported image type.`);
     }
     void collectImageOrphans();
     return res.json({ success: true, url: uploaded.secure_url });

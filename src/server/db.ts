@@ -7,7 +7,7 @@ import { normalizeRarity, rarityForItem } from "../utils/rarity";
 import { sanitizeSiteConfig } from "../utils/themeTokens";
 import { canonicalTypeOf, normalizeExternalReference } from "../utils/transactionMeta";
 import { dedupeCategories, normalizeVipActionUrl, normalizeVipTask } from "../utils/vip";
-import { getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmount, getRunTotalDays } from "../utils/runs";
+import { getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmount, getRunTotalDays, isRunCycleFinished } from "../utils/runs";
 
 
 export class DatabaseOperationError extends Error {
@@ -292,6 +292,7 @@ export async function seedDatabaseIfEmpty() {
       GROUP BY user_id
     ) d ON d.user_id = u.id
     SET u.points = u.points + GREATEST(d.successful_deposits - u.total_deposits, 0),
+        u.rechargeable_balance = u.rechargeable_balance + GREATEST(d.successful_deposits - u.total_deposits, 0),
         u.total_deposits = GREATEST(d.successful_deposits, u.total_deposits)
     WHERE d.successful_deposits > u.total_deposits
   `) as any;
@@ -352,6 +353,8 @@ export async function getUserProfile(id: string): Promise<UserProfile | null> {
           referredByCode: u.referredByCode || "",
           operator: u.operator || "MTN",
           points: u.points,
+          rechargeableBalance: Number(u.rechargeableBalance) || 0,
+          withdrawableBalance: Number(u.withdrawableBalance) || 0,
           withdrawnCash: u.withdrawnCash,
           totalDeposits: u.totalDeposits,
           aiIncome: u.aiIncome,
@@ -445,6 +448,10 @@ export async function registerUserProfile(data: any): Promise<any> {
     referredByCode,
     operator: data.operator || "MTN",
     points: typeof data.points === "number" ? data.points : (regBonus > 0 ? regBonus : 0),
+    rechargeableBalance: Number(data.rechargeableBalance) || 0,
+    withdrawableBalance: typeof data.withdrawableBalance === "number"
+      ? data.withdrawableBalance
+      : typeof data.points === "number" ? data.points : (regBonus > 0 ? regBonus : 0),
     withdrawnCash: 0,
     totalDeposits: 0,
     aiIncome: 0,
@@ -476,6 +483,9 @@ export async function registerUserProfile(data: any): Promise<any> {
       referredByCode: newUser.referredByCode,
       operator: newUser.operator,
       points: newUser.points,
+      rechargeableBalance: newUser.rechargeableBalance,
+      withdrawableBalance: newUser.withdrawableBalance,
+      balanceBucketsMigrated: true,
       withdrawnCash: newUser.withdrawnCash,
       totalDeposits: newUser.totalDeposits,
       aiIncome: newUser.aiIncome,
@@ -633,6 +643,8 @@ export async function updateUserProfile(
     referredByCode: "",
     operator: "MTN",
     points: 0,
+    rechargeableBalance: 0,
+    withdrawableBalance: 0,
     withdrawnCash: 0,
     totalDeposits: 0,
     aiIncome: 0,
@@ -661,7 +673,6 @@ export async function updateUserProfile(
         username: updated.username,
         password: updated.password || "",
         operator: updated.operator,
-        points: updated.points,
         withdrawnCash: updated.withdrawnCash,
         totalDeposits: updated.totalDeposits,
         aiIncome: updated.aiIncome,
@@ -750,6 +761,7 @@ export async function subscribeToItem(phone: string, itemId: string): Promise<Su
     startDate: now.toISOString(),
     endDate: endDate.toISOString(),
     lastClaimedDate: "",
+    daysFed: 0,
     totalEarned: 0,
     status: "active"
   };
@@ -781,12 +793,13 @@ export async function subscribeToItem(phone: string, itemId: string): Promise<Su
         endedDragonNodes.push({ ...existing, status: "expired" });
       }
     }
-    if ((Number(currentUser.points) || 0) < item.amount) {
+    if ((Number(currentUser.rechargeableBalance) || 0) < item.amount) {
       throw new Error("Insufficient balance. Please deposit funds first.");
     }
 
     await tx.update(schema.users).set({
-      points: sql`${schema.users.points} - ${item.amount}`
+      points: sql`${schema.users.points} - ${item.amount}`,
+      rechargeableBalance: sql`${schema.users.rechargeableBalance} - ${item.amount}`
     }).where(eq(schema.users.id, phone));
 
     await tx.insert(schema.subscribedNodes).values({
@@ -804,6 +817,7 @@ export async function subscribeToItem(phone: string, itemId: string): Promise<Su
       startDate: node.startDate,
       endDate: node.endDate,
       lastClaimedDate: node.lastClaimedDate,
+      daysFed: node.daysFed,
       totalEarned: node.totalEarned,
       status: node.status
     });
@@ -950,6 +964,7 @@ export async function claimReferralRewards(phone: string): Promise<{ claimed: nu
 
     await tx.update(schema.users).set({
       points: sql`${schema.users.points} + ${claimed}`,
+      withdrawableBalance: sql`${schema.users.withdrawableBalance} + ${claimed}`,
       pendingReferralRewards: 0
     }).where(eq(schema.users.id, user.id));
     await tx.update(schema.transactions).set({
@@ -978,60 +993,6 @@ export async function getUserSubscriptions(phone: string): Promise<SubscribedNod
     try {
       const rows = await drizzleDb.select().from(schema.subscribedNodes).where(eq(schema.subscribedNodes.userId, phone));
       if (rows.length > 0) {
-        // Older dragon claims stored only the platform date. Recover the
-        // actual payout time from that claim's ledger row so the continuous
-        // accrual clock can resume immediately without re-crediting income
-        // from before the claim.
-        const legacyDragonRows = rows.filter((row) =>
-          Boolean(row.eggImageUrl && row.dragonImageUrl) &&
-          /^\d{4}-\d{2}-\d{2}$/.test(String(row.lastClaimedDate || ""))
-        );
-        const legacyClaimTimes = new Map<string, string>();
-        if (legacyDragonRows.length > 0) {
-          try {
-            const yieldTransactions = await drizzleDb.select({
-              metadata: schema.transactions.metadata,
-              timestamp: schema.transactions.timestamp
-            })
-              .from(schema.transactions)
-              .where(and(
-                eq(schema.transactions.userId, phone),
-                eq(schema.transactions.type, "daily_yield")
-              ))
-              .orderBy(desc(schema.transactions.timestamp));
-            const wantedClaims = new Map(legacyDragonRows.map((row) => [
-              row.id,
-              String(row.lastClaimedDate)
-            ]));
-            for (const transaction of yieldTransactions) {
-              let metadata: any = transaction.metadata;
-              if (typeof metadata === "string") {
-                try { metadata = JSON.parse(metadata); } catch { continue; }
-              }
-              const subscriptionId = String(metadata?.subscriptionId || "");
-              const platformDate = String(metadata?.platformDate || "");
-              const transactionTime = String(transaction.timestamp || "");
-              if (
-                !subscriptionId ||
-                wantedClaims.get(subscriptionId) !== platformDate ||
-                legacyClaimTimes.has(subscriptionId) ||
-                !Number.isFinite(new Date(transactionTime).getTime())
-              ) continue;
-
-              await drizzleDb.update(schema.subscribedNodes)
-                .set({ lastClaimedDate: transactionTime })
-                .where(and(
-                  eq(schema.subscribedNodes.id, subscriptionId),
-                  eq(schema.subscribedNodes.userId, phone),
-                  eq(schema.subscribedNodes.lastClaimedDate, platformDate)
-                ));
-              legacyClaimTimes.set(subscriptionId, transactionTime);
-            }
-          } catch (err) {
-            console.warn("[Database] Legacy dragon claim timestamp recovery failed:", err);
-          }
-        }
-
         return rows.map(r => ({
           id: r.id,
           userId: r.userId,
@@ -1046,7 +1007,8 @@ export async function getUserSubscriptions(phone: string): Promise<SubscribedNod
           dailyYield: r.dailyYield,
           startDate: r.startDate,
           endDate: r.endDate,
-          lastClaimedDate: legacyClaimTimes.get(r.id) || r.lastClaimedDate,
+          lastClaimedDate: r.lastClaimedDate,
+          daysFed: Number(r.daysFed || 0),
           totalEarned: r.totalEarned,
           status: r.status as any
         }));
@@ -1197,14 +1159,13 @@ export async function getUserCollectibles(phone: string): Promise<Collectible[]>
     const nodes = await drizzleDb.select().from(schema.subscribedNodes)
       .where(eq(schema.subscribedNodes.userId, phone));
     const today = getPlatformDateKey();
-    const nowMs = Date.now();
     for (const node of nodes as any[]) {
       const activation = getPlatformDateKey(new Date(node.startDate));
       const finalEarn = addPlatformDays(activation, Math.max(0, Number(node.duration || 1) - 1));
       const isDragonRun = Boolean(node.eggImageUrl && node.dragonImageUrl);
-      const endMs = isDragonRun ? getRunEndMs(node) : null;
-      const finished = String(node.status).toLowerCase() !== "active" ||
-        (isDragonRun && endMs !== null ? nowMs >= endMs : today > finalEarn);
+      const finished = isDragonRun
+        ? isRunCycleFinished(node)
+        : String(node.status).toLowerCase() !== "active" || today > finalEarn;
       if (!finished) continue;
       const existing = await drizzleDb.select().from(schema.collectibles)
         .where(eq(schema.collectibles.subscriptionId, node.id))
@@ -1238,9 +1199,9 @@ export async function claimCollectible(phone: string, subscriptionId: string): P
   const activation = getPlatformDateKey(new Date(node.startDate));
   const finalEarn = addPlatformDays(activation, Math.max(0, Number(node.duration || 1) - 1));
   const isDragonRun = Boolean(node.eggImageUrl && node.dragonImageUrl);
-  const endMs = isDragonRun ? getRunEndMs(node) : null;
-  const finished = String(node.status).toLowerCase() !== "active" ||
-    (isDragonRun && endMs !== null ? Date.now() >= endMs : today > finalEarn);
+  const finished = isDragonRun
+    ? isRunCycleFinished(node)
+    : String(node.status).toLowerCase() !== "active" || today > finalEarn;
   if (!finished) throw new Error("This run is still active. Collectibles unlock when the cycle ends.");
   let collectible = await markNodeExpiredAndMint(node);
   if (!collectible) throw new Error("Could not prepare your collectible. Please try again.");
@@ -1296,8 +1257,10 @@ export async function claimDailyReward(arg1: string, arg2: string): Promise<{
   reward: number;
   pointsClaimed: number;
   updatedPoints: number;
+  updatedWithdrawableBalance: number;
   itemName: string;
   daysClaimed: number;
+  daysFed: number;
   lastClaimedDate: string;
   status: "active" | "expired";
 }> {
@@ -1312,14 +1275,15 @@ export async function claimDailyReward(arg1: string, arg2: string): Promise<{
   const today = getPlatformDateKey();
   let reward = 0;
   let updatedPoints = 0;
+  let updatedWithdrawableBalance = 0;
   let daysClaimed = 0;
+  let daysFed = 0;
   let lastClaimedDate = "";
   let status: "active" | "expired" = "active";
   let userId = phone;
   let itemName = "your product";
   let itemId = "";
   let claimImage = "";
-  let claimTimestamp = "";
   let dragonRunClaim = false;
 
   let finishedNode: any = null;
@@ -1339,7 +1303,6 @@ export async function claimDailyReward(arg1: string, arg2: string): Promise<{
     const claimNode = { ...sub, status: sub.status as SubscribedNode["status"] };
 
     const claimNow = new Date();
-    const claimNowIso = claimNow.toISOString();
     const isDragonRun = Boolean(sub.eggImageUrl && sub.dragonImageUrl);
     dragonRunClaim = isDragonRun;
     const activationDate = getPlatformDateKey(new Date(sub.startDate));
@@ -1358,26 +1321,25 @@ export async function claimDailyReward(arg1: string, arg2: string): Promise<{
     const dailyRate = Number(sub.dailyYield || 0);
     let firstUnclaimedDate = "";
     let throughDate = today < finalEarnDate ? today : finalEarnDate;
-    const cycleEndMs = isDragonRun ? getRunEndMs(claimNode) : null;
-    let expired = isDragonRun && cycleEndMs !== null
-      ? claimNow.getTime() >= cycleEndMs
+    let expired = isDragonRun
+      ? isRunCycleFinished(claimNode, claimNow)
       : today > finalEarnDate;
+    daysFed = Math.max(0, Math.floor(Number(sub.daysFed) || 0));
     if (isDragonRun) {
-      if (!(dailyRate > 0)) throw new Error("This dragon is not configured to earn income.");
+      if (expired) throw new Error("This chicken has completed its cycle. Collect it before hatching again.");
+      if (!(dailyRate > 0)) throw new Error("This chicken is not configured to earn income.");
       const accrued = getRunClaimableReturns(claimNode, claimNow);
       const minimumClaimAmount = getRunMinimumClaimAmount(claimNode);
-      const eligibleOneDayFinish = getRunTotalDays(claimNode) === 1
-        && accrued.amount >= minimumClaimAmount;
-      if (eligibleOneDayFinish) expired = true;
-      const finalPartialClaim = expired && accrued.amount > 0;
-      if (accrued.amount >= minimumClaimAmount || finalPartialClaim) {
-        reward = Math.floor(accrued.amount);
-        daysClaimed = Math.floor(reward / Math.max(1, dailyRate));
+      if (accrued.amount >= minimumClaimAmount) {
+        reward = minimumClaimAmount;
+        daysClaimed = 1;
         throughDate = getPlatformDateKey(claimNow);
-        firstUnclaimedDate = sub.lastClaimedDate || sub.startDate;
-        claimTimestamp = claimNowIso;
+        firstUnclaimedDate = throughDate;
+        lastClaimedDate = throughDate;
+        daysFed = Math.min(getRunTotalDays(claimNode), daysFed + 1);
+        expired = daysFed >= getRunTotalDays(claimNode);
       } else {
-        throw new Error("At least half a day's income is needed before collection.");
+        throw new Error("You have already fed this chick today. Come back after midnight EAT.");
       }
     } else {
       const legacyClaimedDays = dailyRate > 0
@@ -1410,15 +1372,15 @@ export async function claimDailyReward(arg1: string, arg2: string): Promise<{
     }
 
     updatedPoints = Number(user.points || 0) + reward;
+    updatedWithdrawableBalance = Number(user.withdrawableBalance || 0) + reward;
     if (reward > 0) {
       await tx.update(schema.users).set({
         points: sql`${schema.users.points} + ${reward}`,
+        withdrawableBalance: sql`${schema.users.withdrawableBalance} + ${reward}`,
         aiIncome: sql`${schema.users.aiIncome} + ${reward}`
       }).where(eq(schema.users.id, user.id));
 
-      const transactionKey = isDragonRun
-        ? `${sub.id}:${sub.lastClaimedDate || sub.startDate}:${claimTimestamp}`
-        : `${sub.id}:${throughDate}`;
+      const transactionKey = `${sub.id}:${throughDate}`;
       const transactionId = `yield_${crypto.createHash("sha256").update(transactionKey).digest("hex").slice(0, 56)}`;
       await tx.insert(schema.transactions).values({
         id: transactionId,
@@ -1436,6 +1398,7 @@ export async function claimDailyReward(arg1: string, arg2: string): Promise<{
           claimFromDate: firstUnclaimedDate,
           claimThroughDate: throughDate,
           daysClaimed,
+          daysFed: isDragonRun ? daysFed : undefined,
           subscriptionId: sub.id,
           sourceItemId: sub.itemId,
           sourceItemName: itemName,
@@ -1446,18 +1409,17 @@ export async function claimDailyReward(arg1: string, arg2: string): Promise<{
     }
 
     const updatedTotalEarned = Number(sub.totalEarned || 0) + reward;
-    lastClaimedDate = isDragonRun && reward > 0
-      ? claimTimestamp
-      : daysClaimed > 0 ? throughDate : String(sub.lastClaimedDate || "");
+    lastClaimedDate = reward > 0 ? throughDate : String(sub.lastClaimedDate || "");
     status = expired ? "expired" : "active";
     await tx.update(schema.subscribedNodes).set({
       lastClaimedDate,
+      daysFed: isDragonRun ? daysFed : Number(sub.daysFed || 0),
       totalEarned: updatedTotalEarned,
       status: expired ? "expired" : "active"
     }).where(eq(schema.subscribedNodes.id, sub.id));
 
     if (expired) {
-      finishedNode = { ...sub, totalEarned: updatedTotalEarned, status: "expired" };
+      finishedNode = { ...sub, lastClaimedDate, daysFed, totalEarned: updatedTotalEarned, status: "expired" };
     }
   });
 
@@ -1465,7 +1427,7 @@ export async function claimDailyReward(arg1: string, arg2: string): Promise<{
 
   if (reward > 0) {
     const notificationMessage = dragonRunClaim
-      ? `UGX ${reward.toLocaleString()} in accrued income from ${itemName} was added to your balance.`
+      ? `UGX ${reward.toLocaleString()} in today's income from ${itemName} was added to your balance.`
       : `UGX ${reward.toLocaleString()} in returns from ${itemName} (${daysClaimed} day${daysClaimed === 1 ? "" : "s"}) was added to your balance.`;
     await createNotification(
       userId,
@@ -1477,7 +1439,7 @@ export async function claimDailyReward(arg1: string, arg2: string): Promise<{
     );
   }
 
-  return { success: true, reward, pointsClaimed: reward, updatedPoints, itemName, daysClaimed, lastClaimedDate, status };
+  return { success: true, reward, pointsClaimed: reward, updatedPoints, updatedWithdrawableBalance, itemName, daysClaimed, daysFed, lastClaimedDate, status };
 }
 
 export function getConfiguredWithdrawMode(config: SiteConfig): "automatic" | "manual" {
@@ -1562,12 +1524,15 @@ export async function requestCashout(phone: string, amount: number, paymentMetho
       .for("update");
     const user = rows[0];
     if (!user) throw new Error("User not found");
-    if (Number(user.points || 0) < amount) {
-      throw new Error(`Insufficient balance. Available: UGX ${Number(user.points || 0).toLocaleString()}.`);
+    if (Number(user.withdrawableBalance || 0) < amount) {
+      throw new Error(`Insufficient withdrawable balance. Available: UGX ${Number(user.withdrawableBalance || 0).toLocaleString()}.`);
     }
 
     await tx.update(schema.users)
-      .set({ points: sql`${schema.users.points} - ${amount}` })
+      .set({
+        points: sql`${schema.users.points} - ${amount}`,
+        withdrawableBalance: sql`${schema.users.withdrawableBalance} - ${amount}`
+      })
       .where(eq(schema.users.id, phone));
 
     await tx.insert(schema.transactions).values({
@@ -1877,19 +1842,12 @@ export async function createNotification(
 export async function getUserNotifications(phone: string): Promise<NotificationItem[]> {
   const drizzleDb = getDb();
   if (drizzleDb) {
-    const activeNodes = await drizzleDb.select().from(schema.subscribedNodes)
-      .where(and(
-        eq(schema.subscribedNodes.userId, phone),
-        eq(schema.subscribedNodes.status, "active")
-      ));
-    const nowMs = Date.now();
-    for (const node of activeNodes as SubscribedNode[]) {
+    const chickenNodes = await drizzleDb.select().from(schema.subscribedNodes)
+      .where(eq(schema.subscribedNodes.userId, phone));
+    for (const node of chickenNodes as SubscribedNode[]) {
       if (!node.eggImageUrl || !node.youngDragonImageUrl || !node.dragonImageUrl) continue;
-      const startMs = new Date(node.startDate).getTime();
-      const endMs = getRunEndMs(node);
-      if (!Number.isFinite(startMs) || endMs === null) continue;
-      const midpointMs = startMs + getRunTotalDays(node) * 24 * 60 * 60 * 1000 / 2;
-      if (nowMs < midpointMs || nowMs >= endMs) continue;
+      const midpointFeed = Math.ceil(getRunTotalDays(node) / 2);
+      if (Number(node.daysFed || 0) < midpointFeed) continue;
 
       const notificationKey = crypto.createHash("sha256").update(node.id).digest("hex").slice(0, 32);
       const notificationId = `notif_dragon_mid_${notificationKey}`;
@@ -1904,8 +1862,8 @@ export async function getUserNotifications(phone: string): Promise<NotificationI
 
       await createNotification(
         phone,
-        `${node.itemName} has reached its mature stage`,
-        `Your ${node.itemName} is halfway through its ${getRunTotalDays(node)}-day cycle. It has grown into its mature form; prepare to renew it when the cycle ends.`,
+        `${node.itemName} is now a mature hen`,
+        `You have fed ${node.itemName} for ${midpointFeed} of ${getRunTotalDays(node)} cycle days. It is in the second half of its cycle; prepare to renew when it is complete.`,
         "rewards",
         undefined,
         { eventType: "dragon_midpoint", subscriptionId: node.id, sourceItemId: node.itemId, sourceItemName: node.itemName },
@@ -2146,6 +2104,7 @@ export async function completeSuccessfulDeposit(
 
         await tx.update(schema.users).set({
           points: sql`${schema.users.points} + ${transaction.amount}`,
+          rechargeableBalance: sql`${schema.users.rechargeableBalance} + ${transaction.amount}`,
           totalDeposits: sql`${schema.users.totalDeposits} + ${transaction.amount}`
         }).where(eq(schema.users.id, user.id));
 
@@ -2312,7 +2271,10 @@ export async function completeFailedTransaction(txId: string) {
         .for("update");
       if (!userRows[0]) throw new Error("The account for this withdrawal no longer exists.");
       await dbTx.update(schema.users)
-        .set({ points: sql`${schema.users.points} + ${refundAmount}` })
+        .set({
+          points: sql`${schema.users.points} + ${refundAmount}`,
+          withdrawableBalance: sql`${schema.users.withdrawableBalance} + ${refundAmount}`
+        })
         .where(eq(schema.users.id, transaction.userId));
       refunded = true;
     }
@@ -2380,6 +2342,8 @@ export async function adminGetAllUsers(): Promise<UserProfile[]> {
           referredByCode: u.referredByCode || "",
           operator: u.operator || "MTN",
           points: u.points,
+          rechargeableBalance: Number(u.rechargeableBalance) || 0,
+          withdrawableBalance: Number(u.withdrawableBalance) || 0,
           withdrawnCash: u.withdrawnCash,
           totalDeposits: u.totalDeposits,
           aiIncome: u.aiIncome,
@@ -2676,6 +2640,7 @@ export async function redeemGiftCode(phone: string, code: string) {
     redeemed.push(cleanCode);
     await drizzleDb.update(schema.users).set({
       points: sql`${schema.users.points} + ${gift.amount}`,
+      withdrawableBalance: sql`${schema.users.withdrawableBalance} + ${gift.amount}`,
       redeemedGiftCodes: redeemed
     }).where(eq(schema.users.id, phone));
 
@@ -2737,6 +2702,7 @@ export async function dailyCheckin(phone: string) {
 
     await tx.update(schema.users).set({
       points: sql`${schema.users.points} + ${bonus}`,
+      withdrawableBalance: sql`${schema.users.withdrawableBalance} + ${bonus}`,
       lastCheckinDate: today,
       checkinStreak: currentStreak
     }).where(eq(schema.users.id, phone));
@@ -3064,6 +3030,7 @@ export async function verifyVipTask(phone: string, taskId: string) {
       if (!claimedVipTasks.includes(cleanTaskId)) claimedVipTasks.push(cleanTaskId);
       await tx.update(schema.users).set({
         points: sql`${schema.users.points} + ${reward}`,
+        withdrawableBalance: sql`${schema.users.withdrawableBalance} + ${reward}`,
         claimedVipTasks
       }).where(eq(schema.users.id, cleanPhone));
       await tx.insert(schema.transactions).values({
@@ -3141,6 +3108,7 @@ export async function claimVerifiedVipTask(phone: string, taskId: string) {
     if (!claimedVipTasks.includes(cleanTaskId)) claimedVipTasks.push(cleanTaskId);
     await tx.update(schema.users).set({
       points: sql`${schema.users.points} + ${reward}`,
+      withdrawableBalance: sql`${schema.users.withdrawableBalance} + ${reward}`,
       claimedVipTasks
     }).where(eq(schema.users.id, cleanPhone));
     await tx.insert(schema.transactions).values({
@@ -3332,6 +3300,7 @@ export async function claimTierReward(phone: string, category: string) {
     // from server-side site configuration, never the client.
     await tx.update(schema.users).set({
       points: sql`${schema.users.points} + ${reward}`,
+      withdrawableBalance: sql`${schema.users.withdrawableBalance} + ${reward}`,
       claimedTierRewards
     }).where(eq(schema.users.id, phone));
 
@@ -3375,7 +3344,7 @@ export async function adminUpdateUserLockStatus(phone: string, locked: boolean) 
   return await updateUserProfile(phone, { locked });
 }
 
-// Admin balance adjustment: atomic delta on the unified account balance with a paired audit ledger row. The row is intentionally
+// Admin balance adjustment: atomic delta on My capital with a paired audit ledger row. The row is intentionally
 // invisible to the user (getUserTransactions filters it out) and sends no
 // notification — it exists for admin/support auditing only.
 export async function adminAdjustBalance(
@@ -3390,7 +3359,7 @@ export async function adminAdjustBalance(
   if (!Number.isSafeInteger(amount) || amount === 0) {
     throw new Error("Amount must be a non-zero whole number of UGX.");
   }
-  const label = "account";
+  const label = "capital";
   const drizzleDb = requireDatabase("adjust the user balance");
 
   await drizzleDb.transaction(async (tx) => {
@@ -3400,14 +3369,17 @@ export async function adminAdjustBalance(
       .for("update");
     const user = rows[0];
     if (!user) throw new Error("User not found");
-    const current = Number(user[target] || 0);
+    const current = Number(user.rechargeableBalance || 0);
     const next = current + amount;
     if (next < 0) {
       throw new Error(`Adjustment would overdraw the ${label} balance. Available: UGX ${current.toLocaleString()}.`);
     }
 
     await tx.update(schema.users)
-      .set({ points: sql`${schema.users.points} + ${amount}` })
+      .set({
+        points: sql`${schema.users.points} + ${amount}`,
+        rechargeableBalance: sql`${schema.users.rechargeableBalance} + ${amount}`
+      })
       .where(eq(schema.users.id, phone));
 
     await tx.insert(schema.transactions).values({
@@ -3434,7 +3406,7 @@ export async function adminAdjustBalance(
 
   const profile = await getUserProfile(phone);
   if (!profile) throw new Error("Balance adjusted, but the account could not be reloaded.");
-  return { balance: Number(profile[target] || 0) };
+  return { balance: Number(profile.rechargeableBalance || 0) };
 }
 
 export async function adminCreateAnnouncement(title: string, message: string, readMoreLink?: string, category?: string, imageUrl?: string, tag?: string) {

@@ -170,7 +170,7 @@ export default function ProfileView({
       if (!res.ok) throw new Error(data.error || "Failed to redeem gift code.");
 
       const formattedAmount = formatCurrency(data.amount);
-      const formattedNewBalance = formatCurrency(userProfile.points + data.amount);
+      const formattedNewBalance = formatCurrency((Number(userProfile.withdrawableBalance) || 0) + data.amount);
 
       toast.success(`Redeemed gift code of ${formattedAmount}! New balance: ${formattedNewBalance}`);
 
@@ -191,7 +191,8 @@ export default function ProfileView({
       // Update profile locally
       onProfileUpdate({
         ...userProfile,
-        points: userProfile.points + data.amount
+        points: userProfile.points + data.amount,
+        withdrawableBalance: (Number(userProfile.withdrawableBalance) || 0) + data.amount
       });
       // Re-check — more codes may still be claimable.
       void fetchGiftAvailability();
@@ -282,8 +283,8 @@ export default function ProfileView({
       return;
     }
 
-    if (pointsToWithdraw > userProfile.points) {
-      toast.error(`Insufficient balance. Available: ${formatCurrency(userProfile.points || 0)}.`);
+    if (pointsToWithdraw > (userProfile.withdrawableBalance || 0)) {
+      toast.error(`Insufficient withdrawable balance. Available: ${formatCurrency(userProfile.withdrawableBalance || 0)}.`);
       return;
     }
 
@@ -341,12 +342,12 @@ export default function ProfileView({
       {/* News Grid */}
       <NewsCarousel phone={userProfile.id} dynamicNews={notifications.filter((n:any)=> n.category==="news")} fullWidth />
 
-      {/* Unified account balance */}
+      {/* Withdrawable account balance */}
       <VisaMetricCard
         inviteCode={userProfile.inviteCode}
         mode="single"
-        leftLabel="My balance"
-        leftValue={`${currency === 'USD' ? '$' : 'UGX'} ${currency === 'USD' ? ((userProfile.points || 0) / 3700).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : Math.trunc(Number(userProfile.points) || 0).toLocaleString('en-UG', { maximumFractionDigits: 0 })}`}
+        leftLabel="Withdrawable balance"
+        leftValue={`${currency === 'USD' ? '$' : 'UGX'} ${currency === 'USD' ? ((userProfile.withdrawableBalance || 0) / 3700).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : Math.trunc(Number(userProfile.withdrawableBalance) || 0).toLocaleString('en-UG', { maximumFractionDigits: 0 })}`}
       />
       <div className="flex items-center justify-center gap-2 bg-transparent border-0 p-0">
         <button onClick={onNavigateToDeposit} className="shrink-0 inline-flex items-center justify-center gap-1 px-4 py-2.5 rounded-full bg-[var(--theme-primary)] text-[var(--theme-on-primary)] text-[12px] font-sans font-black transition-all active:scale-95 cursor-pointer">

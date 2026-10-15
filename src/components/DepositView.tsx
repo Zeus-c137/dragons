@@ -12,6 +12,7 @@ import {
   BadgeInfo,
   InfoIcon,
   ChevronDown,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrency } from "../currency";
@@ -323,7 +324,11 @@ export default function DepositView({
 
   return (
     <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] space-y-4 select-none p-4 pt-0 min-h-[100dvh]">
-      {/* Deposit heading and optional product details */}
+      <div className="flex items-center justify-between rounded-2xl border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/70 px-4 py-3">
+        <span className="text-[13px] font-semibold opacity-65">My capital</span>
+        <strong className="font-display text-[17px] font-black tabular-nums">{formatCurrency(userProfile.rechargeableBalance || 0)}</strong>
+      </div>
+      {/* Optional product details */}
       <div className="">
 
 

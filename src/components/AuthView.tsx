@@ -10,8 +10,6 @@ import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { BrandLogo } from "./BrandLogo";
 import { fixGitHubImageUrl } from "../utils/imageUtils";
-import dragonCelestial from "@/src/assets/svg/dragon-celestial.svg";
-import dragonSolar from "@/src/assets/svg/dragon-solar.svg";
 
 interface AuthViewProps {
   onAuthSuccess: (profile: UserProfile) => void;
@@ -19,6 +17,8 @@ interface AuthViewProps {
 }
 
 type AuthScreen = "welcome" | "login" | "register" | "support";
+
+const FARM_HERO_IMAGE = "https://images.pexels.com/photos/34161995/pexels-photo-34161995/free-photo-of-free-range-chickens-grazing-on-a-farm.jpeg?auto=compress&cs=tinysrgb&w=1600";
 
 // Welcome hero: admin-customizable via Custom Wallpapers (authBgImage).
 // Blank until siteconfig loads — no flashing fallback image.
@@ -96,7 +96,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
     setFailedAuthBackground(false);
   }, [authBackgroundImage]);
 
-  // Use the first configured welcome image when available; otherwise show local dragon art.
+  // Use the first configured welcome image when available; otherwise show the farm hero.
   const rawSlideImages: string[] = Array.isArray((activeConfig as any)?.authSlideImages)
     ? (activeConfig as any).authSlideImages
     : [];
@@ -344,13 +344,13 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
               className="auth-welcome-grid flex-1 grid grid-cols-1 lg:grid-cols-[0.92fr_1.08fr] items-center gap-x-8 gap-y-7 pt-5 lg:pt-8"
             >
               <h1 className="order-1 w-full font-display text-[clamp(3rem,6.5vw,5.5rem)] leading-[0.98] tracking-tight text-[var(--theme-text)] lg:col-span-2">
-                Awaken your legend.
+                Your farm awaits..
               </h1>
 
               <section className="auth-welcome-copy order-3 lg:order-2 flex w-full flex-col justify-center">
                 <p className="w-full text-[16px] font-sans text-[var(--theme-text-muted)] leading-[1.65]">
-                  Hatch eggs, collect dragons.<br />
-                  Every card is its own story.
+                 Hatch eggs, raise chickens.<br />
+                 Collect income
                 </p>
 
                 <div className="mt-8">
@@ -366,36 +366,25 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
               </section>
 
               <div className="auth-welcome-art order-2 lg:order-3 relative min-h-[350px] sm:min-h-[340px] lg:min-h-[min(68vh,680px)] overflow-hidden bg-[#10264b]">
-                <div className="auth-welcome-art-grid absolute inset-0" aria-hidden="true" />
-
                 <AnimatePresence mode="wait">
                   <motion.img
-                    key={failedWelcomeImage || !welcomeImage ? "celestial-dragon" : "custom-welcome"}
-                    src={welcomeImage && !failedWelcomeImage ? welcomeImage : dragonCelestial}
-                    alt=""
+                    key={welcomeImage && !failedWelcomeImage ? "custom-welcome" : "farm-hero"}
+                    src={welcomeImage && !failedWelcomeImage ? welcomeImage : FARM_HERO_IMAGE}
+                    alt="Free-range chickens roaming across a farmyard"
                     loading="eager"
                     referrerPolicy="no-referrer"
-                    onError={() => setFailedWelcomeImage(true)}
+                    onError={(event) => {
+                      if (welcomeImage && !failedWelcomeImage) setFailedWelcomeImage(true);
+                      else event.currentTarget.style.display = "none";
+                    }}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                    className={`auth-welcome-art-image auth-welcome-dragon-primary absolute block ${welcomeImage && !failedWelcomeImage ? "object-cover" : "object-contain"}`}
+                    className="auth-welcome-art-image auth-welcome-art-primary absolute block object-cover"
                   />
                 </AnimatePresence>
-                <motion.img
-                  src={dragonSolar}
-                  alt=""
-                  aria-hidden="true"
-                  loading="eager"
-                  initial={{ opacity: 0, y: 8, rotate: 4 }}
-                  animate={{ opacity: 1, y: 0, rotate: 7 }}
-                  transition={{ duration: 0.45, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
-                  className="auth-welcome-art-image auth-welcome-dragon-secondary absolute block object-contain"
-                />
-                <div className="absolute top-3 left-[7%] right-[7%] z-10 font-display text-[clamp(1.35rem,3vw,1.8rem)] leading-tight text-[#edf3ff] lg:left-[18%]">
-                  Your first dragon awaits.
-                </div>
+               
               </div>
             </motion.div>
           )}

@@ -965,7 +965,7 @@ export default function AdminView() {
     setIsCreatingNode(true);
     setIsEditingNode(null);
     setNodeId(`node-${Date.now().toString().slice(-4)}`);
-    setNodeName("New Asset");
+    setNodeName("New Egg");
     setNodeCategory(siteConfig?.categories?.[0] || catalogItems[0]?.category || "General");
     setNodeAmount(80000);
     setNodeDuration(40);
@@ -1167,9 +1167,9 @@ export default function AdminView() {
         "Daily Percentage (%)": "5.50%",
         "Daily Income (UGX)": "165,000",
         "Image URL": "https://cdn.sanity.io/images/2iccs2ie/production/4b4bb6d904403cb2abe5c37ebc3115f353619e82-2500x2500.jpg",
-        "Egg Image URL (PNG)": "",
-        "Young Dragon Image URL (PNG/JPG/WebP/SVG)": "",
-        "Mature Dragon Image URL (PNG/JPG/WebP/SVG)": ""
+        "Egg Image URL (PNG/SVG)": "",
+        "Young Chicken Image URL (PNG/JPG/WebP/SVG)": "",
+        "Mature Chicken Image URL (PNG/JPG/WebP/SVG)": ""
       },
       {
         "Series/Category": "U Series",
@@ -1179,9 +1179,9 @@ export default function AdminView() {
         "Daily Percentage (%)": "6.00%",
         "Daily Income (UGX)": "300,000",
         "Image URL": "https://cdn.sanity.io/images/2iccs2ie/production/ff8e575a2c98bd9772823afb29d0bd499a1b0b3a-2916x2916.jpg",
-        "Egg Image URL (PNG)": "",
-        "Young Dragon Image URL (PNG/JPG/WebP/SVG)": "",
-        "Mature Dragon Image URL (PNG/JPG/WebP/SVG)": ""
+        "Egg Image URL (PNG/SVG)": "",
+        "Young Chicken Image URL (PNG/JPG/WebP/SVG)": "",
+        "Mature Chicken Image URL (PNG/JPG/WebP/SVG)": ""
       }
     ];
 
@@ -1268,8 +1268,8 @@ export default function AdminView() {
 
         const uploadedImageUrl = getVal(["image url", "imageurl", "image", "photo"]);
         const imageUrl = uploadedImageUrl || "https://cdn.sanity.io/images/2iccs2ie/production/4b4bb6d904403cb2abe5c37ebc3115f353619e82-2500x2500.jpg";
-        const dragonImageUrl = getVal(["mature dragon image url", "dragon image url", "dragon image", "dinosaur image url", "dinosaur image", "hatched image url", "dragon url", "dinosaur url"]);
-        const youngDragonImageUrl = getVal(["young dragon image url", "juvenile dragon image url", "young dragon", "juvenile dragon"]);
+        const dragonImageUrl = getVal(["mature chicken image url", "chicken image url", "mature dragon image url", "dragon image url", "dragon image", "dinosaur image url", "dinosaur image", "hatched image url", "dragon url", "dinosaur url"]);
+        const youngDragonImageUrl = getVal(["young chicken image url", "juvenile chicken image url", "young chicken", "young dragon image url", "juvenile dragon image url", "young dragon", "juvenile dragon"]);
         const eggImageUrl = getVal(["egg image url", "egg image", "egg url"]) || (dragonImageUrl && uploadedImageUrl ? uploadedImageUrl : "");
 
         parsedItems.push({
@@ -1338,7 +1338,7 @@ export default function AdminView() {
 
     if (failedItems.length > 0) {
       console.error("Bulk catalog import failures:", failedItems);
-      toast.error(`Imported ${total - failedItems.length} of ${total} products. ${failedItems.length} failed; each hatching product needs egg and mature artwork. Young dragon artwork is optional.`);
+      toast.error(`Imported ${total - failedItems.length} of ${total} products. ${failedItems.length} failed; each chicken farm product needs egg and mature chicken artwork. Young chicken artwork is optional.`);
     } else {
       toast.success(`Successfully imported ${total} products into catalog!`);
     }
@@ -1352,11 +1352,11 @@ export default function AdminView() {
   const handleSaveNode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (Boolean(nodeEggImageUrl.trim()) !== Boolean(nodeDragonImageUrl.trim())) {
-      toast.error("Add both egg and mature dragon artwork to configure a hatching product.");
+      toast.error("Add both egg and mature chicken artwork to configure a chicken farm product.");
       return;
     }
     if (nodeYoungDragonImageUrl.trim() && (!nodeEggImageUrl.trim() || !nodeDragonImageUrl.trim())) {
-      toast.error("Young dragon artwork requires egg and mature dragon artwork.");
+      toast.error("Young chicken artwork requires egg and mature chicken artwork.");
       return;
     }
     try {
@@ -1404,10 +1404,10 @@ export default function AdminView() {
     event.target.value = "";
     if (!file) return;
     const acceptedTypes = kind === "egg"
-      ? ["image/png"]
+      ? ["image/png", "image/svg+xml"]
       : ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
     if (!acceptedTypes.includes(file.type)) {
-      toast.error(kind === "egg" ? "Egg artwork must be a PNG file." : "Dragon artwork must be PNG, JPG, WebP, or SVG.");
+      toast.error(kind === "egg" ? "Egg artwork must be PNG or SVG." : "Chicken artwork must be PNG, JPG, WebP, or SVG.");
       return;
     }
     const maxBytes = kind === "egg" ? 4 * 1024 * 1024 : 4 * 1024 * 1024;
@@ -1434,7 +1434,7 @@ export default function AdminView() {
       if (kind === "egg") setNodeEggImageUrl(result.url);
       else if (kind === "youngDragon") setNodeYoungDragonImageUrl(result.url);
       else setNodeDragonImageUrl(result.url);
-      toast.success(`${kind === "egg" ? "Egg PNG" : "Dragon artwork"} uploaded. Save the product to apply it.`);
+      toast.success(`${kind === "egg" ? "Egg artwork" : "Chicken artwork"} uploaded. Save the product to apply it.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Artwork upload failed.");
     } finally {
@@ -1764,9 +1764,9 @@ export default function AdminView() {
       toast.error("Enter a whole number amount greater than zero.");
       return;
     }
-    const current = Number(userToAdjust.points) || 0;
+    const current = Number(userToAdjust.rechargeableBalance) || 0;
     if (adjustDirection === "debit" && magnitude > current) {
-      toast.error(`Debit exceeds the available balance of UGX ${current.toLocaleString()}.`);
+      toast.error(`Debit exceeds My capital of UGX ${current.toLocaleString()}.`);
       return;
     }
     const delta = adjustDirection === "debit" ? -magnitude : magnitude;
@@ -2490,7 +2490,7 @@ export default function AdminView() {
                 </div>
 
                 <p className="text-xs text-[var(--theme-text)] opacity-65">
-                  Users can rent the same product more than once. The count below shows active rentals, and edits apply to new rentals while existing rentals keep their original terms.
+                  Users can hatch the same egg more than once. The count below shows active earning cycles; edits apply to new hatches while active chickens keep their saved terms.
                 </p>
 
                 <div className="theme-card overflow-hidden flex flex-col text-[var(--theme-text)] transition-all">
@@ -2503,7 +2503,7 @@ export default function AdminView() {
                           <th className="px-5 py-4 font-bold text-[var(--theme-text)] opacity-70 text-right">Cost</th>
                           <th className="px-5 py-4 font-bold text-[var(--theme-text)] opacity-70 text-right">Profits/Day</th>
                           <th className="px-5 py-4 font-bold text-[var(--theme-text)] opacity-70 text-center">Duration</th>
-                          <th className="px-5 py-4 font-bold text-[var(--theme-text)] opacity-70 text-center">Active rentals</th>
+                          <th className="px-5 py-4 font-bold text-[var(--theme-text)] opacity-70 text-center">Active cycles</th>
                           <th className="px-5 py-4 font-bold text-[var(--theme-text)] opacity-70 text-center">Status</th>
                           <th className="px-5 py-4 font-bold text-[var(--theme-text)] opacity-70 text-right">Actions</th>
                         </tr>
@@ -2665,7 +2665,8 @@ export default function AdminView() {
                                 <span className="font-bold text-[var(--theme-primary)]">{nodesCount}</span>
                               </td>
                               <td className="px-5 py-4 text-right">
-                                <div className="font-bold text-[var(--theme-text)]">{formatCurrency(u.points || 0)}</div>
+                                <div className="font-bold text-[var(--theme-text)]">Capital {formatCurrency(u.rechargeableBalance || 0)}</div>
+                                <div className="mt-0.5 text-[11px] font-semibold text-[var(--theme-text)] opacity-65">Withdrawable {formatCurrency(u.withdrawableBalance || 0)}</div>
                                 {Number(u.totalDeposits || 0) > 0 && (
                                   <div className="text-[11px] text-[var(--theme-text)] opacity-50 mt-0.5">deposited {formatCurrency(u.totalDeposits || 0)}</div>
                                 )}
@@ -5062,7 +5063,7 @@ export default function AdminView() {
               <div className="px-6 py-4 border-b border-[var(--theme-card-border)] flex justify-between items-center bg-[var(--theme-bg)]">
                 <div>
                   <h3 className="text-lg font-extrabold text-[var(--theme-text)]">{isCreatingNode ? "Create Product" : "Edit Product"}</h3>
-                  {!isCreatingNode && <p className="text-[11px] text-[var(--theme-text)] opacity-60 mt-1">Changes apply to future rentals; current rentals keep their saved terms.</p>}
+                  {!isCreatingNode && <p className="text-[11px] text-[var(--theme-text)] opacity-60 mt-1">Changes apply to new hatches; active chickens keep their saved cycle terms.</p>}
                 </div>
                 <button onClick={() => { setIsEditingNode(null); setIsCreatingNode(false); }} className="text-[var(--theme-text)] opacity-60 hover:opacity-100 transition-colors cursor-pointer">
                   <X className="w-5 h-5" />
@@ -5070,25 +5071,7 @@ export default function AdminView() {
               </div>
               <div className="p-6 overflow-y-auto">
                 <form id="node-form" onSubmit={handleSaveNode} className="space-y-5">
-                  <div className="flex flex-col sm:flex-row gap-5">
-                    {/* Left Column: Image Preview + URL */}
-                    <div className="sm:w-1/3 flex flex-col gap-3">
-                      <div className="w-full aspect-square bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] rounded-[var(--theme-radius)] flex items-center justify-center overflow-hidden relative group">
-                        {nodeImageUrl ? (
-                          <img src={nodeImageUrl} alt="Product Preview" className="w-full h-full object-cover" />
-                        ) : (
-                          <Cpu className="w-10 h-10 text-[var(--theme-text)] opacity-40" />
-                        )}
-                        <div className="absolute inset-x-0 bottom-0 bg-[var(--theme-card-bg)] p-2 text-center text-[12px] text-[var(--theme-text)] font-bold border-t border-[var(--theme-card-border)]">Product Thumbnail</div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">Legacy product image URL</label>
-                        <input type="text" placeholder="https://..." value={nodeImageUrl} onChange={(e) => setNodeImageUrl(e.target.value)} className="w-full px-3 py-2 bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] rounded-[var(--theme-radius)] text-[var(--theme-text)] text-sm focus:border-[var(--theme-primary)] outline-none" />
-                      </div>
-                    </div>
-
-                    {/* Right Column: Other inputs */}
-                    <div className="sm:w-2/3 space-y-4">
+                  <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">Product ID</label>
@@ -5132,45 +5115,44 @@ export default function AdminView() {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">{nodeEggImageUrl && nodeDragonImageUrl ? "Daily Income (%)" : "Daily Profits (%)"}</label>
+                          <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">Daily Income (%)</label>
                           <input type="text" inputMode="decimal" required value={nodeDailyProfitPct} onChange={(e) => setNodeDailyProfitPct(parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] rounded-[var(--theme-radius)] text-[var(--theme-text)] text-sm focus:border-[var(--theme-primary)] outline-none" />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">{nodeEggImageUrl && nodeDragonImageUrl ? "Incubation (Days)" : "Duration (Days)"}</label>
+                          <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">Earning Cycle (Days)</label>
                           <input type="text" inputMode="numeric" required value={nodeDuration} onChange={(e) => setNodeDuration(parseInt(e.target.value, 10) || 0)} className="w-full px-3 py-2 bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] rounded-[var(--theme-radius)] text-[var(--theme-text)] text-sm focus:border-[var(--theme-primary)] outline-none" />
                         </div>
                       </div>
                       
                       <div className="bg-[var(--theme-bg)] p-3 rounded-[var(--theme-radius)] border border-[var(--theme-card-border)] space-y-1">
                         <div className="flex justify-between text-xs">
-                          <span className="text-[var(--theme-text)] opacity-70">{nodeEggImageUrl && nodeDragonImageUrl ? "Calculated Daily Income:" : "Calculated Daily Profit:"}</span>
+                          <span className="text-[var(--theme-text)] opacity-70">Calculated Daily Income:</span>
                           <span className="font-bold text-[var(--theme-text)]">{formatCurrency(nodeAmount * (nodeDailyProfitPct / 100))}</span>
                         </div>
                         <div className="flex justify-between text-xs">
-                          <span className="text-[var(--theme-text)] opacity-70">{nodeEggImageUrl && nodeDragonImageUrl ? `Income over ${nodeDuration || 0} days:` : `Total Return (${nodeDuration || 0} days):`}</span>
+                          <span className="text-[var(--theme-text)] opacity-70">Income over {nodeDuration || 0} days:</span>
                           <span className="font-bold text-[var(--theme-text)]">{formatCurrency(nodeAmount * (nodeDailyProfitPct / 100) * (nodeDuration || 0))}</span>
                         </div>
                       </div>
-                    </div>
                   </div>
 
                   <section className="space-y-3 rounded-[var(--theme-radius)] border border-[var(--theme-card-border)] bg-[var(--theme-bg)] p-4">
                     <div>
-                      <h4 className="text-sm font-extrabold text-[var(--theme-text)]">Dragon growth stages</h4>
+                      <h4 className="text-sm font-extrabold text-[var(--theme-text)]">Chicken farm stages</h4>
                       <p className="mt-1 text-[11px] leading-relaxed text-[var(--theme-text)] opacity-65">
-                        Add egg, young dragon, and mature dragon art. The young dragon appears after hatching; the mature dragon appears halfway through the cycle. Young and mature art accept PNG, JPG, WebP, or SVG.
+                        Hatch eggs, raise chickens, and collect daily income. Set the egg, young chicken, and mature chicken artwork. The mature stage appears halfway through the earning cycle. PNG, JPG, WebP, and SVG are supported for all three.
                       </p>
                     </div>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                       {([
-                        { key: "egg", label: "Egg artwork · PNG", value: nodeEggImageUrl, set: setNodeEggImageUrl, accept: ".png,image/png" },
-                        { key: "youngDragon", label: "Young dragon artwork · image or SVG", value: nodeYoungDragonImageUrl, set: setNodeYoungDragonImageUrl, accept: ".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" },
-                        { key: "dragon", label: "Mature dragon artwork · image or SVG", value: nodeDragonImageUrl, set: setNodeDragonImageUrl, accept: ".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" },
+                        { key: "egg", label: "Egg artwork (image or SVG)", value: nodeEggImageUrl, set: setNodeEggImageUrl, accept: ".png,.svg,image/png,image/svg+xml" },
+                        { key: "youngDragon", label: "Young chicken artwork (image or SVG)", value: nodeYoungDragonImageUrl, set: setNodeYoungDragonImageUrl, accept: ".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" },
+                        { key: "dragon", label: "Mature chicken artwork (image or SVG)", value: nodeDragonImageUrl, set: setNodeDragonImageUrl, accept: ".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" },
                       ] as const).map((art) => (
                         <div key={art.key} className="space-y-2">
                           <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[var(--theme-radius)] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] p-3">
                             {art.value ? (
-                              <img src={art.value} alt={`${art.key} artwork preview`} className="h-full w-full object-contain" />
+                              <img src={art.value} alt={`${art.label} preview`} className="h-full w-full object-contain" />
                             ) : (
                               <span className="text-xs text-[var(--theme-text)] opacity-45">Artwork preview</span>
                             )}
@@ -5184,7 +5166,7 @@ export default function AdminView() {
                             className="w-full rounded-[var(--theme-radius)] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] px-3 py-2 text-sm text-[var(--theme-text)] outline-none focus:border-[var(--theme-primary)]"
                           />
                           <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-[var(--theme-card-border)] px-3 py-2 text-xs font-bold text-[var(--theme-text)] transition-colors hover:border-[var(--theme-primary)]">
-                            {catalogArtUpload === art.key ? "Uploading…" : `Upload ${art.key === "egg" ? "PNG" : "image or SVG"}`}
+                            {catalogArtUpload === art.key ? "Uploading…" : "Upload image or SVG"}
                             <input
                               type="file"
                               accept={art.accept}
@@ -5269,7 +5251,7 @@ export default function AdminView() {
         )}
 
         {userToAdjust && (() => {
-          const currentBalance = Number(userToAdjust.points) || 0;
+          const currentBalance = Number(userToAdjust.rechargeableBalance) || 0;
           return (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
               <motion.div
@@ -5299,7 +5281,7 @@ export default function AdminView() {
                 <div className="p-6">
                   <form id="adjust-balance-form" onSubmit={handleAdjustBalance} className="space-y-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">Account balance</label>
+                      <label className="text-xs text-[var(--theme-text)] font-bold opacity-80 uppercase tracking-wider block">My capital</label>
                       <div className="text-[11px] opacity-60">Current: {formatCurrency(currentBalance)}</div>
                     </div>
 

@@ -29,7 +29,10 @@ export const users = mysqlTable(
     inviteCode: varchar("invite_code", { length: 64 }).notNull().unique(),
     referredByCode: varchar("referred_by_code", { length: 64 }).default(""),
     operator: varchar("operator", { length: 16 }).default("MTN"),
-    points: double("points").default(0).notNull(), // Unified account balance (UGX)
+    points: double("points").default(0).notNull(), // Compatibility total of both wallet buckets
+    rechargeableBalance: double("rechargeable_balance").default(0).notNull(),
+    withdrawableBalance: double("withdrawable_balance").default(0).notNull(),
+    balanceBucketsMigrated: boolean("balance_buckets_migrated").default(false).notNull(),
     withdrawnCash: double("withdrawn_cash").default(0).notNull(),
     totalDeposits: double("total_deposits").default(0).notNull(),
     aiIncome: double("ai_income").default(0).notNull(),
@@ -72,6 +75,7 @@ export const subscribedNodes = mysqlTable(
     startDate: varchar("start_date", { length: 64 }).notNull(),
     endDate: varchar("end_date", { length: 64 }).notNull(),
     lastClaimedDate: varchar("last_claimed_date", { length: 32 }).notNull(),
+    daysFed: int("days_fed").notNull().default(0),
     totalEarned: double("total_earned").default(0).notNull(),
     status: varchar("status", { length: 16 }).default("active").notNull() // "active" | "completed" | "expired"
   },

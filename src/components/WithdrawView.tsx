@@ -135,8 +135,8 @@ export default function WithdrawView({
       toast.error(`The maximum withdrawal is ${formatCurrency(maximumWithdrawal)}.`);
       return;
     }
-    if (pointsToWithdraw > (userProfile.points || 0)) {
-      toast.error(`Your available balance is ${formatCurrency(userProfile.points || 0)}.`);
+    if (pointsToWithdraw > (userProfile.withdrawableBalance || 0)) {
+      toast.error(`Your withdrawable balance is ${formatCurrency(userProfile.withdrawableBalance || 0)}.`);
       return;
     }
     if (withdrawOperator === "USDT") {
@@ -251,8 +251,10 @@ export default function WithdrawView({
 
   return (
     <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] space-y-4 select-none p-4 pt-0 min-h-[100dvh]">
-      {/* Withdraw heading */}
-
+      <div className="flex items-center justify-between rounded-2xl border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/70 px-4 py-3">
+        <span className="text-[13px] font-semibold opacity-65">Withdrawable balance</span>
+        <strong className="font-display text-[17px] font-black tabular-nums">{formatCurrency(userProfile.withdrawableBalance || 0)}</strong>
+      </div>
 
       <div className="rounded-[var(--theme-radius)]">
         <div className="p-3 space-y-3">
@@ -311,7 +313,7 @@ export default function WithdrawView({
                 value={pointsToWithdraw || ""}
                 onChange={(e) => setPointsToWithdraw(parseInt(e.target.value.replace(/[^0-9]/g, "")) || 0)}
                 aria-describedby="withdrawal-rules"
-                aria-invalid={pointsToWithdraw > 0 && (!Number.isInteger(pointsToWithdraw) || pointsToWithdraw < minimumWithdrawal || (maximumWithdrawal > 0 && pointsToWithdraw > maximumWithdrawal) || pointsToWithdraw > (userProfile.points || 0))}
+                aria-invalid={pointsToWithdraw > 0 && (!Number.isInteger(pointsToWithdraw) || pointsToWithdraw < minimumWithdrawal || (maximumWithdrawal > 0 && pointsToWithdraw > maximumWithdrawal) || pointsToWithdraw > (userProfile.withdrawableBalance || 0))}
                 className="w-full pl-10 pr-20 py-4 bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] text-[var(--theme-text)] text-[15px] rounded-2xl outline-none font-bold placeholder:font-medium placeholder:opacity-40 focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] transition-all"
               />
              
@@ -355,7 +357,7 @@ export default function WithdrawView({
                 !Number.isInteger(pointsToWithdraw) ||
                 pointsToWithdraw < minimumWithdrawal ||
                 (maximumWithdrawal > 0 && pointsToWithdraw > maximumWithdrawal) ||
-                pointsToWithdraw > (userProfile.points || 0) ||
+                pointsToWithdraw > (userProfile.withdrawableBalance || 0) ||
                 !activeNodes ||
                 activeNodes.length === 0
               }
