@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Award, Check, Clock, Egg, Gift, History, Loader2, LogOut, Menu, Wallet, X } from "lucide-react";
+import { ArrowRight, Award, Check, Clock, Egg, Gift, History, Loader2, LogOut, Menu, Timer, Wallet, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 import { useCurrency } from "../currency";
 import { useGatedInterval } from "../hooks/useGatedInterval";
 import type { Collectible, SubscribedNode, SubscriptionItem, UserProfile } from "../types";
 import { readApiJson } from "../utils/api";
-import { getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmount } from "../utils/runs";
+import { getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmount, getRunTotalDays } from "../utils/runs";
 import { isDragonEggProduct } from "../utils/dragons";
 
 import egg from "@/src/assets/svg/celestial.png";
@@ -28,6 +28,7 @@ function AnimatedUgxAmount({ amount }: { amount: number }) {
   const target = Math.max(0, Math.floor(Number(amount) || 0));
   const [displayedAmount, setDisplayedAmount] = useState(target);
   const displayedAmountRef = useRef(displayedAmount);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     const startAmount = displayedAmountRef.current;
@@ -339,7 +340,9 @@ export default function DragonsHomeSection({
 
       <header className="space-y-1 justify-center text-center flex flex-col px-1">
         <div className="relative flex min-h-8 items-center justify-center px-10">
-          <p className="text-[14px] font-sans font-black uppercase tracking-[0.18em] text-[var(--theme-primary)]">Valley of dragons</p>
+          <p className="text-[14px] font-sans font-black uppercase tracking-[0.18em] text-[var(--theme-primary)]">
+            {profile.username?.trim() ? `${profile.username.trim()}’s Valley of Dragons` : "Your Valley of Dragons"}
+          </p>
         </div>
         <h1 className="max-w-[28rem] font-display px-12 text-[25px] font-black leading-tight tracking-tight text-[var(--theme-text)]">
           Choose an egg and hatch your dragon!
@@ -434,17 +437,17 @@ export default function DragonsHomeSection({
               <div className="relative flex min-h-40 items-center gap-4 overflow-hidden bg-gradient-to-br from-[var(--theme-primary)]/20 via-[var(--theme-card-bg)] to-[var(--theme-accent)]/10 px-5 py-5 pr-16 sm:px-6">
                 <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-[var(--theme-primary)]/15 blur-3xl" />
                 <div className="relative z-10 min-w-0 flex-1">
-                  <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--theme-primary)]">Dragon treasure</p>
-                  <h2 id="home-gift-code-title" className="font-display text-2xl font-black leading-tight">A gift for your hoard</h2>
-                  <p className="mt-1.5 max-w-[16rem] text-sm leading-relaxed opacity-70">Redeem a code and send its reward straight to your balance.</p>
+
+                  <h2 id="home-gift-code-title" className="font-display text-2xl font-black leading-tight">Treasure hunters</h2>
+                  <p className="mt-1.5 max-w-[16rem] text-sm leading-relaxed opacity-70">Find voucher codes in our community spaces and redeem them here.</p>
                 </div>
                 <img src={egg} alt="" className="relative z-10 h-20 w-20 shrink-0 object-contain drop-shadow-xl sm:h-24 sm:w-24" />
               </div>
               <form onSubmit={handleHomeGiftCodeRedeem} className="space-y-4 p-5 sm:p-6">
                 <div className="space-y-2">
-                  <label htmlFor="home-gift-code-input" className="block text-sm font-bold">Gift code</label>
+    
                   <div className="relative">
-                    <Gift className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--theme-primary)]" aria-hidden="true" />
+ 
                     <input
                       ref={homeGiftCodeInputRef}
                       id="home-gift-code-input"
@@ -456,7 +459,7 @@ export default function DragonsHomeSection({
                       value={giftCodeValue}
                       onChange={(event) => setGiftCodeValue(event.target.value.toUpperCase())}
                       placeholder="Enter your code"
-                      className="w-full rounded-2xl border border-[var(--theme-card-border)] bg-[var(--theme-bg)] py-3.5 pl-12 pr-4 text-left font-sans text-base font-bold tracking-[0.12em] outline-none placeholder:font-medium placeholder:tracking-normal placeholder:opacity-45 focus:border-[var(--theme-primary)] focus:ring-2 focus:ring-[var(--theme-primary)]/15"
+                      className="w-full rounded-2xl border border-[var(--theme-card-border)] bg-[var(--theme-bg)] py-3.5 pl-12 pr-4 text-left font-sans text-base font-bold tracking-[0.12em] outline-none placeholder:font-medium  focus:border-[var(--theme-primary)] focus:ring-2 focus:ring-[var(--theme-primary)]/15"
                     />
                   </div>
                  
@@ -511,6 +514,12 @@ export default function DragonsHomeSection({
               const claimable = ownedNode ? getRunClaimableReturns(ownedNode, new Date(nowMs)) : null;
               const endMs = ownedNode ? getRunEndMs(ownedNode) : null;
               const daysLeft = endMs === null ? null : Math.max(0, Math.ceil((endMs - nowMs) / (24 * 60 * 60 * 1000)));
+              const totalDays = ownedNode
+                ? getRunTotalDays(ownedNode, items)
+                : Math.max(1, Math.floor(Number(egg.duration) || 15));
+              const currentCycleDay = daysLeft === null
+                ? 1
+                : Math.min(totalDays, Math.max(1, totalDays - daysLeft + 1));
               const cycleFinished = ownedNode
                 ? String(ownedNode.status).toLowerCase() !== "active" || endMs !== null && nowMs >= endMs
                 : false;
@@ -539,52 +548,50 @@ export default function DragonsHomeSection({
                         Hatched ×{hatchCount}
                       </span>
                     ) : null}
-                    {dragonOwned && !isHatching && dailyPercent !== null ? (
-                      <span className="absolute right-3 top-3 rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[14px] font-black tabular-nums text-[var(--theme-text)]">
-                        {Math.round(dailyPercent)}%
-                      </span>
-                    ) : null}
+
                     {!dragonOwned && soldOut ? (
                       <span className="absolute bottom-3 right-3 rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[14px] font-black text-[var(--theme-text)]">SOLD OUT</span>
                     ) : null}
-                    {dragonOwned ? (
-                      <div className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2 text-[14px] font-semibold">
-                        <span className="text-[var(--theme-text)]">{isHatching ? "Your dragon is hatching" : "Dragon hatched"}</span>
-                        {!isHatching ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-emerald-800">
-                            <Check className="h-3 w-3" aria-hidden="true" /> In your valley
-                          </span>
-                        ) : null}
-                      </div>
-                    ) : null}
+
                   </div>
                   <div className="space-y-3 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h3 className="truncate font-display text-[19px] font-black text-[var(--theme-text)] sm:text-[21px]">{egg.name}</h3>
-                        <p className="mt-0.5 text-[12px] font-sans font-semibold uppercase tracking-[0.12em] text-[var(--theme-text)] opacity-55">
-                          {dragonOwned ? cycleFinished ? "Hatch cycle complete" : "Your dragon" : `${egg.duration} day${egg.duration === 1 ? "" : "s"} to hatch`}
-                        </p>
+
                       </div>
                       {dragonOwned && daysLeft !== null ? (
-                        <span className="shrink-0 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-right text-[11px] font-sans font-bold text-[var(--theme-primary)]">
-                          {daysLeft} {daysLeft === 1 ? "day" : "days"} left
+                        <span
+                          aria-label={`Currently on day ${currentCycleDay} of ${totalDays}`}
+                          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-right text-[11px] font-sans font-bold tabular-nums text-[var(--theme-primary)]"
+                        >
+                          <Timer className="h-3.5 w-3.5" aria-hidden="true" />
+                          Day {currentCycleDay}/{totalDays}
                         </span>
                       ) : !dragonOwned ? (
-                        <p className="shrink-0 font-display text-[20px] font-black tabular-nums text-[var(--theme-primary)] sm:text-[22px]">{formatCurrency(egg.amount)}</p>
+                        <div className="flex shrink-0 flex-col items-end gap-1.5">
+                          <p className="font-display text-[20px] font-black tabular-nums text-[var(--theme-primary)] sm:text-[22px]">{formatCurrency(egg.amount)}</p>
+                          <span
+                            aria-label={`${totalDays} day${totalDays === 1 ? "" : "s"} duration`}
+                            className="inline-flex items-center gap-1 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-[10px] font-sans font-bold tabular-nums text-[var(--theme-primary)]"
+                          >
+                            <Timer className="h-3.5 w-3.5" aria-hidden="true" />
+                            {totalDays} {totalDays === 1 ? "day" : "days"}
+                          </span>
+                        </div>
                       ) : null}
                     </div>
                     {dragonOwned && ownedNode && claimable ? (
                       <>
                         <div className="flex items-end justify-between gap-2 border-b border-[var(--theme-card-border)] pb-3">
                           <div>
-                            <p className="text-[12px] text-[var(--theme-text)] opacity-65">Earned on this card</p>
+                            <p className="text-[14px] text-[var(--theme-text)] opacity-65">Earned on this card</p>
                             <p className="mt-0.5 leading-none tabular-nums">
                               <AnimatedUgxAmount amount={claimable.amount} />
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between border-b border-[var(--theme-card-border)] py-3 text-[12px] sm:text-[13px]">
+                        <div className="flex items-center justify-between  py-3 text-[14px] sm:text-[13px]">
                           <span className="inline-flex items-center gap-1.5 text-[var(--theme-text)] opacity-70">
                             <Clock className="h-3.5 w-3.5" aria-hidden="true" /> Income per day
                           </span>
@@ -605,7 +612,7 @@ export default function DragonsHomeSection({
                       </>
                     ) : (
                       <>
-                        <div className="flex items-center justify-between border-t border-[var(--theme-card-border)] pt-3 text-[12px] sm:text-[13px]">
+                        <div className="flex items-center justify-between border-t border-[var(--theme-card-border)] pt-3 text-[14px] sm:text-[13px]">
                           <span className="text-[var(--theme-text)] opacity-65">Daily income</span>
                           <span className="font-display font-black tabular-nums text-[var(--theme-text)]">{formatCurrency(egg.dailyYield)}</span>
                         </div>
@@ -641,7 +648,7 @@ export default function DragonsHomeSection({
           <div className="rounded-[20px] border border-dashed border-[var(--theme-card-border)] px-5 py-8 text-center">
             <Egg className="mx-auto h-7 w-7 text-[var(--theme-primary)]" aria-hidden="true" />
             <p className="mt-2 font-display text-[15px] font-black text-[var(--theme-text)]">The nest is waiting</p>
-            <p className="mx-auto mt-1 max-w-[26rem] text-[12px] leading-relaxed text-[var(--theme-text)] opacity-60">
+            <p className="mx-auto mt-1 max-w-[26rem] text-[14px] leading-relaxed text-[var(--theme-text)] opacity-60">
               {enabledProductCount > 0
                 ? `${enabledProductCount} store product${enabledProductCount === 1 ? "" : "s"} found, but none have both egg and dragon artwork yet. Update them in Admin or re-import with “Egg Image URL (PNG)” and “Dragon Image URL (SVG)” columns.`
                 : "Egg products with both egg and dragon artwork will appear here when they are added to the store."}
@@ -662,14 +669,14 @@ export default function DragonsHomeSection({
             <p className="text-[14px] font-black uppercase tracking-[0.18em] text-[var(--theme-primary)]">Hatching</p>
             <h2 id="egg-confirm-title" className="mt-2 font-display text-[25px] font-black leading-tight">{confirmingEgg.name}</h2>
             <p className="mt-2 text-[14px] leading-relaxed opacity-75">
-              Hatch for {formatCurrency(confirmingEgg.amount)}. Your dragon appears in your valley immediately. It earns income for {confirmingEgg.duration} day{confirmingEgg.duration === 1 ? "" : "s"}, which you can collect separately as it accrues.
+            Your dragon appears in your valley immediately. It earns income for {confirmingEgg.duration} day{confirmingEgg.duration === 1 ? "" : "s"}, which you can collect daily as it accrues.
             </p>
-            <p className="mt-3 flex items-center gap-2 text-[12px] font-bold text-[var(--theme-primary)]">
+            <p className="mt-3 flex items-center gap-2 text-[14px] font-bold text-[var(--theme-primary)]">
               <Check className="h-4 w-4" aria-hidden="true" />
               Balance after hatch: {formatCurrency((Number(profile.points) || 0) - confirmingEgg.amount)}
             </p>
             {(Number(profile.points) || 0) < confirmingEgg.amount ? (
-              <p className="mt-3 text-[12px] font-semibold text-rose-700">Your account balance is too low to open this egg.</p>
+              <p className="mt-3 text-[14px] font-semibold text-rose-700">Your account balance is too low to open this egg.</p>
             ) : null}
             <div className="mt-5 flex gap-3">
               <button type="button" onClick={() => setConfirmingEgg(null)} disabled={!!openingEggId} className="min-h-11 flex-1 rounded-full bg-[var(--theme-card-bg)] px-4 py-3 text-[13px] font-bold disabled:opacity-50">

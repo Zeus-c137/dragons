@@ -214,7 +214,7 @@ export default function WithdrawView({
 
         <div className="rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] p-8 text-center space-y-5 shadow-sm">
           {paymentStatus === "PENDING" ? (
-            <div className="w-14 h-14 mx-auto rounded-full border-2 border-[var(--theme-primary)]/20 border-t-[var(--theme-primary)] animate-spin" />
+            <div className="payment-status-spinner mx-auto rounded-full" aria-hidden="true" />
           ) : paymentStatus === "FAILED" ? (
             <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto text-rose-500"><AlertTriangle className="w-10 h-10" /></div>
           ) : (

@@ -713,7 +713,7 @@ export default function DepositView({
         </div>
       ) : paymentStatus === "PENDING" ? (
         <div className="rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] p-8 text-center space-y-4 shadow-sm">
-          <div className="w-14 h-14 mx-auto rounded-full border-2 border-[var(--theme-primary)]/20  animate-spin" />
+          <div className="payment-status-spinner mx-auto rounded-full" aria-hidden="true" />
           <div className="space-y-1">
             <h3 className="font-black text-sm">
               {depositMode === "manual" || depositMode === "usdt" ? "Verification pending" : "Awaiting PIN confirmation"}

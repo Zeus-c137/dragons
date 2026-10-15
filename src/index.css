@@ -989,3 +989,19 @@ input:-webkit-autofill::first-line { font-size: 14px; }
 @media (prefers-reduced-motion: reduce) {
   .dragon-egg-float, .dragon-egg-hatching, .dragon-hatch-reveal { animation: none; }
 }
+
+/* Payment status spinner has a distinct arc so its rotation stays visible. */
+@keyframes payment-status-spin {
+  to { transform: rotate(360deg); }
+}
+.payment-status-spinner {
+  width: 3.5rem;
+  height: 3.5rem;
+  border: 4px solid color-mix(in srgb, var(--theme-primary) 18%, transparent);
+  border-top-color: var(--theme-primary);
+  border-right-color: color-mix(in srgb, var(--theme-primary) 58%, transparent);
+  animation: payment-status-spin 800ms linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .payment-status-spinner { animation: none; }
+}
