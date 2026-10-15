@@ -341,11 +341,11 @@ export default function DragonsHomeSection({
       <header className="space-y-1 justify-center text-center flex flex-col px-1">
         <div className="relative flex min-h-8 items-center justify-center px-10">
           <p className="text-[14px] font-sans font-black uppercase tracking-[0.18em] text-[var(--theme-primary)]">
-            {profile.username?.trim() ? `${profile.username.trim()}’s Valley of Dragons` : "Your Valley of Dragons"}
+            {profile.username?.trim() ? `${profile.username.trim()}’s chicken farm` : "Chicken farm"}
           </p>
         </div>
         <h1 className="max-w-[28rem] font-display px-12 text-[25px] font-black leading-tight tracking-tight text-[var(--theme-text)]">
-          Choose an egg and hatch your dragon!
+          Hatch chicks and collect daily income!
         </h1>
       </header>
 
@@ -517,6 +517,12 @@ export default function DragonsHomeSection({
               const totalDays = ownedNode
                 ? getRunTotalDays(ownedNode, items)
                 : Math.max(1, Math.floor(Number(egg.duration) || 15));
+              const startMs = ownedNode ? new Date(ownedNode.startDate).getTime() : NaN;
+              const matureStageStartsAt = startMs + totalDays * 24 * 60 * 60 * 1000 / 2;
+              const isMatureDragon = dragonOwned && Number.isFinite(matureStageStartsAt) && nowMs >= matureStageStartsAt;
+              const activeDragonArtwork = ownedNode
+                ? (isMatureDragon ? ownedNode.dragonImageUrl : ownedNode.youngDragonImageUrl || ownedNode.dragonImageUrl)
+                : "";
               const currentCycleDay = daysLeft === null
                 ? 1
                 : Math.min(totalDays, Math.max(1, totalDays - daysLeft + 1));
@@ -530,8 +536,8 @@ export default function DragonsHomeSection({
                 <article key={egg.id} className="overflow-hidden rounded-[24px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/75">
                   <div className={`relative flex aspect-[1.08] items-center justify-center overflow-hidden p-5 ${dragonOwned ? "bg-[var(--theme-primary)]/8" : "bg-[var(--theme-primary)]/6"}`}>
                     <img
-                      src={isHatching ? egg.eggImageUrl : dragonOwned ? ownedNode.dragonImageUrl : egg.eggImageUrl}
-                      alt={isHatching ? `${egg.name} egg hatching` : dragonOwned ? `${egg.name} dragon` : egg.name}
+                      src={isHatching ? egg.eggImageUrl : dragonOwned ? activeDragonArtwork : egg.eggImageUrl}
+                      alt={isHatching ? `${egg.name} egg hatching` : dragonOwned ? `${egg.name} ${isMatureDragon ? "mature" : "young"} dragon` : egg.name}
                       loading="lazy"
                       className={`${isHatching
                         ? "h-full w-full object-contain dragon-egg-hatching"
@@ -650,7 +656,7 @@ export default function DragonsHomeSection({
             <p className="mt-2 font-display text-[15px] font-black text-[var(--theme-text)]">The nest is waiting</p>
             <p className="mx-auto mt-1 max-w-[26rem] text-[14px] leading-relaxed text-[var(--theme-text)] opacity-60">
               {enabledProductCount > 0
-                ? `${enabledProductCount} store product${enabledProductCount === 1 ? "" : "s"} found, but none have both egg and dragon artwork yet. Update them in Admin or re-import with “Egg Image URL (PNG)” and “Dragon Image URL (SVG)” columns.`
+                ? `${enabledProductCount} store product${enabledProductCount === 1 ? "" : "s"} found, but no egg and mature dragon artwork is configured yet. Add it in Admin or re-import with Egg Image URL, Young Dragon Image URL, and Mature Dragon Image URL columns.`
                 : "Egg products with both egg and dragon artwork will appear here when they are added to the store."}
             </p>
           </div>

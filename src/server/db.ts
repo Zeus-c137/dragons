@@ -695,6 +695,7 @@ export async function getSubscriptionItems(): Promise<SubscriptionItem[]> {
           image: r.image,
           imageUrl: r.imageUrl || r.image,
           eggImageUrl: r.eggImageUrl || "",
+          youngDragonImageUrl: r.youngDragonImageUrl || "",
           dragonImageUrl: r.dragonImageUrl || "",
           amount: r.amount,
           duration: r.duration,
@@ -741,6 +742,7 @@ export async function subscribeToItem(phone: string, itemId: string): Promise<Su
     // dedicated snapshot columns so long asset URLs are never truncated.
     image: item.imageUrl || item.image,
     eggImageUrl: item.eggImageUrl || "",
+    youngDragonImageUrl: item.youngDragonImageUrl || "",
     dragonImageUrl: item.dragonImageUrl || "",
     amount: item.amount,
     duration: item.duration,
@@ -794,6 +796,7 @@ export async function subscribeToItem(phone: string, itemId: string): Promise<Su
       itemName: node.itemName,
       image: node.image,
       eggImageUrl: node.eggImageUrl || "",
+      youngDragonImageUrl: node.youngDragonImageUrl || "",
       dragonImageUrl: node.dragonImageUrl || "",
       amount: node.amount,
       duration: node.duration,
@@ -1036,6 +1039,7 @@ export async function getUserSubscriptions(phone: string): Promise<SubscribedNod
           itemName: r.itemName,
           image: r.image,
           eggImageUrl: r.eggImageUrl || "",
+          youngDragonImageUrl: r.youngDragonImageUrl || "",
           dragonImageUrl: r.dragonImageUrl || "",
           amount: r.amount,
           duration: r.duration,
@@ -1836,10 +1840,11 @@ export async function createNotification(
   message: string,
   category: string = "system",
   amount?: number,
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown>,
+  notificationId?: string
 ) {
   const notif: NotificationItem = {
-    id: "notif_" + crypto.randomBytes(8).toString("hex"),
+    id: notificationId || "notif_" + crypto.randomBytes(8).toString("hex"),
     userId: phone,
     title,
     message,
@@ -1872,6 +1877,42 @@ export async function createNotification(
 export async function getUserNotifications(phone: string): Promise<NotificationItem[]> {
   const drizzleDb = getDb();
   if (drizzleDb) {
+    const activeNodes = await drizzleDb.select().from(schema.subscribedNodes)
+      .where(and(
+        eq(schema.subscribedNodes.userId, phone),
+        eq(schema.subscribedNodes.status, "active")
+      ));
+    const nowMs = Date.now();
+    for (const node of activeNodes as SubscribedNode[]) {
+      if (!node.eggImageUrl || !node.youngDragonImageUrl || !node.dragonImageUrl) continue;
+      const startMs = new Date(node.startDate).getTime();
+      const endMs = getRunEndMs(node);
+      if (!Number.isFinite(startMs) || endMs === null) continue;
+      const midpointMs = startMs + getRunTotalDays(node) * 24 * 60 * 60 * 1000 / 2;
+      if (nowMs < midpointMs || nowMs >= endMs) continue;
+
+      const notificationKey = crypto.createHash("sha256").update(node.id).digest("hex").slice(0, 32);
+      const notificationId = `notif_dragon_mid_${notificationKey}`;
+      const existing = await drizzleDb.select({ id: schema.notifications.id })
+        .from(schema.notifications)
+        .where(and(
+          eq(schema.notifications.id, notificationId),
+          eq(schema.notifications.userId, phone)
+        ))
+        .limit(1);
+      if (existing.length > 0) continue;
+
+      await createNotification(
+        phone,
+        `${node.itemName} has reached its mature stage`,
+        `Your ${node.itemName} is halfway through its ${getRunTotalDays(node)}-day cycle. It has grown into its mature form; prepare to renew it when the cycle ends.`,
+        "rewards",
+        undefined,
+        { eventType: "dragon_midpoint", subscriptionId: node.id, sourceItemId: node.itemId, sourceItemName: node.itemName },
+        notificationId
+      );
+    }
+
     const notifs = await drizzleDb.select().from(schema.notifications).where(eq(schema.notifications.userId, phone)).orderBy(desc(schema.notifications.timestamp));
     const ancs = await drizzleDb.select().from(schema.announcements).orderBy(desc(schema.announcements.createdAt));
     
@@ -2463,17 +2504,19 @@ export async function getPersistentArtworkUrls(): Promise<string[]> {
     drizzleDb.select({
       imageUrl: schema.catalogProducts.imageUrl,
       eggImageUrl: schema.catalogProducts.eggImageUrl,
+      youngDragonImageUrl: schema.catalogProducts.youngDragonImageUrl,
       dragonImageUrl: schema.catalogProducts.dragonImageUrl,
     }).from(schema.catalogProducts),
     drizzleDb.select({
       eggImageUrl: schema.subscribedNodes.eggImageUrl,
+      youngDragonImageUrl: schema.subscribedNodes.youngDragonImageUrl,
       dragonImageUrl: schema.subscribedNodes.dragonImageUrl,
     }).from(schema.subscribedNodes).where(eq(schema.subscribedNodes.status, "active")),
     drizzleDb.select({ image: schema.collectibles.image }).from(schema.collectibles),
   ]);
   return [
-    ...products.flatMap((row) => [row.imageUrl, row.eggImageUrl, row.dragonImageUrl]),
-    ...activeNodes.flatMap((row) => [row.eggImageUrl, row.dragonImageUrl]),
+    ...products.flatMap((row) => [row.imageUrl, row.eggImageUrl, row.youngDragonImageUrl, row.dragonImageUrl]),
+    ...activeNodes.flatMap((row) => [row.eggImageUrl, row.youngDragonImageUrl, row.dragonImageUrl]),
     ...collectibles.map((row) => row.image),
   ].filter((url): url is string => typeof url === "string" && url.length > 0);
 }
@@ -2487,6 +2530,7 @@ export async function adminSaveCatalogItem(item: SubscriptionItem) {
       image: item.image || item.imageUrl || "",
       imageUrl: item.imageUrl || item.image || "",
       eggImageUrl: item.eggImageUrl || "",
+      youngDragonImageUrl: item.youngDragonImageUrl || "",
       dragonImageUrl: item.dragonImageUrl || "",
       amount: item.amount,
       duration: item.duration,
@@ -2507,6 +2551,7 @@ export async function adminSaveCatalogItem(item: SubscriptionItem) {
       outOfStock: item.outOfStock === true,
       disabled: item.disabled === true,
       ...(item.eggImageUrl !== undefined ? { eggImageUrl: item.eggImageUrl || "" } : {}),
+      ...(item.youngDragonImageUrl !== undefined ? { youngDragonImageUrl: item.youngDragonImageUrl || "" } : {}),
       ...(item.dragonImageUrl !== undefined ? { dragonImageUrl: item.dragonImageUrl || "" } : {})
     } });
   } catch (err) {

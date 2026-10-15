@@ -2192,14 +2192,18 @@ app.post("/api/admin/catalog/save", async (req, res) => {
       ? 0
       : Number(item.inviteBonusPercent);
     const eggImageUrl = String(item.eggImageUrl || "").trim();
+    const youngDragonImageUrl = String(item.youngDragonImageUrl || "").trim();
     const dragonImageUrl = String(item.dragonImageUrl || "").trim();
     if (!Number.isInteger(numAmount) || numAmount <= 0 || !Number.isInteger(numDuration) || numDuration <= 0 || !Number.isFinite(numYield) || numYield < 0 || !Number.isFinite(numBonus) || numBonus < 0) {
       return res.status(400).json({ error: "Amount and duration must be positive whole numbers; yields and bonuses must be valid non-negative numbers." });
     }
     if (Boolean(eggImageUrl) !== Boolean(dragonImageUrl)) {
-      return res.status(400).json({ error: "Egg products need both egg PNG and dragon SVG artwork." });
+      return res.status(400).json({ error: "Egg products need both egg and mature dragon artwork." });
     }
-    if (eggImageUrl.length > 512 || dragonImageUrl.length > 512) {
+    if (youngDragonImageUrl && (!eggImageUrl || !dragonImageUrl)) {
+      return res.status(400).json({ error: "Young dragon artwork requires egg and mature dragon artwork." });
+    }
+    if (eggImageUrl.length > 512 || youngDragonImageUrl.length > 512 || dragonImageUrl.length > 512) {
       return res.status(400).json({ error: "Artwork URLs must be 512 characters or fewer." });
     }
 
@@ -2213,6 +2217,7 @@ app.post("/api/admin/catalog/save", async (req, res) => {
       dailyYield: numYield,
       inviteBonusPercent: numBonus,
       eggImageUrl: item.eggImageUrl === undefined ? undefined : eggImageUrl,
+      youngDragonImageUrl: item.youngDragonImageUrl === undefined ? undefined : youngDragonImageUrl,
       dragonImageUrl: item.dragonImageUrl === undefined ? undefined : dragonImageUrl
     });
     res.json({ success: true, message: `Catalog item ${item.name} configured successfully.` });
@@ -2647,7 +2652,8 @@ const SITE_IMAGE_KINDS: Record<string, { exts: string[]; maxBytes: number; prefi
   logo: { exts: ["png", "jpg", "jpeg", "webp", "svg"], maxBytes: 2 * 1024 * 1024, prefix: "logo", field: "logoUrl" },
   authbg: { exts: ["png", "jpg", "jpeg", "webp"], maxBytes: 4 * 1024 * 1024, prefix: "authbg", field: "authBgImage" },
   eggart: { exts: ["png"], maxBytes: 4 * 1024 * 1024, prefix: "egg", field: "" },
-  dragonart: { exts: ["svg"], maxBytes: 2 * 1024 * 1024, prefix: "dragon", field: "" },
+  dragonart: { exts: ["png", "jpg", "jpeg", "webp", "svg"], maxBytes: 4 * 1024 * 1024, prefix: "dragon", field: "" },
+  youngdragonart: { exts: ["png", "jpg", "jpeg", "webp", "svg"], maxBytes: 4 * 1024 * 1024, prefix: "young-dragon", field: "" },
   // Milestone art attaches to vipTasks[].imageUrl (no top-level field), so
   // pruning sweeps unreferenced prefix files instead of one previous path.
   viptask: { exts: ["png", "jpg", "jpeg", "webp"], maxBytes: 2 * 1024 * 1024, prefix: "viptask", field: "" },
@@ -2673,7 +2679,7 @@ app.post("/api/admin/upload", async (req, res) => {
     };
     const ext = extFromMime[dataMime];
     if (!ext || !spec.exts.includes(ext)) {
-      return res.status(400).json({ error: kind === "eggart" ? "Egg artwork must be a PNG file." : kind === "dragonart" ? "Dragon artwork must be an SVG file." : "Only PNG, JPG, WebP or SVG images are allowed." });
+      return res.status(400).json({ error: kind === "eggart" ? "Egg artwork must be a PNG file." : "Dragon artwork must be PNG, JPG, WebP, or SVG." });
     }
 
     const buffer = Buffer.from(match[2], "base64");
@@ -2713,8 +2719,8 @@ app.post("/api/admin/upload", async (req, res) => {
     if (uploaded.resource_type !== "image") {
       throw new Error(`Cloudinary stored ${kind} as ${uploaded.resource_type}, expected image.`);
     }
-    if (kind === "dragonart" && uploaded.format !== "svg") {
-      throw new Error(`Cloudinary stored dragon artwork as ${uploaded.format}, expected svg.`);
+    if ((kind === "dragonart" || kind === "youngdragonart") && !spec.exts.includes(String(uploaded.format || "").toLowerCase())) {
+      throw new Error(`Cloudinary stored dragon artwork as ${uploaded.format}, which is not a supported image type.`);
     }
     void collectImageOrphans();
     return res.json({ success: true, url: uploaded.secure_url });

@@ -101,13 +101,7 @@ const WELCOME_TUTORIAL_SLIDES = [
     description: "Share your referral link with friends. Verified referrals can earn you commission.",
     image: referralsTutorialScreenshot,
     imageAlt: "Referral earnings and friends referred",
-  },
-  {
-    title: "Cash Dragons AI Assistant",
-    description: "Get help with any questions or issues you have using Cash Dragons. Our AI assistant is available 24/7.",
-    image: aiTutorialScreenshot,
-    imageAlt: "AI assistant chat interface",
-  },
+  }
 ] as const;
 
 function getLocalDateKey() {
@@ -1187,7 +1181,7 @@ export default function App() {
               <span className="grid place-items-center w-6 h-6">
                 <Egg fill={activeTab === "dashboard" ? "currentColor" : "none"} className="w-6 h-6" />
               </span>
-              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Dragons</span>
+              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">The Farm</span>
               <span className="w-4 h-1 flex items-center justify-center">
                 {activeTab === "dashboard" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-white" />}
               </span>

@@ -106,6 +106,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
       item_name VARCHAR(128) NOT NULL,
       image VARCHAR(255) NOT NULL,
       egg_image_url VARCHAR(512) DEFAULT '',
+      young_dragon_image_url VARCHAR(512) DEFAULT '',
       dragon_image_url VARCHAR(512) DEFAULT '',
       amount DOUBLE NOT NULL,
       duration INT NOT NULL,
@@ -124,6 +125,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
       image VARCHAR(255) NOT NULL,
       image_url VARCHAR(512) DEFAULT '',
       egg_image_url VARCHAR(512) DEFAULT '',
+      young_dragon_image_url VARCHAR(512) DEFAULT '',
       dragon_image_url VARCHAR(512) DEFAULT '',
       amount DOUBLE NOT NULL,
       duration INT NOT NULL,
@@ -244,8 +246,10 @@ export async function ensureDatabaseSchema(): Promise<void> {
 
   for (const [table, column] of [
     ["catalog_products", "egg_image_url"],
+    ["catalog_products", "young_dragon_image_url"],
     ["catalog_products", "dragon_image_url"],
     ["subscribed_nodes", "egg_image_url"],
+    ["subscribed_nodes", "young_dragon_image_url"],
     ["subscribed_nodes", "dragon_image_url"],
   ]) {
     try {

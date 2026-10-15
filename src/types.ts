@@ -199,6 +199,7 @@ export interface SubscriptionItem {
   inviteBonusPercent: number; // custom invite bonus percentage for referrals
   imageUrl?: string; // Open-source graphic or illustration URL
   eggImageUrl?: string;
+  youngDragonImageUrl?: string;
   dragonImageUrl?: string;
   outOfStock?: boolean; // mark if node is out of stock
   disabled?: boolean; // hidden or disabled node
@@ -211,6 +212,7 @@ export interface SubscribedNode {
   itemName: string;
   image: string;
   eggImageUrl?: string;
+  youngDragonImageUrl?: string;
   dragonImageUrl?: string;
   amount: number;
   duration: number;
