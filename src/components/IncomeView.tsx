@@ -28,7 +28,8 @@ import RarityBadge from "./RarityBadge";
 import confetti from "canvas-confetti";
 import { toast } from "sonner";
 import dollar3d from "@/src/assets/3d/3dicons-dollar-iso-premium.png";
-import coin3d from "@/src/assets/svg/coin.png";
+import corn from "@/src/assets/svg/corn.svg";
+import tractor from "@/src/assets/svg/tractor.svg";
 
 const RUNS_LAYOUT_KEY = "rentdue_runs_layout";
 type CoinFlight = { id: number; startX: number; startY: number; dx: number; dy: number; delay: number };
@@ -265,7 +266,7 @@ export default function IncomeView({
             {coinFlights.map((coin) => (
               <motion.img
                 key={coin.id}
-                src={coin3d}
+                src={corn}
                 alt=""
                 initial={{ x: 0, y: 0, scale: 0.8, rotate: 0, opacity: 1 }}
                 animate={{ x: coin.dx, y: coin.dy, scale: 0.35, rotate: 360, opacity: 0.1 }}
@@ -289,7 +290,7 @@ export default function IncomeView({
               onClick={onNavigateToCollection}
               className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/40 px-3.5 py-2 text-[12px] font-sans font-black text-[var(--theme-primary)] transition-all active:scale-95"
             >
-              <Award className="h-4 w-4" /> My Collections
+              <img src={tractor} alt="" aria-hidden="true" className="h-4 w-4 object-contain" /> My Farm
             </button>
           </div>
         )}
@@ -514,7 +515,7 @@ export default function IncomeView({
                           onClick={onNavigateToCollection}
                           className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full border border-[var(--theme-primary)]/50 text-[var(--theme-primary)] text-[13px] font-sans font-black cursor-pointer active:scale-[0.98] transition-all"
                         >
-                          <Award className="w-4 h-4" /> In your Collection ✓
+                          <img src={tractor} alt="" aria-hidden="true" className="h-4 w-4 object-contain" /> In My Farm ✓
                         </button>
                       )}
                     </div>

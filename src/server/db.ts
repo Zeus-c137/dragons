@@ -1654,7 +1654,10 @@ export async function getReferreeStatsList(phoneOrCode: string): Promise<Referra
     .where(eq(schema.transactions.userId, user.id));
   for (const transaction of referralTransactions) {
     const canon = canonicalTypeOf(String(transaction.type), transaction.metadata) as string;
-    if (!["referral_signup_bonus", "referral_level_income"].includes(canon) || !["SUCCESSFUL", "COMPLETED"].includes(String(transaction.status).toUpperCase())) continue;
+    // Referral rewards remain in CLAIMABLE until the owner collects them.
+    // Include those rows alongside completed payouts so each invitee's
+    // contribution is visible before and after collection.
+    if (!["referral_signup_bonus", "referral_level_income"].includes(canon) || !["CLAIMABLE", "SUCCESSFUL", "COMPLETED"].includes(String(transaction.status).toUpperCase())) continue;
     const metadata = readJsonRecord(transaction.metadata);
     const sourceUserId = String(metadata.sourceUserPhone || transaction.itemId || "").trim();
     const source = descendantById.get(sourceUserId.toUpperCase());

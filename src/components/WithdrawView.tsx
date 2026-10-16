@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Info,
   ArrowUpRight,
+  LockKeyhole,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrency } from "../currency";
@@ -251,9 +252,11 @@ export default function WithdrawView({
 
   return (
     <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] space-y-4 select-none p-4 pt-0 min-h-[100dvh]">
-      <div className="flex items-center justify-between rounded-2xl border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/70 px-4 py-3">
-        <span className="text-[13px] font-semibold opacity-65">Withdrawable balance</span>
-        <strong className="font-display text-[17px] font-black tabular-nums">{formatCurrency(userProfile.withdrawableBalance || 0)}</strong>
+      <div className="flex justify-end">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/20 bg-[var(--theme-primary)]/8 px-3 py-1.5 text-[11px] font-bold text-[var(--theme-primary)]">
+          <LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
+          Secure
+        </span>
       </div>
 
       <div className="rounded-[var(--theme-radius)]">

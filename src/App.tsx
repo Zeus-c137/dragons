@@ -31,10 +31,6 @@ import {
   X,
   ArrowRight,
   ChevronLeft,
-  Egg,
-  Plus,
-  Minus,
-  Users,
   Wallet
 } from "lucide-react";
 
@@ -45,6 +41,11 @@ import depositWithdrawTutorialScreenshot from "@/src/assets/screenshots/depositw
 import referralsTutorialScreenshot from "@/src/assets/screenshots/invites.png";
 import storeTutorialScreenshot from "@/src/assets/screenshots/store.png";
 import streakTutorialScreenshot from "@/src/assets/screenshots/streak.png";
+import homeNavIcon from "@/src/assets/svg/home.svg";
+import depositNavIcon from "@/src/assets/svg/deposit.svg";
+import withdrawNavIcon from "@/src/assets/svg/withdraw.svg";
+import inviteNavIcon from "@/src/assets/svg/invite.svg";
+import tractorNavIcon from "@/src/assets/svg/tractor.svg";
 import { motion, AnimatePresence } from "motion/react";
 
 import { ThemeProvider } from "./context/ThemeContext";
@@ -942,8 +943,10 @@ export default function App() {
               >
                 <CollectionView
                   phone={userProfile.id}
+                  activeNodes={activeNodes}
+                  products={items}
+                  onClaimSuccess={handleClaimSuccess}
                   onBack={() => setActiveTab(collectionReturn)}
-                  onNavigateToCatalog={() => setActiveTab("catalog")}
                   onClaimed={() => { void handleManualStatsRefresh(); }}
                 />
               </motion.div>
@@ -1175,21 +1178,30 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Primary destinations: dragons, wallet actions, and friends */}
-          <nav aria-label="Main navigation" className="user-app-bottom-nav grid grid-cols-4 items-end shrink-0 z-40 select-none">
+        {/* Primary destinations: the farm, collections, wallet actions, and friends */}
+          <nav aria-label="Main navigation" className="user-app-bottom-nav grid grid-cols-5 items-end shrink-0 z-40 select-none">
             <button
               type="button"
               onClick={() => setActiveTab("dashboard")}
               aria-current={activeTab === "dashboard" ? "page" : undefined}
               className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "dashboard" ? "is-active" : ""}`}
             >
-              <span className="grid place-items-center w-6 h-6">
-                <Egg fill={activeTab === "dashboard" ? "currentColor" : "none"} className="w-6 h-6" />
+              <span className="grid place-items-center w-10 h-10">
+                <img src={homeNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
               </span>
               <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">The Farm</span>
-              <span className="w-4 h-1 flex items-center justify-center">
-                {activeTab === "dashboard" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-white" />}
+              
+            </button>
+            <button
+              type="button"
+              onClick={() => { setCollectionReturn("dashboard"); setActiveTab("collection"); }}
+              aria-current={activeTab === "collection" ? "page" : undefined}
+              className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "collection" ? "is-active" : ""}`}
+            >
+              <span className="grid place-items-center w-10 h-10">
+                <img src={tractorNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
               </span>
+              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">My chicks</span>
             </button>
             <button
               type="button"
@@ -1197,13 +1209,11 @@ export default function App() {
               aria-current={activeTab === "deposit" ? "page" : undefined}
               className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "deposit" ? "is-active" : ""}`}
             >
-              <span className="grid h-6 w-6 place-items-center rounded-full border-[1.8px]">
-                <Plus className="h-4 w-4" aria-hidden="true" />
+              <span className="grid h-10 w-10 place-items-center">
+                <img src={depositNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
               </span>
               <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Top up</span>
-              <span className="w-4 h-1 flex items-center justify-center">
-                {activeTab === "deposit" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-white" />}
-              </span>
+           
             </button>
 
             <button
@@ -1212,13 +1222,11 @@ export default function App() {
               aria-current={activeTab === "withdraw" ? "page" : undefined}
               className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "withdraw" ? "is-active" : ""}`}
             >
-              <span className="grid h-6 w-6 place-items-center rounded-full border-[1.8px]">
-                <Minus className="h-4 w-4" aria-hidden="true" />
+              <span className="grid h-10 w-10 place-items-center">
+                <img src={withdrawNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
               </span>
               <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Withdraw</span>
-              <span className="w-4 h-1 flex items-center justify-center">
-                {activeTab === "withdraw" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-white" />}
-              </span>
+              
             </button>
 
             <button
@@ -1227,13 +1235,11 @@ export default function App() {
               aria-current={activeTab === "referral" ? "page" : undefined}
               className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "referral" ? "is-active" : ""}`}
             >
-              <span className="grid place-items-center w-6 h-6">
-                <Users className="h-6 w-6" aria-hidden="true" />
+              <span className="grid place-items-center w-12 h-12">
+                <img src={inviteNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />  
               </span>
               <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Friends</span>
-              <span className="w-4 h-1 flex items-center justify-center">
-                {activeTab === "referral" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-white" />}
-              </span>
+            
             </button>
           </nav>
 

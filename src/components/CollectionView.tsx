@@ -8,26 +8,34 @@
  */
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowLeft, Award, Clock, Loader2, Plus, X } from "lucide-react";
+import { ArrowLeft, Award, Clock, Loader2, SlidersHorizontal, X } from "lucide-react";
 import confetti from "canvas-confetti";
 import { toast } from "sonner";
-import type { Collectible } from "../types";
+import type { Collectible, SubscribedNode, SubscriptionItem } from "../types";
 import { useCurrency } from "../currency";
 import { motion } from "motion/react";
 import { useReducedMotion } from "../hooks/useReducedMotion";
+import { formatClock, getRunClaimableReturns, getRunMinimumClaimAmount, getRunTotalDays, msUntilPlatformMidnight } from "../utils/runs";
+import tractor from "@/src/assets/svg/tractor.svg";
+import clockSvg from "@/src/assets/svg/clock.svg";
+import corn from "@/src/assets/svg/corn.svg";
 
 const GROW_SPRING = { type: "spring", duration: 0.5, bounce: 0.15 } as const;
 
 export default function CollectionView({
   phone,
   onBack,
-  onNavigateToCatalog,
   onClaimed,
+  activeNodes,
+  products,
+  onClaimSuccess,
 }: {
   phone: string;
   onBack?: () => void;
-  onNavigateToCatalog?: () => void;
   onClaimed?: () => void;
+  activeNodes: SubscribedNode[];
+  products: SubscriptionItem[];
+  onClaimSuccess: (amount: number, balance: number, subId: string, lastClaimedDate: string, status: "active" | "expired", withdrawableBalance?: number, daysFed?: number) => void;
 }) {
   const { formatCurrency } = useCurrency();
   const prefersReducedMotion = useReducedMotion();
@@ -38,6 +46,10 @@ export default function CollectionView({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [morphKey, setMorphKey] = useState<string | null>(null);
   const [swipeDir, setSwipeDir] = useState(0);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [feedingId, setFeedingId] = useState<string | null>(null);
+  const [collectingId, setCollectingId] = useState<string | null>(null);
+  const [farmFilter, setFarmFilter] = useState<"growing" | "completed">("growing");
   const scrollRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -62,6 +74,32 @@ export default function CollectionView({
 
   useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const feedChicken = async (node: SubscribedNode) => {
+    if (feedingId) return;
+    setFeedingId(node.id);
+    try {
+      const res = await fetch("/api/subscriptions/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ subId: node.id, phone }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Income could not be collected. Please try again.");
+      onClaimSuccess(data.pointsClaimed, data.updatedPoints, node.id, data.lastClaimedDate, data.status, data.updatedWithdrawableBalance, data.daysFed);
+      toast.success(`Fed ${data.itemName}.`);
+    } catch (err: any) {
+      toast.error(err.message || "Income could not be collected.");
+    } finally {
+      setFeedingId(null);
+    }
+  };
+
   const handleClaim = async (subscriptionId: string) => {
     setClaimingId(subscriptionId);
     try {
@@ -83,8 +121,46 @@ export default function CollectionView({
     }
   };
 
+  const collectFinishedCycle = async (node: SubscribedNode) => {
+    if (collectingId) return;
+    setCollectingId(node.id);
+    try {
+      const res = await fetch("/api/collectibles/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ phone, subscriptionId: node.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.collectible) throw new Error(data.error || "Hen could not be added to My farm.");
+      setItems((current) => [
+        ...(current || []).filter((collectible) => collectible.subscriptionId !== node.id),
+        data.collectible,
+      ]);
+      toast.success(`${data.collectible.itemName} added to My farm!`);
+      onClaimed?.();
+    } catch (err: any) {
+      toast.error(err.message || "Hen could not be added to My farm.");
+    } finally {
+      setCollectingId(null);
+    }
+  };
+
   const claimed = (items || []).filter((c) => c.claimedAt);
   const pending = (items || []).filter((c) => !c.claimedAt);
+  const activeChickens = activeNodes.filter((node) => node.status === "active" && node.eggImageUrl && node.dragonImageUrl && Number(node.daysFed || 0) < getRunTotalDays(node, products));
+  const completedCycles = activeNodes.filter((node) => node.eggImageUrl && node.dragonImageUrl && (node.status !== "active" || Number(node.daysFed || 0) >= getRunTotalDays(node, products)));
+  const displayedChickens = farmFilter === "growing" ? activeChickens : completedCycles.filter((node) => !(items || []).some((collectible) => collectible.subscriptionId === node.id));
+  const completedIds = new Set(completedCycles.map((node) => node.id));
+  const completedCount = new Set([
+    ...completedIds,
+    ...(items || []).map((collectible) => collectible.subscriptionId),
+  ]).size;
+  const completedEarned = completedCycles.reduce((sum, node) => {
+    const collectible = (items || []).find((entry) => entry.subscriptionId === node.id);
+    return sum + (collectible ? Number(collectible.totalEarned) || 0 : Number(node.totalEarned) || 0);
+  }, 0) + (items || []).reduce((sum, collectible) => completedIds.has(collectible.subscriptionId) ? sum : sum + (Number(collectible.totalEarned) || 0), 0);
+  const activeDailyIncome = activeChickens.reduce((sum, node) => sum + getRunMinimumClaimAmount(node), 0);
   const activeCollectible = claimed[activeIndex] || claimed[0] || null;
   const expanded = expandedId ? claimed.find((c) => c.id === expandedId) || null : null;
   const growTransition = prefersReducedMotion ? { duration: 0 } : GROW_SPRING;
@@ -191,9 +267,102 @@ export default function CollectionView({
         </button>
       ) : null}
 
+      <header className="flex items-center gap-3 rounded-[24px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/70 p-4">
+        <img src={tractor} alt="" aria-hidden="true" className="h-9 w-9 object-contain" />
+        <div>
+          <p className="text-[10px] font-sans font-black uppercase tracking-[0.16em] opacity-55">Growing and finished chickens</p>
+          <h1 className="font-display text-[22px] font-black leading-tight">My farm</h1>
+        </div>
+      </header>
 
+      <section aria-label={farmFilter === "growing" ? "Active chickens" : "Completed cycles"} className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-[18px] font-black">{farmFilter === "growing" ? "Growing chickens" : "Completed cycles"}</h2>
+            <button
+              type="button"
+              onClick={() => setFarmFilter((current) => current === "growing" ? "completed" : "growing")}
+              aria-label={farmFilter === "growing" ? "Show completed cycles" : "Show growing chickens"}
+              title={farmFilter === "growing" ? "Show completed cycles" : "Show growing chickens"}
+              aria-pressed={farmFilter === "completed"}
+              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors ${farmFilter === "completed" ? "border-[var(--theme-primary)]/40 bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]" : "border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/70 text-[var(--theme-text)]"}`}
+            >
+              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="flex items-center justify-between gap-4 rounded-[22px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/75 p-4">
+            <div>
+              <p className="font-display text-[28px] font-black leading-none tabular-nums">{farmFilter === "growing" ? activeChickens.length : completedCount}</p>
+              <p className="mt-1 text-[11px] font-bold opacity-60">{farmFilter === "growing" ? "Growing chickens" : "Completed cycles"}</p>
+            </div>
+            <div className="text-right">
+              <p className="font-display text-[18px] font-black leading-tight tabular-nums">{formatCurrency(farmFilter === "growing" ? activeDailyIncome : completedEarned)}</p>
+              <p className="text-[11px] font-bold opacity-60">{farmFilter === "growing" ? "Income per day" : "Total earned"}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {displayedChickens.map((node) => {
+              const totalDays = getRunTotalDays(node, products);
+              const daysFed = Math.max(0, Math.floor(Number(node.daysFed) || 0));
+              const cycleFinished = farmFilter === "completed";
+              const cycleDay = cycleFinished ? totalDays : Math.min(totalDays, daysFed + 1);
+              const dailyIncome = getRunMinimumClaimAmount(node);
+              const claimable = getRunClaimableReturns(node, new Date(nowMs));
+              const ready = dailyIncome > 0 && claimable.amount >= dailyIncome;
+              const mature = cycleFinished || daysFed >= Math.ceil(totalDays / 2);
+              const artwork = mature ? node.dragonImageUrl : node.youngDragonImageUrl || node.dragonImageUrl;
+              const progress = cycleFinished ? 100 : Math.min(100, Math.max(0, daysFed / totalDays * 100));
+              return (
+                <article key={node.id} className="overflow-hidden rounded-[24px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/75">
+                  <div className="relative flex aspect-[1.5] items-center justify-center overflow-hidden bg-[var(--theme-primary)]/8 p-4">
+                    <img src={artwork} alt={`${node.itemName} ${mature ? "hen" : "chick"}`} loading="lazy" className="h-full w-full object-contain" />
+                    <span className="absolute bottom-3 left-3 rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[11px] font-black text-[var(--theme-primary)]">{dailyIncome > 0 ? Math.round((dailyIncome / Math.max(1, Number(node.amount))) * 100) : 0}% daily</span>
+                  </div>
+                  <div className="space-y-2.5 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="min-w-0 truncate font-display text-[18px] font-black">{node.itemName}</h3>
+                      <p className="shrink-0 font-display text-[17px] font-black tabular-nums">{formatCurrency(node.amount)}</p>
+                    </div>
+                    <div className="flex items-center justify-between text-[14px]">
+                      <span className="inline-flex items-center gap-1.5 opacity-70"><Clock className="h-3.5 w-3.5" aria-hidden="true" /> Income per day</span>
+                      <span className="font-display text-[17px] font-black tabular-nums">{formatCurrency(dailyIncome)}</span>
+                    </div>
+                    <div className="space-y-2" aria-label={`Cycle progress: day ${cycleDay} of ${totalDays}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          {!cycleFinished && !ready && dailyIncome > 0 ? <p className="text-left text-[12px] font-medium tabular-nums opacity-60">Next feeding in {formatClock(msUntilPlatformMidnight(nowMs))}</p> : null}
+                        </div>
+                        <span aria-label={`Cycle day ${cycleDay} of ${totalDays}`} className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-[10px] font-sans font-bold tabular-nums text-[var(--theme-primary)]">
+                          <img src={clockSvg} alt="" aria-hidden="true" className="h-3.5 w-3.5" /> Day {cycleDay}/{totalDays}
+                        </span>
+                      </div>
+                      <div role="progressbar" aria-label="Chicken cycle progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} className="h-2.5 overflow-hidden rounded-full bg-[var(--theme-card-border)]/70">
+                        <div className="h-full rounded-full bg-[var(--theme-primary)] transition-[width] duration-500" style={{ width: `${progress}%` }} />
+                      </div>
+                    </div>
+                    {cycleFinished ? (
+                      <button type="button" disabled={collectingId === node.id} onClick={() => void collectFinishedCycle(node)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[var(--theme-primary)] px-3 py-2.5 text-[13px] font-sans font-black text-[var(--theme-on-primary)] disabled:opacity-60">
+                        {collectingId === node.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Award className="h-4 w-4" aria-hidden="true" />}
+                        Collect hen
+                      </button>
+                    ) : (
+                      <button type="button" disabled={!ready || feedingId === node.id} onClick={() => void feedChicken(node)} className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-3 py-2.5 text-[13px] font-sans font-black disabled:cursor-not-allowed disabled:opacity-60 ${ready ? "bg-[var(--theme-primary)] text-[var(--theme-on-primary)]" : "bg-slate-300/70 text-slate-600 dark:bg-slate-700/70 dark:text-slate-300"}`}>
+                        {feedingId === node.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <img src={corn} alt="" className="h-5 w-5 object-contain" />}
+                        Feed chick
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          {displayedChickens.length === 0 && (farmFilter === "growing" || completedCount === 0) ? (
+            <div className="rounded-[20px] border border-dashed border-[var(--theme-card-border)] px-5 py-7 text-center text-sm font-semibold opacity-60">
+              {farmFilter === "growing" ? "No chickens are growing right now." : "No completed cycles yet."}
+            </div>
+          ) : null}
+      </section>
 
-      {items === null ? (
+      {farmFilter === "completed" && (items === null ? (
         <div aria-hidden="true" className="space-y-3">
           <div className="h-[300px] rounded-[24px] border border-white/10 bg-[var(--theme-card-bg)]/40 animate-pulse" />
           <div className="grid grid-cols-2 gap-3">
@@ -205,22 +374,15 @@ export default function CollectionView({
             ))}
           </div>
         </div>
-      ) : items.length === 0 ? (
-        <div className="text-center py-12 px-4 space-y-4">
-          <Award className="w-10 h-10 opacity-40 mx-auto" />
-          <p className="font-bold opacity-60 text-xs uppercase font-sans">No chickens hatched yet</p>
-          <p className="text-[13px] opacity-60 font-sans">Your grown chicken will appear here when the cycle completes.</p>
-          
-        </div>
-      ) : (
+      ) : items.length === 0 ? null : (
         <div className="space-y-5">
           {/* Coverflow showroom — claimed collectibles */}
           {claimed.length > 0 && (
             <div className="space-y-4" onClick={expanded ? collapse : undefined}>
               <div className="flex items-baseline justify-between gap-3 px-1">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-sans font-black uppercase tracking-[0.14em] opacity-50">Collected artwork</p>
-                  <h3 className="mt-1 truncate font-display font-black text-[15px]">{activeCollectible?.itemName || "Your collection"}</h3>
+                  <p className="text-[10px] font-sans font-black uppercase tracking-[0.14em] opacity-50">Finished hens</p>
+                  <h3 className="mt-1 truncate font-display font-black text-[15px]">{activeCollectible?.itemName || "Your farm"}</h3>
                 </div>
                 <p className="font-display font-bold text-[12px] tabular-nums text-[var(--theme-text)] opacity-55">
                   {String(Math.min(activeIndex + 1, claimed.length)).padStart(2, "0")} / {String(claimed.length).padStart(2, "0")}
@@ -394,7 +556,7 @@ export default function CollectionView({
           {/* Pending claims */}
           {pending.length > 0 && (
             <div className="space-y-3">
-              <h3 className="font-display font-black text-[15px] px-1">Ready to claim <span className="opacity-50 font-bold">{pending.length}</span></h3>
+              <h3 className="font-display font-black text-[15px] px-1">Finished · ready to collect <span className="opacity-50 font-bold">{pending.length}</span></h3>
               <div className="grid grid-cols-2 gap-3">
                 {pending.map((c: Collectible) => (
                   <div key={c.id} className="rounded-[24px] border border-white/10 bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] p-3 overflow-hidden relative">
@@ -429,7 +591,7 @@ export default function CollectionView({
             </div>
           )}
         </div>
-      )}
+      ))}
 
       {previewImage && (
         <div className="fixed inset-0 z-[80] bg-black/85 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setPreviewImage(null)}>

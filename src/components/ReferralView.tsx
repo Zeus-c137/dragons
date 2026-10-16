@@ -75,7 +75,7 @@ function OverviewView({
   return (
     <div className="space-y-6">
       <section aria-label="Invite friends" className="space-y-3">
-        <p className="max-w-[28rem] font-display text-[25px] font-black leading-tight tracking-tight">
+        <p className="max-w-[28rem] font-display text-[25px]  text-[var(--theme-primary)]">
           Share your {brandName} code, get up to <span className="text-[var(--theme-primary)]">{firstLevelRate}% on Level 1 invites.</span>
         </p>
      
@@ -125,12 +125,12 @@ function OverviewView({
           ) : (
             <p className="max-w-full truncate font-display text-[17px] font-black tabular-nums text-black">{formatCurrency(totalEarned)}</p>
           )}
-          <p className="text-[16px] font-sans opacity-60">Referral income</p>
+          <p className="text-[16px] font-sans text-black">Referral income</p>
         </div>
         <div className="flex flex-col items-center gap-1.5 px-2 text-center">
         
           <p className="font-display text-[22px] font-black tabular-nums text-black">{isLoading ? "—" : directInvites}</p>
-          <p className="text-[16px] font-sans opacity-60">Friends referred</p>
+          <p className="text-[16px] font-sans text-black">Friends referred</p>
         </div>
       </section>
 
@@ -267,16 +267,16 @@ function HowItWorksSheet({ metrics, onClose }: HowItWorksSheetProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="invite-how-title"
-        initial={reducedMotion ? { opacity: 0 } : { y: 48, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={reducedMotion ? { opacity: 0 } : { y: 48, opacity: 0 }}
-        transition={reducedMotion ? { duration: 0.12 } : { duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-[10] flex h-[80vh] h-[80dvh] max-h-[calc(100dvh-env(safe-area-inset-top)-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-[26px] border border-[var(--theme-card-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] shadow-2xl sm:rounded-[26px]"
+        initial={reducedMotion ? { opacity: 0 } : { opacity: 0, transform: "translateY(24px)" }}
+        animate={{ opacity: 1, transform: "translateY(0px)" }}
+        exit={reducedMotion ? { opacity: 0, transition: { duration: 0.01 } } : { opacity: 0, transform: "translateY(12px)", transition: { duration: 0.16, ease: "easeOut" } }}
+        transition={reducedMotion ? { duration: 0.01 } : { duration: 0.26, ease: [0.32, 0.72, 0, 1] }}
+        className="relative z-[10] flex h-[85vh] h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[15px] border border-[var(--theme-card-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] shadow-2xl sm:rounded-[26px]"
       >
         <div className="flex shrink-0 items-start justify-between gap-3 px-4 pb-3 pt-4 sm:gap-4 sm:px-5 sm:pt-5">
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--theme-primary)]">Referral guide</p>
-            <h2 id="invite-how-title" className="mt-1 font-display text-[22px] font-black leading-tight tracking-tight sm:text-[21px]">What counts as a referral?</h2>
+            <h2 id="invite-how-title" className="mt-1 font-display text-[22px] font-black leading-tight tracking-tight sm:text-[22px]">What counts as a referral?</h2>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 opacity-70 transition-opacity hover:opacity-100">
             <X className="h-4 w-4" />
@@ -435,7 +435,7 @@ export default function ReferralView({ userProfile, siteConfig, onProfileChange,
       onShare={() => void shareInvite()}
       onHowItWorks={() => setShowHowItWorks(true)}
     />,
-    team: <InviteTeamView stats={stats} isLoading={isLoading} activeLevel={activeLevel} onActiveLevelChange={setActiveLevel as (l: 1 | 2 | 3 | 4) => void} activeLevelStats={activeLevelStats} siteConfig={liveSiteConfig ?? siteConfig} />,
+    team: <InviteTeamView stats={stats} isLoading={isLoading} activeLevel={activeLevel} onActiveLevelChange={setActiveLevel as (l: 1 | 2 | 3 | 4) => void} activeLevelStats={activeLevelStats} siteConfig={liveSiteConfig ?? siteConfig} pendingReferralRewards={Number(userProfile.pendingReferralRewards) || 0} isClaiming={isClaiming} onClaimRewards={() => void handleClaimRewards()} />,
   };
   return (
     <div className="min-h-full w-full space-y-4 rounded-[28px]  p-4 pb-16 text-[var(--theme-on-primary)]">
