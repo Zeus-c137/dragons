@@ -11,6 +11,7 @@ import { formatClock, getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmo
 import { isDragonEggProduct } from "../utils/dragons";
 
 import egg from "@/src/assets/svg/celestial.png";
+import clockSvg from "@/src/assets/svg/clock.svg";
 import coin3d from "@/src/assets/svg/coin.png";
 
 type CoinFlight = { id: number; startX: number; startY: number; dx: number; dy: number; delay: number };
@@ -675,15 +676,11 @@ export default function DragonsHomeSection({
                           <span className="font-display text-[17px] font-black tabular-nums text-[var(--theme-primary)]">{formatCurrency(ownedNode.dailyYield)}</span>
                         </div>
                         <div className="space-y-2" aria-label={`Cycle progress: day ${currentCycleDay} of ${totalDays}`}>
-                          <div className="flex justify-end">
-                            <span
-                              aria-label={`Cycle day ${currentCycleDay} of ${totalDays}`}
-                              className="inline-flex items-center gap-1 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-[10px] font-sans font-bold tabular-nums text-[var(--theme-primary)]"
-                            >
-                              <Timer className="h-3.5 w-3.5" aria-hidden="true" />
-                              Day {currentCycleDay}/{totalDays}
-                            </span>
-                          </div>
+                          {minimumClaimAmount > 0 && claimable.amount === 0 ? (
+                            <p className="text-right text-[12px] font-medium tabular-nums text-[var(--theme-text)] opacity-60">
+                              Next feeding in {formatClock(msUntilPlatformMidnight(nowMs))}
+                            </p>
+                          ) : null}
                           <div
                             role="progressbar"
                             aria-label="Chicken cycle progress"
@@ -694,11 +691,15 @@ export default function DragonsHomeSection({
                           >
                             <div className="h-full rounded-full bg-[var(--theme-primary)] transition-[width] duration-500" style={{ width: `${cycleProgress}%` }} />
                           </div>
-                          {minimumClaimAmount > 0 && claimable.amount === 0 ? (
-                            <p className="text-right text-[12px] font-medium tabular-nums text-[var(--theme-text)] opacity-60">
-                              Next feeding in {formatClock(msUntilPlatformMidnight(nowMs))}
-                            </p>
-                          ) : null}
+                          <div className="flex justify-end">
+                            <span
+                              aria-label={`Cycle day ${currentCycleDay} of ${totalDays}`}
+                              className="inline-flex items-center gap-1 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-[10px] font-sans font-bold tabular-nums text-[var(--theme-primary)]"
+                            >
+                              <img src={clockSvg} alt="" aria-hidden="true" className="h-3.5 w-3.5" />
+                              Day {currentCycleDay}/{totalDays}
+                            </span>
+                          </div>
                         </div>
                         <button
                           type="button"

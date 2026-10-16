@@ -444,7 +444,7 @@ export default function DepositView({
                   </div>
                 </div>
 
-                <div className="mt-auto space-y-3 pt-6">
+                <div className="mt-4">
                   <Button
                     variant="primary"
                     size="md"
