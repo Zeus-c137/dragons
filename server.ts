@@ -292,7 +292,7 @@ const SEO_DESCRIPTION = "Hatch eggs, raise chickens, and collect daily income. I
 const SEO_SHARE_IMAGE = "/seo-share-image";
 
 function seoTitle(brand: string): string {
-  return `${brand} | Hatch eggs and collect dragons`;
+  return `${brand}`;
 }
 
 function getPublicBaseUrl(req: express.Request): string {
