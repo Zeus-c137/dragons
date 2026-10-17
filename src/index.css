@@ -55,7 +55,7 @@ body {
 }
 
 .auth-welcome-art {
-  clip-path: polygon(4% 0, 100% 0, 100% 91%, 0 100%);
+  clip-path: polygon(2% 0, 100% 0, 100% 96%, 0 100%);
   isolation: isolate;
 }
 
@@ -355,7 +355,7 @@ body {
 
 @media (min-width: 1024px) {
   .auth-welcome-art {
-    clip-path: polygon(14% 0, 100% 0, 100% 100%, 0 100%);
+    clip-path: polygon(7% 0, 100% 0, 100% 100%, 0 100%);
   }
 
 }
