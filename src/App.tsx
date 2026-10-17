@@ -29,18 +29,9 @@ import { useCurrency } from "./currency";
 import confetti from "canvas-confetti";
 import {
   X,
-  ArrowRight,
-  ChevronLeft,
   Wallet
 } from "lucide-react";
 
-import activeRunsTutorialScreenshot from "@/src/assets/screenshots/activeruns.png";
-import aiTutorialScreenshot from "@/src/assets/screenshots/ai.png";
-import dailyTasksTutorialScreenshot from "@/src/assets/screenshots/dailytasks.png";
-import depositWithdrawTutorialScreenshot from "@/src/assets/screenshots/depositwithdraw.png";
-import referralsTutorialScreenshot from "@/src/assets/screenshots/invites.png";
-import storeTutorialScreenshot from "@/src/assets/screenshots/store.png";
-import streakTutorialScreenshot from "@/src/assets/screenshots/streak.png";
 import homeNavIcon from "@/src/assets/svg/home.svg";
 import depositNavIcon from "@/src/assets/svg/deposit.svg";
 import withdrawNavIcon from "@/src/assets/svg/withdraw.svg";
@@ -49,7 +40,7 @@ import tractorNavIcon from "@/src/assets/svg/tractor.svg";
 import { motion, AnimatePresence } from "motion/react";
 
 import { ThemeProvider } from "./context/ThemeContext";
-import { useGatedInterval, useGatedTimeout, useAbortSignal } from "./hooks/useGatedInterval";
+import { useGatedInterval, useAbortSignal } from "./hooks/useGatedInterval";
 import { fetchJsonWithSignal } from "./utils/abortableFetch";
 
 // Last-known shell (theme preset + logo) cached on every successful site-config
@@ -65,73 +56,6 @@ interface BootShell {
 }
 
 const BOOT_SHELL_KEY = "rentdue_boot_shell";
-
-const WELCOME_TUTORIAL_SLIDES = [
-  {
-    title: "Deposit & withdraw",
-    description: "Deposit with mobile money or crypto, activate a run, and claim its accumulated returns. Withdraw available funds to your mobile money or crypto wallet.",
-    image: depositWithdrawTutorialScreenshot,
-    imageAlt: "One account balance with Deposit and Withdraw actions",
-  },
-  {
-    title: "Daily tasks",
-    description: "Complete the available tasks to earn rewards. Open a task, follow its instructions, then claim when it is ready.",
-    image: dailyTasksTutorialScreenshot,
-    imageAlt: "Daily tasks with instructions and reward claim buttons",
-  },
-  {
-    title: "Daily streaks",
-    description: "Check in each day to keep your streak going and collect the reward for that day.",
-    image: streakTutorialScreenshot,
-    imageAlt: "A calendar showing daily streak progress and rewards",
-  },
-  {
-    title: "The Store",
-    description: "Activate a product with 'Start Run'. Its daily returns accumulate during the cycle and can be claimed from Active Runs.",
-    image: storeTutorialScreenshot,
-    imageAlt: "The Store with available runs",
-  },
-  {
-    title: "My Runs",
-    description: "Track the progress and earnings of your active runs from one place.",
-    image: activeRunsTutorialScreenshot,
-    imageAlt: "Active runs with progress and earnings",
-  },
-  {
-    title: "Referrals",
-    description: "Share your referral link with friends. Verified referrals can earn you commission.",
-    image: referralsTutorialScreenshot,
-    imageAlt: "Referral earnings and friends referred",
-  }
-] as const;
-
-function getLocalDateKey() {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
-}
-
-function getTutorialPreferenceKey(phone: string, preference: "completed" | "opted-out" | "last-shown") {
-  return `rentdue_tutorial_${preference}_${phone}`;
-}
-
-function readTutorialPreference(key: string) {
-  try {
-    return localStorage.getItem(key);
-  } catch (error) {
-    console.warn("Unable to read tutorial preference:", error);
-    return null;
-  }
-}
-
-function writeTutorialPreference(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch (error) {
-    console.warn("Unable to save tutorial preference:", error);
-  }
-}
 
 function readBootShell(): BootShell | null {
   try {
@@ -257,42 +181,14 @@ export default function App() {
     if (siteConfig) writeBootShell(siteConfig);
   }, [siteConfig]);
   const [userNotifications, setUserNotifications] = useState<NotificationItem[]>([]);
-  const [welcomeModalMode, setWelcomeModalMode] = useState<"bonus" | "tutorial" | null>(null);
+  const [showWelcomeBonus, setShowWelcomeBonus] = useState(false);
   const [welcomeBonusAmount, setWelcomeBonusAmount] = useState(0);
-  const [welcomePendingMode, setWelcomePendingMode] = useState<"bonus" | "tutorial" | null>(null);
-  const [welcomeTutorialIndex, setWelcomeTutorialIndex] = useState(-1);
-  const showWelcomeModal = welcomeModalMode !== null;
-  useGatedTimeout(() => {
-    if (!welcomePendingMode || document.hidden) return;
-    setWelcomeModalMode(welcomePendingMode);
-    setWelcomePendingMode(null);
-    if (userProfile?.id) {
-      writeTutorialPreference(
-        getTutorialPreferenceKey(userProfile.id, "last-shown"),
-        getLocalDateKey()
-      );
-    }
-  }, 2000, [welcomePendingMode, userProfile?.id]);
 
-  // A first-login tutorial is shown once each day until completed or opted out.
+  // Show the server-confirmed registration bonus once after the new account's first login.
   useEffect(() => {
     if (!userProfile?.id) {
-      setWelcomeModalMode(null);
+      setShowWelcomeBonus(false);
       setWelcomeBonusAmount(0);
-      setWelcomePendingMode(null);
-      setWelcomeTutorialIndex(-1);
-      return;
-    }
-
-    const phone = userProfile.id;
-    const completed = readTutorialPreference(getTutorialPreferenceKey(phone, "completed")) === "1";
-    const optedOut = readTutorialPreference(getTutorialPreferenceKey(phone, "opted-out")) === "1";
-    const lastShownToday = readTutorialPreference(getTutorialPreferenceKey(phone, "last-shown")) === getLocalDateKey();
-    if (completed || optedOut || lastShownToday) {
-      setWelcomeModalMode(null);
-      setWelcomePendingMode(null);
-      setWelcomeBonusAmount(0);
-      setWelcomeTutorialIndex(-1);
       return;
     }
 
@@ -309,44 +205,30 @@ export default function App() {
     const issuedAt = Number(pendingBonus?.issuedAt || 0);
     const isFreshHandoff = issuedAt > 0 && Date.now() - issuedAt <= 15 * 60 * 1000;
     if (amount <= 0 || !isFreshHandoff) {
-      sessionStorage.removeItem(welcomeKey);
+      try { sessionStorage.removeItem(welcomeKey); } catch { /* storage is best-effort */ }
+      setShowWelcomeBonus(false);
       setWelcomeBonusAmount(0);
-      setWelcomeTutorialIndex(0);
-      setWelcomePendingMode("tutorial");
     } else {
       setWelcomeBonusAmount(amount);
-      setWelcomeTutorialIndex(-1);
-      setWelcomePendingMode("bonus");
+      setShowWelcomeBonus(true);
     }
-
   }, [userProfile?.id]);
 
   useEffect(() => {
-    if (showWelcomeModal) {
+    if (showWelcomeBonus) {
       confetti({
         particleCount: 75,
         spread: 70,
         origin: { y: 0.6 }
       });
     }
-  }, [showWelcomeModal]);
+  }, [showWelcomeBonus]);
 
   const handleCloseWelcomeModal = () => {
     if (userProfile?.id) {
-      sessionStorage.removeItem(`pending_welcome_bonus_${userProfile.id}`);
+      try { sessionStorage.removeItem(`pending_welcome_bonus_${userProfile.id}`); } catch { /* storage is best-effort */ }
     }
-    setWelcomeModalMode(null);
-    setWelcomeTutorialIndex(-1);
-  };
-
-  const handleCompleteWelcomeTutorial = () => {
-    if (userProfile?.id) {
-      sessionStorage.removeItem(`pending_welcome_bonus_${userProfile.id}`);
-      writeTutorialPreference(getTutorialPreferenceKey(userProfile.id, "completed"), "1");
-    }
-    setWelcomeModalMode(null);
-    setWelcomePendingMode(null);
-    setWelcomeTutorialIndex(-1);
+    setShowWelcomeBonus(false);
   };
 
   useEffect(() => {
@@ -686,9 +568,9 @@ export default function App() {
       <div className="relative h-[100dvh] w-full bg-[var(--theme-bg)] text-[var(--theme-text)] font-sans selection:bg-blue-600/35 selection:text-white overflow-hidden flex items-center justify-center p-0 md:p-4">
       
 
-      {/* Registration bonus handoff and first-use tutorial. */}
+      {/* Registration bonus handoff. */}
       <AnimatePresence>
-        {showWelcomeModal && (
+        {showWelcomeBonus && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4">
             <motion.div
               initial={{ opacity: 0 }}
@@ -711,120 +593,31 @@ export default function App() {
               <button
                 type="button"
                 onClick={handleCloseWelcomeModal}
-                aria-label="Close welcome and tutorial"
+                aria-label="Close welcome message"
                 className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/90 text-[var(--theme-text)] opacity-70 transition-all hover:opacity-100 active:scale-95 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
 
-              {welcomeTutorialIndex < 0 ? (
-                <div className="relative flex flex-1 flex-col items-center justify-center gap-4 overflow-y-auto px-6 pb-6 pt-12 text-center sm:px-8">
-                  <BrandLogo
-                    siteConfig={siteConfig}
-                    className="relative z-10 h-16 w-16 shrink-0"
-                  />
-                  <div className="relative z-10 space-y-2">
-                    <h3 id="welcome-modal-title" className="font-display text-2xl font-black tracking-tight">WELCOME</h3>
-                    <p className="mx-auto max-w-xs text-sm leading-relaxed opacity-75">
-                      A registration bonus of <span className="font-black text-[var(--theme-primary)]">UGX {welcomeBonusAmount.toLocaleString()}</span> has been added to your balance.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setWelcomeTutorialIndex(0)}
-                    className="relative z-10 mt-1 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--theme-primary)] px-5 py-3 text-sm font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.97] cursor-pointer"
-                  >
-                    Start tutorial <ArrowRight className="h-4 w-4" strokeWidth={3} />
-                  </button>
+              <div className="relative flex flex-1 flex-col items-center justify-center gap-4 overflow-y-auto px-6 pb-6 pt-12 text-center sm:px-8">
+                <BrandLogo
+                  siteConfig={siteConfig}
+                  className="relative z-10 h-16 w-16 shrink-0"
+                />
+                <div className="relative z-10 space-y-2">
+                  <h3 id="welcome-modal-title" className="font-display text-2xl font-black tracking-tight">WELCOME</h3>
+                  <p className="mx-auto max-w-xs text-sm leading-relaxed opacity-75">
+                    A registration bonus of <span className="font-black text-[var(--theme-primary)]">UGX {welcomeBonusAmount.toLocaleString()}</span> has been added to your balance.
+                  </p>
                 </div>
-              ) : (
-                (() => {
-                  const tutorialIndex = Math.min(
-                    Math.max(welcomeTutorialIndex, 0),
-                    WELCOME_TUTORIAL_SLIDES.length - 1
-                  );
-                  const slide = WELCOME_TUTORIAL_SLIDES[tutorialIndex];
-                  const isLastSlide = tutorialIndex === WELCOME_TUTORIAL_SLIDES.length - 1;
-                  return (
-                    <div className="relative flex min-h-0 flex-1 flex-col px-4 pb-4 pt-14 sm:px-6 sm:pb-5">
-                      <div className="mb-3 flex items-center justify-between pr-11">
-                        <p className="text-[20px] font-sans  text-[var(--theme-primary)]">
-                          Cash Dragons Tutorial
-                        </p>
-                        <span className="text-[11px] font-sans font-bold tabular-nums opacity-55">
-                          {tutorialIndex + 1} / {WELCOME_TUTORIAL_SLIDES.length}
-                        </span>
-                      </div>
-                      <div className="relative min-h-0 flex-1">
-                        <AnimatePresence mode="wait">
-                          <motion.div
-                            key={tutorialIndex}
-                            initial={{ opacity: 0, x: 18 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -18 }}
-                            transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
-                            className="flex h-full min-h-0 flex-col"
-                          >
-                            <div className="flex h-[40dvh] min-h-[120px] max-h-[350px] shrink-0 items-center justify-center overflow-hidden rounded-2xl p-2">
-                              <img
-                                src={slide.image}
-                                alt={slide.imageAlt}
-                                className={tutorialIndex === 3
-                                  ? "h-full w-full object-contain"
-                                  : "h-full w-full object-contain"}
-                                loading="eager"
-                              />
-                            </div>
-                            <div className="min-h-0 flex-1 px-1 pt-4">
-                              <h3 id="welcome-modal-title" className="font-display text-xl font-black tracking-tight">
-                                {slide.title}
-                              </h3>
-                              <p className="mt-1.5 text-[13px] leading-relaxed opacity-70">
-                                {slide.description}
-                              </p>
-                            </div>
-                          </motion.div>
-                        </AnimatePresence>
-                      </div>
-                      <div className="mt-3 flex items-center justify-between gap-2">
-                        {welcomeTutorialIndex > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => setWelcomeTutorialIndex((index) => Math.max(0, index - 1))}
-                            className="inline-flex min-h-10 items-center gap-1 rounded-full px-3 text-xs font-sans font-bold opacity-70 transition-opacity hover:opacity-100 cursor-pointer"
-                          >
-                            <ChevronLeft className="h-4 w-4" /> Back
-                          </button>
-                        ) : (
-                          <span className="min-h-10 px-3" aria-hidden="true" />
-                        )}
-                        <div className="flex items-center gap-1.5" aria-label={`Tutorial step ${tutorialIndex + 1} of ${WELCOME_TUTORIAL_SLIDES.length}`}>
-                          {WELCOME_TUTORIAL_SLIDES.map((item, index) => (
-                            <span
-                              key={item.title}
-                              className={`h-1.5 rounded-full transition-all ${index === tutorialIndex ? "w-5 bg-[var(--theme-primary)]" : "w-1.5 bg-[var(--theme-text)]/25"}`}
-                            />
-                          ))}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (isLastSlide) {
-                              handleCompleteWelcomeTutorial();
-                            } else {
-                              setWelcomeTutorialIndex((index) => Math.min(index + 1, WELCOME_TUTORIAL_SLIDES.length - 1));
-                            }
-                          }}
-                          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-[var(--theme-primary)] px-4 text-xs font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.97] cursor-pointer"
-                        >
-                          {isLastSlide ? "Done" : "Next"}
-                          {!isLastSlide && <ArrowRight className="h-3.5 w-3.5" strokeWidth={3} />}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })()
-              )}
+                <button
+                  type="button"
+                  onClick={handleCloseWelcomeModal}
+                  className="relative z-10 mt-1 inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--theme-primary)] px-5 py-3 text-sm font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.97] cursor-pointer"
+                >
+                  Continue
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
