@@ -2,8 +2,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useCurrency } from "@/src/currency";
 import { getLevelMetrics } from "@/src/utils/referral";
 import type { ReferralStat, SiteConfig } from "@/src/types";
-import { Activity, Loader2, Users } from "lucide-react";
-import { BrandLogo } from "@/src/components/BrandLogo";
+import { Loader2, Users } from "lucide-react";
 import { optimizedImageUrl } from "@/src/utils/imageUtils";
 import { getInitial, getExit, getSpring } from "@/src/utils/motion";
 import { useReducedMotion } from "@/src/hooks/useReducedMotion";
@@ -16,6 +15,9 @@ type Props = {
   activeLevelStats: ReferralStat[];
   siteConfig?: SiteConfig | null;
   onBack?: () => void;
+  pendingReferralRewards: number;
+  isClaiming: boolean;
+  onClaimRewards: () => void;
 };
 
 function formatJoinedDate(value?: string): string {
@@ -117,7 +119,8 @@ function ListSkeleton() {
   return <div className="space-y-1">{[0, 1, 2].map((index) => <div key={index} className="flex items-center gap-3 py-3.5"><div className="h-11 w-11 rounded-full bg-white/10 animate-pulse" /><div className="flex-1 space-y-2"><div className="h-3 w-32 rounded bg-white/10 animate-pulse" /><div className="h-2.5 w-24 rounded bg-white/5 animate-pulse" /></div><div className="h-4 w-20 rounded bg-white/10 animate-pulse" /></div>)}</div>;
 }
 
-export default function InviteTeamView({ stats, isLoading, activeLevel, onActiveLevelChange, activeLevelStats, siteConfig }: Props) {
+export default function InviteTeamView({ stats, isLoading, activeLevel, onActiveLevelChange, activeLevelStats, siteConfig, pendingReferralRewards, isClaiming, onClaimRewards }: Props) {
+  const { formatCurrency } = useCurrency();
   const reduced = useReducedMotion();
   const spring = getSpring(reduced);
   const metrics = getLevelMetrics(stats, siteConfig);
@@ -126,6 +129,23 @@ export default function InviteTeamView({ stats, isLoading, activeLevel, onActive
   return (
     <div className="flex w-full min-h-0 flex-col gap-5 bg-transparent p-1 text-[var(--theme-text)]">
       <TeamHero stats={stats} isLoading={isLoading} siteConfig={siteConfig} />
+
+      <section aria-label="Referral income ready to collect" className="flex flex-col gap-3 rounded-2xl border border-[var(--theme-primary)]/20 bg-[var(--theme-card-bg)]/60 p-3 sm:flex-row sm:items-center">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold text-[var(--theme-text)] opacity-60">Ready to collect</p>
+          <p className="mt-0.5 truncate font-display text-[18px] font-black tabular-nums text-[var(--theme-primary)]">{formatCurrency(pendingReferralRewards)}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClaimRewards}
+          disabled={pendingReferralRewards <= 0 || isClaiming}
+          aria-busy={isClaiming}
+          className="inline-flex min-h-10 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--theme-primary)] px-3.5 text-[12px] font-bold text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"
+        >
+          {isClaiming && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+          Collect referral income
+        </button>
+      </section>
 
       <section aria-label="Referral levels" className="space-y-2">
         <div className="flex items-center justify-between gap-3 px-1">

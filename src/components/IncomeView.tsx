@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { SubscribedNode, SubscriptionItem, UserProfile, Collectible } from "../types";
 import {
   Lock,
@@ -20,14 +22,17 @@ import MetricCard from "./MetricCard";
 import CellsProgress from "./CellsProgress";
 import { Button } from "./ui/button";
 import { useCurrency } from "../currency";
-import { getRunElapsedDays, getRunTotalDays, getRunDailyRate, getRunState, getRunClaimableReturns, isRunCycleFinished } from "../utils/runs";
+import { getRunElapsedDays, getRunTotalDays, getRunDailyRate, getRunMinimumClaimAmount, getRunState, getRunClaimableReturns, isRunCycleFinished } from "../utils/runs";
 import { rarityMapForCatalog } from "../utils/rarity";
 import RarityBadge from "./RarityBadge";
 import confetti from "canvas-confetti";
 import { toast } from "sonner";
 import dollar3d from "@/src/assets/3d/3dicons-dollar-iso-premium.png";
+import corn from "@/src/assets/svg/corn.svg";
+import tractor from "@/src/assets/svg/tractor.svg";
 
 const RUNS_LAYOUT_KEY = "rentdue_runs_layout";
+type CoinFlight = { id: number; startX: number; startY: number; dx: number; dy: number; delay: number };
 
 function getIncomeRunState(node: SubscribedNode, items: SubscriptionItem[]) {
   if (getRunClaimableReturns(node).days > 0) return "active";
@@ -43,7 +48,7 @@ interface IncomeViewProps {
   onNavigateToIncomeHistory: () => void;
   onNavigateToCollection?: () => void;
   onRenew?: (item: SubscriptionItem) => void;
-  onClaimSuccess?: (pointsEarned: number, newBalance: number, subId: string, lastClaimedDate: string, status: "active" | "expired") => void;
+  onClaimSuccess?: (pointsEarned: number, newBalance: number, subId: string, lastClaimedDate: string, status: "active" | "expired", withdrawableBalance?: number, daysFed?: number) => void;
   onCollectibleClaimed?: () => void;
 }
 
@@ -59,6 +64,8 @@ export default function IncomeView({
   onCollectibleClaimed
 }: IncomeViewProps) {
   const { formatCurrency } = useCurrency();
+  const prefersReducedMotion = useReducedMotion();
+  const [coinFlights, setCoinFlights] = useState<CoinFlight[]>([]);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [claimingCollectibleId, setClaimingCollectibleId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -153,7 +160,41 @@ export default function IncomeView({
   const completedCount = completedNodes.length;
   const completedTotalCollected = completedNodes.reduce((acc, n) => acc + (Number(n.totalEarned) || 0), 0);
 
-  const handleClaim = async (subId: string) => {
+  const animateCoinsToWithdrawable = (sourceRect: DOMRect) => {
+    if (prefersReducedMotion) return;
+    const target = document.querySelector<HTMLElement>(".user-app-withdrawable-balance")?.getBoundingClientRect();
+    if (!target) return;
+    const startX = sourceRect.left + sourceRect.width / 2;
+    const startY = sourceRect.top + sourceRect.height / 2;
+    const dx = target.left + target.width / 2 - startX;
+    const dy = target.top + target.height / 2 - startY;
+    const now = Date.now();
+    setCoinFlights(Array.from({ length: 9 }, (_, index) => ({
+      id: now + index,
+      startX: startX + (Math.random() - 0.5) * 24,
+      startY: startY + (Math.random() - 0.5) * 16,
+      dx: dx + (Math.random() - 0.5) * 24,
+      dy: dy + (Math.random() - 0.5) * 18,
+      delay: index * 0.045,
+    })));
+    window.setTimeout(() => setCoinFlights([]), 1150);
+  };
+
+  const handleClaim = async (subId: string, sourceRect: DOMRect) => {
+    const selectedNode = activeNodes.find((node) => node.id === subId);
+    const isChicken = Boolean(selectedNode?.eggImageUrl && selectedNode?.dragonImageUrl);
+    if (isChicken && selectedNode) {
+      const accrued = getRunClaimableReturns(selectedNode).amount;
+      const dailyRate = getRunDailyRate(selectedNode, items);
+      if (dailyRate <= 0) {
+        toast.error("This chicken is not configured to earn income.");
+        return;
+      }
+      if (accrued < getRunMinimumClaimAmount(selectedNode)) {
+        toast.error("You have already fed this chick today. Come back after midnight EAT.");
+        return;
+      }
+    }
     setClaimingId(subId);
     try {
       const res = await fetch("/api/subscriptions/claim", {
@@ -174,11 +215,14 @@ export default function IncomeView({
         });
       }
 
-      toast.success(`Claimed ${formatCurrency(Number(data.pointsClaimed) || 0)} from ${data.itemName}!`);
+      toast.success(isChicken
+        ? `${formatCurrency(Number(data.pointsClaimed) || 0)} added to your withdrawable balance from ${data.itemName}.`
+        : `Claimed ${formatCurrency(Number(data.pointsClaimed) || 0)} from ${data.itemName}!`);
 
       if (onClaimSuccess) {
-        onClaimSuccess(data.pointsClaimed, data.updatedPoints, subId, data.lastClaimedDate, data.status);
+        onClaimSuccess(data.pointsClaimed, data.updatedPoints, subId, data.lastClaimedDate, data.status, data.updatedWithdrawableBalance, data.daysFed);
       }
+      if (isChicken) animateCoinsToWithdrawable(sourceRect);
       void loadCollectibles();
     } catch (err: any) {
       toast.error(err.message || "Failed to claim earnings.");
@@ -216,6 +260,26 @@ export default function IncomeView({
 
   return (
     <div className="space-y-5 select-none bg-transparent text-[var(--theme-text)] p-1 rounded-[var(--theme-radius)] relative">
+      {coinFlights.length > 0 && typeof document !== "undefined" ? createPortal(
+        <AnimatePresence>
+          <div className="pointer-events-none fixed inset-0 z-[120] overflow-hidden" aria-hidden="true">
+            {coinFlights.map((coin) => (
+              <motion.img
+                key={coin.id}
+                src={corn}
+                alt=""
+                initial={{ x: 0, y: 0, scale: 0.8, rotate: 0, opacity: 1 }}
+                animate={{ x: coin.dx, y: coin.dy, scale: 0.35, rotate: 360, opacity: 0.1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.72, delay: coin.delay, ease: [0.22, 1, 0.36, 1] }}
+                className="absolute h-7 w-7 object-contain drop-shadow-md"
+                style={{ left: coin.startX - 14, top: coin.startY - 14 }}
+              />
+            ))}
+          </div>
+        </AnimatePresence>,
+        document.body
+      ) : null}
 
       {/* Aggregate Stats — sticky so run list scrolls below */}
       <div className="sticky top-0 z-20 -mx-1 px-1 pt-1 pb-2">
@@ -226,7 +290,7 @@ export default function IncomeView({
               onClick={onNavigateToCollection}
               className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/40 px-3.5 py-2 text-[12px] font-sans font-black text-[var(--theme-primary)] transition-all active:scale-95"
             >
-              <Award className="h-4 w-4" /> My Collections
+              <img src={tractor} alt="" aria-hidden="true" className="h-4 w-4 object-contain" /> My Farm
             </button>
           </div>
         )}
@@ -320,6 +384,7 @@ export default function IncomeView({
                 ? node.dragonImageUrl
                 : node.eggImageUrl || mappedItem?.eggImageUrl || mappedItem?.imageUrl || node.image;
               const claimableReturns = getRunClaimableReturns(node);
+              const isChicken = Boolean(node.eggImageUrl && node.dragonImageUrl);
               const isExpired = runState === "expired";
               const isDone = runState !== "active" && claimableReturns.days === 0;
               const progressPercent = Math.min(100, Math.max(0, (elapsedDays / totalDays) * 100));
@@ -392,7 +457,7 @@ export default function IncomeView({
                   <div className="pt-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[11px] font-sans text-[var(--theme-text)] opacity-60">
-                        Day {Math.min(elapsedDays, totalDays)} of {totalDays}
+                        Day {Math.min(totalDays, isChicken ? elapsedDays + 1 : elapsedDays)} of {totalDays}
                       </span>
                       <span className="font-sans font-semibold text-[12px] tabular-nums shrink-0 text-[var(--theme-text)]">
                         {Math.round(progressPercent)}%
@@ -422,11 +487,11 @@ export default function IncomeView({
                     <button
                       type="button"
                       disabled={claimingId === node.id}
-                      onClick={() => handleClaim(node.id)}
+                      onClick={(event) => handleClaim(node.id, event.currentTarget.getBoundingClientRect())}
                       className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-[var(--theme-primary)] text-[var(--theme-on-primary)] text-[13px] font-sans font-black cursor-pointer active:scale-[0.98] transition-all disabled:opacity-60"
                     >
                       {claimingId === node.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                      Claim {formatCurrency(claimableReturns.amount)}
+                      {isChicken ? "Feed chick" : `Claim ${formatCurrency(claimableReturns.amount)}`}
                       {claimableReturns.days > 1 ? ` · ${claimableReturns.days} days` : ""}
                     </button>
                   )}
@@ -450,7 +515,7 @@ export default function IncomeView({
                           onClick={onNavigateToCollection}
                           className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full border border-[var(--theme-primary)]/50 text-[var(--theme-primary)] text-[13px] font-sans font-black cursor-pointer active:scale-[0.98] transition-all"
                         >
-                          <Award className="w-4 h-4" /> In your Collection ✓
+                          <img src={tractor} alt="" aria-hidden="true" className="h-4 w-4 object-contain" /> In My Farm ✓
                         </button>
                       )}
                     </div>

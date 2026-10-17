@@ -151,6 +151,7 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
     const optimisticProfile = {
       ...previousProfile,
       points: (Number(previousProfile.points) || 0) + optimisticBonus,
+      withdrawableBalance: (Number(previousProfile.withdrawableBalance) || 0) + optimisticBonus,
       lastCheckinDate: key,
       checkinStreak: optimisticStreak,
     };
@@ -200,6 +201,7 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
       const confirmedProfile = {
         ...latest,
         points: (Number(latest.points) || 0) + bonus - optimisticBonus,
+        withdrawableBalance: (Number(latest.withdrawableBalance) || 0) + bonus - optimisticBonus,
         lastCheckinDate: key,
         checkinStreak: nextStreak,
       };
@@ -220,6 +222,7 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
       const rollbackProfile = {
         ...latest,
         points: Math.max(0, (Number(latest.points) || 0) - optimisticBonus),
+        withdrawableBalance: Math.max(0, (Number(latest.withdrawableBalance) || 0) - optimisticBonus),
         lastCheckinDate: previousProfile.lastCheckinDate,
         checkinStreak: previousProfile.checkinStreak,
       };

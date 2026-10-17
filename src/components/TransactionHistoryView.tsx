@@ -139,7 +139,7 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
       all: { label: "Total volume", icon: TrendingUp },
       deposit: { label: "Total deposits", icon: CirclePlus },
       withdraw: { label: "Total withdrawals", icon: Wallet },
-      yield: { label: "Dragon income", icon: TrendingUp },
+      yield: { label: "Chicken income", icon: TrendingUp },
       referral: { label: "Referral income", icon: Link2 },
       voucher: { label: "Gift code total", icon: Gift },
     };
@@ -205,7 +205,7 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
             { id: "all", label: "All" },
             { id: "deposit", label: "Deposit" },
             { id: "withdraw", label: "Withdraw" },
-            { id: "yield", label: "Dragon income" },
+            { id: "yield", label: "Chicken income" },
             { id: "referral", label: "Referral income" },
             { id: "voucher", label: "Gift Code" },
           ].map(tab => (
@@ -276,7 +276,7 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
                     <span className="text-[18px] font-sans font-bold tracking-tight text-[var(--theme-text)] leading-tight">{displayLabel}</span>
                     {level != null && <span className="text-[12px] font-sans font-semibold px-1.5 py-0.5 rounded-full bg-[var(--theme-primary)]/12 text-[var(--theme-primary)] border border-[var(--theme-primary)]/15">L{level}</span>}
                   </div>
-                  <p className="text-[12px] font-sans font-normal text-[var(--theme-text)] opacity-50 truncate mt-1 leading-none">{new Date(tx.createdAt||tx.timestamp||Date.now()).toLocaleDateString()} • {new Date(tx.createdAt||tx.timestamp||Date.now()).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})} {tx.operator ? `• ${tx.operator}` : ""}</p>
+                  <p className="text-[12px] font-sans font-normal text-[var(--theme-text)] opacity-50 truncate mt-1 leading-none">{new Date(tx.createdAt||tx.timestamp||Date.now()).toLocaleDateString()} {tx.operator ? `• ${tx.operator}` : ""}</p>
                   {showFee && <p className="text-[11px] font-sans font-normal text-[var(--theme-text)] opacity-45 mt-0.5">Fee {formatCurrency(fee)} • Payout {formatCurrency(payout)}</p>}
                 </div>
                 <div className="text-right shrink-0 flex flex-col justify-center">

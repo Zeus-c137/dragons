@@ -8,7 +8,7 @@ interface DashboardViewProps {
   activeNodes: SubscribedNode[];
   items: SubscriptionItem[];
   onSubscribeSuccess: (node: SubscribedNode, amount: number) => void;
-  onClaimSuccess: (amount: number, balance: number, subId: string, lastClaimedDate: string, status: "active" | "expired") => void;
+  onClaimSuccess: (amount: number, balance: number, subId: string, lastClaimedDate: string, status: "active" | "expired", withdrawableBalance?: number, daysFed?: number) => void;
   onProfileUpdate: (profile: UserProfile) => void;
   onNavigateToCollection: () => void;
   onNavigateToHistory: () => void;

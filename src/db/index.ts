@@ -79,6 +79,9 @@ export async function ensureDatabaseSchema(): Promise<void> {
       referred_by_code VARCHAR(64) DEFAULT '',
       operator VARCHAR(16) DEFAULT 'MTN',
       points DOUBLE NOT NULL DEFAULT 0,
+      rechargeable_balance DOUBLE NOT NULL DEFAULT 0,
+      withdrawable_balance DOUBLE NOT NULL DEFAULT 0,
+      balance_buckets_migrated BOOLEAN NOT NULL DEFAULT FALSE,
       withdrawn_cash DOUBLE NOT NULL DEFAULT 0,
       total_deposits DOUBLE NOT NULL DEFAULT 0,
       ai_income DOUBLE NOT NULL DEFAULT 0,
@@ -106,6 +109,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
       item_name VARCHAR(128) NOT NULL,
       image VARCHAR(255) NOT NULL,
       egg_image_url VARCHAR(512) DEFAULT '',
+      young_dragon_image_url VARCHAR(512) DEFAULT '',
       dragon_image_url VARCHAR(512) DEFAULT '',
       amount DOUBLE NOT NULL,
       duration INT NOT NULL,
@@ -113,6 +117,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
       start_date VARCHAR(64) NOT NULL,
       end_date VARCHAR(64) NOT NULL,
       last_claimed_date VARCHAR(32) NOT NULL,
+      days_fed INT NOT NULL DEFAULT 0,
       total_earned DOUBLE NOT NULL DEFAULT 0,
       status VARCHAR(16) NOT NULL DEFAULT 'active',
       INDEX idx_subscribed_nodes_user_id (user_id),
@@ -124,6 +129,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
       image VARCHAR(255) NOT NULL,
       image_url VARCHAR(512) DEFAULT '',
       egg_image_url VARCHAR(512) DEFAULT '',
+      young_dragon_image_url VARCHAR(512) DEFAULT '',
       dragon_image_url VARCHAR(512) DEFAULT '',
       amount DOUBLE NOT NULL,
       duration INT NOT NULL,
@@ -244,16 +250,24 @@ export async function ensureDatabaseSchema(): Promise<void> {
 
   for (const [table, column] of [
     ["catalog_products", "egg_image_url"],
+    ["catalog_products", "young_dragon_image_url"],
     ["catalog_products", "dragon_image_url"],
     ["subscribed_nodes", "egg_image_url"],
+    ["subscribed_nodes", "young_dragon_image_url"],
     ["subscribed_nodes", "dragon_image_url"],
+    ["subscribed_nodes", "days_fed"],
   ]) {
     try {
-      await connection.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` VARCHAR(512) DEFAULT ''`);
+      const definition = column === "days_fed" ? "INT NOT NULL DEFAULT 0" : "VARCHAR(512) DEFAULT ''";
+      await connection.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
     } catch (error: any) {
       if (!String(error?.code || "").includes("DUPLICATE") && error?.errno !== 1060) throw error;
     }
   }
+
+  await connection.query(
+    "UPDATE subscribed_nodes SET days_fed = LEAST(duration, GREATEST(0, FLOOR(total_earned / daily_yield))) WHERE days_fed = 0 AND daily_yield > 0 AND total_earned >= daily_yield"
+  );
 
   const [legacyBalanceColumns] = await connection.query(
     "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'recharge_balance'"
@@ -286,6 +300,28 @@ export async function ensureDatabaseSchema(): Promise<void> {
 
     await connection.query("ALTER TABLE users DROP COLUMN recharge_balance");
   }
+
+  for (const [column, definition] of [
+    ["rechargeable_balance", "DOUBLE NOT NULL DEFAULT 0"],
+    ["withdrawable_balance", "DOUBLE NOT NULL DEFAULT 0"],
+    ["balance_buckets_migrated", "BOOLEAN NOT NULL DEFAULT FALSE"]
+  ]) {
+    try {
+      await connection.query(`ALTER TABLE users ADD COLUMN \`${column}\` ${definition}`);
+    } catch (error: any) {
+      if (!String(error?.code || "").includes("DUPLICATE") && error?.errno !== 1060) throw error;
+    }
+  }
+
+  // Preserve existing development balances while starting the two-wallet
+  // model: legacy unified funds become rechargeable capital exactly once.
+  await connection.query(`
+    UPDATE users
+    SET rechargeable_balance = COALESCE(points, 0),
+        withdrawable_balance = 0,
+        balance_buckets_migrated = TRUE
+    WHERE balance_buckets_migrated = FALSE
+  `);
 
   try {
     await connection.query("ALTER TABLE users ADD COLUMN id VARCHAR(32) NULL");

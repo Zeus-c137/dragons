@@ -31,10 +31,6 @@ import {
   X,
   ArrowRight,
   ChevronLeft,
-  Egg,
-  Plus,
-  Minus,
-  Users,
   Wallet
 } from "lucide-react";
 
@@ -45,11 +41,16 @@ import depositWithdrawTutorialScreenshot from "@/src/assets/screenshots/depositw
 import referralsTutorialScreenshot from "@/src/assets/screenshots/invites.png";
 import storeTutorialScreenshot from "@/src/assets/screenshots/store.png";
 import streakTutorialScreenshot from "@/src/assets/screenshots/streak.png";
+import homeNavIcon from "@/src/assets/svg/home.svg";
+import depositNavIcon from "@/src/assets/svg/deposit.svg";
+import withdrawNavIcon from "@/src/assets/svg/withdraw.svg";
+import inviteNavIcon from "@/src/assets/svg/invite.svg";
+import tractorNavIcon from "@/src/assets/svg/tractor.svg";
 import { motion, AnimatePresence } from "motion/react";
 
 import { ThemeProvider } from "./context/ThemeContext";
 import { useGatedInterval, useGatedTimeout, useAbortSignal } from "./hooks/useGatedInterval";
-import { fetchJsonWithSignal, abortableAll } from "./utils/abortableFetch";
+import { fetchJsonWithSignal } from "./utils/abortableFetch";
 
 // Last-known shell (theme preset + logo) cached on every successful site-config
 // load. The boot splash reads it synchronously so the first paint already
@@ -101,13 +102,7 @@ const WELCOME_TUTORIAL_SLIDES = [
     description: "Share your referral link with friends. Verified referrals can earn you commission.",
     image: referralsTutorialScreenshot,
     imageAlt: "Referral earnings and friends referred",
-  },
-  {
-    title: "Cash Dragons AI Assistant",
-    description: "Get help with any questions or issues you have using Cash Dragons. Our AI assistant is available 24/7.",
-    image: aiTutorialScreenshot,
-    imageAlt: "AI assistant chat interface",
-  },
+  }
 ] as const;
 
 function getLocalDateKey() {
@@ -528,16 +523,27 @@ export default function App() {
         (s) => fetchJsonWithSignal<UserProfile>(`/api/profile/${phone}`, s),
         (s) => fetchJsonWithSignal<unknown>("/api/config/site", s),
       ];
-      const [itemsData, subsData, statsData, notifData, profileData, siteData] = await abortableAll(tasks, signal) as [unknown, unknown, unknown, unknown, unknown, unknown];
+      const results = await Promise.allSettled(tasks.map((task) => task(signal)));
       if (signal.aborted) return;
-      applyUserDataResults({
-        items: itemsData,
-        subs: subsData,
-        stats: statsData,
-        notifs: notifData,
+      const [itemsResult, subsResult, statsResult, notifResult, profileResult, siteResult] = results;
+      const userData: Record<string, unknown> = {};
+      if (itemsResult.status === "fulfilled") userData.items = itemsResult.value;
+      if (subsResult.status === "fulfilled") userData.subs = subsResult.value;
+      if (statsResult.status === "fulfilled") userData.stats = statsResult.value;
+      if (notifResult.status === "fulfilled") userData.notifs = notifResult.value;
+      applyUserDataResults(userData);
+      if (profileResult.status === "fulfilled" && profileResult.value) {
+        setUserProfile(profileResult.value as UserProfile);
+      }
+      if (siteResult.status === "fulfilled" && siteResult.value && !(siteResult.value as { error?: unknown }).error) {
+        setSiteConfig(siteResult.value);
+      }
+      const labels = ["catalog", "subscriptions", "system stats", "notifications", "profile", "site config"];
+      results.forEach((result, index) => {
+        if (result.status === "rejected" && (result.reason as Error)?.name !== "AbortError") {
+          console.warn(`Could not sync ${labels[index]}:`, result.reason);
+        }
       });
-      if (profileData) setUserProfile(profileData as UserProfile);
-      if (siteData && !(siteData as { error?: unknown }).error) setSiteConfig(siteData);
     } catch (e: unknown) {
       if ((e as Error)?.name === "AbortError") return;
       console.error("Failed to sync backend endpoints:", e);
@@ -578,8 +584,9 @@ export default function App() {
     if (userProfile) {
       const updatedProfile = {
         ...userProfile,
-        // The server applies the rent and day-one yield to the unified balance.
-        points: Math.max(0, (userProfile.points || 0) - costAmt) + (Number(newSub.totalEarned) || 0)
+        points: Math.max(0, (userProfile.points || 0) - costAmt) + (Number(newSub.totalEarned) || 0),
+        rechargeableBalance: Math.max(0, (Number(userProfile.rechargeableBalance) || 0) - costAmt),
+        withdrawableBalance: (Number(userProfile.withdrawableBalance) || 0) + (Number(newSub.totalEarned) || 0),
       };
       setUserProfile(updatedProfile);
     }
@@ -605,14 +612,12 @@ export default function App() {
   };
 
   // Callback on manual points claims harvesting succeed
-  const handleClaimSuccess = (pointsEarned: number, newBalance: number, subId: string, lastClaimedDate: string, status: "active" | "expired") => {
-    if (userProfile) {
-      const updatedProfile = {
-        ...userProfile,
-        points: newBalance
-      };
-      setUserProfile(updatedProfile);
-    }
+  const handleClaimSuccess = (_pointsEarned: number, newBalance: number, subId: string, lastClaimedDate: string, status: "active" | "expired", newWithdrawableBalance?: number, daysFed?: number) => {
+    setUserProfile((current) => current ? {
+      ...current,
+      points: Math.max(Number(current.points) || 0, Number(newBalance) || 0),
+      withdrawableBalance: Math.max(Number(current.withdrawableBalance) || 0, Number(newWithdrawableBalance) || 0),
+    } : current);
     // Keep the local run card in sync without refetching the full signed-in shell.
     setActiveNodes((prev) =>
       prev.map((n) =>
@@ -621,7 +626,8 @@ export default function App() {
               ...n,
               status,
               lastClaimedDate,
-              totalEarned: (n.totalEarned || 0) + pointsEarned
+              daysFed: Number(daysFed ?? n.daysFed ?? 0),
+              totalEarned: (n.totalEarned || 0) + _pointsEarned
             }
           : n
       )
@@ -835,20 +841,25 @@ export default function App() {
         
         <header className="user-app-header sticky top-0 z-40 shrink-0">
           <div className="user-app-brand">
-            <BrandLogo siteConfig={siteConfig} className="flex h-7 w-7 shrink-0 items-center justify-center" />
-            <span className="user-app-brand-name" title={userProfile.username || userProfile.phone || "Player"}>
-              {userProfile.username?.trim() || userProfile.phone || "Player"}
-            </span>
+            <button
+              type="button"
+              onClick={() => { setHistoryFilterRequest("all"); setActiveTab("history"); }}
+              aria-label={`Open transaction history. My capital ${formatCurrency(Number(userProfile.rechargeableBalance) || 0)}`}
+              className="user-app-capital appearance-none border-0 bg-transparent p-0 text-inherit text-left cursor-pointer transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-on-primary)]"
+            >
+              <span><Wallet className="h-3.5 w-3.5" aria-hidden="true" />My capital</span>
+              <strong>{formatCurrency(Number(userProfile.rechargeableBalance) || 0)}</strong>
+            </button>
           </div>
           <div className="user-app-header-actions">
             <button
               type="button"
               onClick={() => { setHistoryFilterRequest("all"); setActiveTab("history"); }}
-              aria-label={`Open transaction history. Current balance ${formatCurrency(Number(userProfile.points) || 0)}`}
-              className="user-app-balance appearance-none border-0 bg-transparent p-0 text-inherit cursor-pointer transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-on-primary)]"
+              aria-label={`Open transaction history. Withdrawable balance ${formatCurrency(Number(userProfile.withdrawableBalance) || 0)}`}
+              className="user-app-balance user-app-withdrawable-balance appearance-none border-0 bg-transparent p-0 text-inherit cursor-pointer transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-on-primary)]"
             >
-              <span className="inline-flex items-center justify-end gap-1.5"><Wallet className="h-3.5 w-3.5" aria-hidden="true" />My balance</span>
-              <strong>{formatCurrency(Number(userProfile.points) || 0)}</strong>
+              <span className="inline-flex items-center justify-end gap-1.5"><Wallet className="h-3.5 w-3.5" aria-hidden="true" />Withdrawable</span>
+              <strong>{formatCurrency(Number(userProfile.withdrawableBalance) || 0)}</strong>
             </button>
           </div>
         </header>
@@ -943,8 +954,10 @@ export default function App() {
               >
                 <CollectionView
                   phone={userProfile.id}
+                  activeNodes={activeNodes}
+                  products={items}
+                  onClaimSuccess={handleClaimSuccess}
                   onBack={() => setActiveTab(collectionReturn)}
-                  onNavigateToCatalog={() => setActiveTab("catalog")}
                   onClaimed={() => { void handleManualStatsRefresh(); }}
                 />
               </motion.div>
@@ -1176,21 +1189,30 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Primary destinations: dragons, wallet actions, and friends */}
-          <nav aria-label="Main navigation" className="user-app-bottom-nav grid grid-cols-4 items-end shrink-0 z-40 select-none">
+        {/* Primary destinations: the farm, collections, wallet actions, and friends */}
+          <nav aria-label="Main navigation" className="user-app-bottom-nav grid grid-cols-5 items-end shrink-0 z-40 select-none">
             <button
               type="button"
               onClick={() => setActiveTab("dashboard")}
               aria-current={activeTab === "dashboard" ? "page" : undefined}
               className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "dashboard" ? "is-active" : ""}`}
             >
-              <span className="grid place-items-center w-6 h-6">
-                <Egg fill={activeTab === "dashboard" ? "currentColor" : "none"} className="w-6 h-6" />
+              <span className="grid place-items-center w-10 h-10">
+                <img src={homeNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
               </span>
-              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Dragons</span>
-              <span className="w-4 h-1 flex items-center justify-center">
-                {activeTab === "dashboard" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-white" />}
+              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">The Farm</span>
+              
+            </button>
+            <button
+              type="button"
+              onClick={() => { setCollectionReturn("dashboard"); setActiveTab("collection"); }}
+              aria-current={activeTab === "collection" ? "page" : undefined}
+              className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "collection" ? "is-active" : ""}`}
+            >
+              <span className="grid place-items-center w-10 h-10">
+                <img src={tractorNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
               </span>
+              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">My chicks</span>
             </button>
             <button
               type="button"
@@ -1198,13 +1220,11 @@ export default function App() {
               aria-current={activeTab === "deposit" ? "page" : undefined}
               className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "deposit" ? "is-active" : ""}`}
             >
-              <span className="grid h-6 w-6 place-items-center rounded-full border-[1.8px]">
-                <Plus className="h-4 w-4" aria-hidden="true" />
+              <span className="grid h-10 w-10 place-items-center">
+                <img src={depositNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
               </span>
               <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Top up</span>
-              <span className="w-4 h-1 flex items-center justify-center">
-                {activeTab === "deposit" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-white" />}
-              </span>
+           
             </button>
 
             <button
@@ -1213,13 +1233,11 @@ export default function App() {
               aria-current={activeTab === "withdraw" ? "page" : undefined}
               className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "withdraw" ? "is-active" : ""}`}
             >
-              <span className="grid h-6 w-6 place-items-center rounded-full border-[1.8px]">
-                <Minus className="h-4 w-4" aria-hidden="true" />
+              <span className="grid h-10 w-10 place-items-center">
+                <img src={withdrawNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
               </span>
               <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Withdraw</span>
-              <span className="w-4 h-1 flex items-center justify-center">
-                {activeTab === "withdraw" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-white" />}
-              </span>
+              
             </button>
 
             <button
@@ -1228,13 +1246,11 @@ export default function App() {
               aria-current={activeTab === "referral" ? "page" : undefined}
               className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "referral" ? "is-active" : ""}`}
             >
-              <span className="grid place-items-center w-6 h-6">
-                <Users className="h-6 w-6" aria-hidden="true" />
+              <span className="grid place-items-center w-12 h-12">
+                <img src={inviteNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />  
               </span>
               <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Friends</span>
-              <span className="w-4 h-1 flex items-center justify-center">
-                {activeTab === "referral" && <motion.span layoutId="nav-active-dot" transition={{ type: "spring", stiffness: 550, damping: 38 }} className="w-1 h-1 rounded-full bg-white" />}
-              </span>
+            
             </button>
           </nav>
 

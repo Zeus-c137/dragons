@@ -159,7 +159,9 @@ export interface UserProfile {
   inviteCode: string;
   referredByCode?: string;
   operator?: string;
-  points: number; // unified balance in UGX (deposits, rentals, income, rewards, and withdrawals)
+  points: number; // compatibility total: rechargeableBalance + withdrawableBalance
+  rechargeableBalance: number;
+  withdrawableBalance: number;
   withdrawnCash: number; // accumulated withdraw amount in UGX
   createdAt: string;
   // Referral stats
@@ -199,6 +201,7 @@ export interface SubscriptionItem {
   inviteBonusPercent: number; // custom invite bonus percentage for referrals
   imageUrl?: string; // Open-source graphic or illustration URL
   eggImageUrl?: string;
+  youngDragonImageUrl?: string;
   dragonImageUrl?: string;
   outOfStock?: boolean; // mark if node is out of stock
   disabled?: boolean; // hidden or disabled node
@@ -211,13 +214,15 @@ export interface SubscribedNode {
   itemName: string;
   image: string;
   eggImageUrl?: string;
+  youngDragonImageUrl?: string;
   dragonImageUrl?: string;
   amount: number;
   duration: number;
   dailyYield: number;
   startDate: string; // ISO String
   endDate: string; // ISO String
-  lastClaimedDate: string; // YYYY-MM-DD for legacy runs; dragon runs store the exact collection timestamp
+  lastClaimedDate: string; // Platform date of the most recent claim
+  daysFed: number; // manual chicken feeds completed in this cycle
   totalEarned: number; // total returns claimed to date
   status: "active" | "completed" | "expired";
 }

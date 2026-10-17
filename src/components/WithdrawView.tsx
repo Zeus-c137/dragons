@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Info,
   ArrowUpRight,
+  LockKeyhole,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrency } from "../currency";
@@ -135,8 +136,8 @@ export default function WithdrawView({
       toast.error(`The maximum withdrawal is ${formatCurrency(maximumWithdrawal)}.`);
       return;
     }
-    if (pointsToWithdraw > (userProfile.points || 0)) {
-      toast.error(`Your available balance is ${formatCurrency(userProfile.points || 0)}.`);
+    if (pointsToWithdraw > (userProfile.withdrawableBalance || 0)) {
+      toast.error(`Your withdrawable balance is ${formatCurrency(userProfile.withdrawableBalance || 0)}.`);
       return;
     }
     if (withdrawOperator === "USDT") {
@@ -251,8 +252,12 @@ export default function WithdrawView({
 
   return (
     <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] space-y-4 select-none p-4 pt-0 min-h-[100dvh]">
-      {/* Withdraw heading */}
-
+      <div className="flex justify-end">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/20 bg-[var(--theme-primary)]/8 px-3 py-1.5 text-[11px] font-bold text-[var(--theme-primary)]">
+          <LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
+          Secure
+        </span>
+      </div>
 
       <div className="rounded-[var(--theme-radius)]">
         <div className="p-3 space-y-3">
@@ -311,7 +316,7 @@ export default function WithdrawView({
                 value={pointsToWithdraw || ""}
                 onChange={(e) => setPointsToWithdraw(parseInt(e.target.value.replace(/[^0-9]/g, "")) || 0)}
                 aria-describedby="withdrawal-rules"
-                aria-invalid={pointsToWithdraw > 0 && (!Number.isInteger(pointsToWithdraw) || pointsToWithdraw < minimumWithdrawal || (maximumWithdrawal > 0 && pointsToWithdraw > maximumWithdrawal) || pointsToWithdraw > (userProfile.points || 0))}
+                aria-invalid={pointsToWithdraw > 0 && (!Number.isInteger(pointsToWithdraw) || pointsToWithdraw < minimumWithdrawal || (maximumWithdrawal > 0 && pointsToWithdraw > maximumWithdrawal) || pointsToWithdraw > (userProfile.withdrawableBalance || 0))}
                 className="w-full pl-10 pr-20 py-4 bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] text-[var(--theme-text)] text-[15px] rounded-2xl outline-none font-bold placeholder:font-medium placeholder:opacity-40 focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] transition-all"
               />
              
@@ -345,7 +350,7 @@ export default function WithdrawView({
 
 
 
-          <div className="mt-auto space-y-3 pt-6">
+          <div className="mt-4">
             <Button
               variant="primary"
               size="lg"
@@ -355,7 +360,7 @@ export default function WithdrawView({
                 !Number.isInteger(pointsToWithdraw) ||
                 pointsToWithdraw < minimumWithdrawal ||
                 (maximumWithdrawal > 0 && pointsToWithdraw > maximumWithdrawal) ||
-                pointsToWithdraw > (userProfile.points || 0) ||
+                pointsToWithdraw > (userProfile.withdrawableBalance || 0) ||
                 !activeNodes ||
                 activeNodes.length === 0
               }

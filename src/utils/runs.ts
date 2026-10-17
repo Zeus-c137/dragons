@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  *
- * Shared Run helpers: progress estimates, maturity countdowns, greetings.
+ * Shared run helpers: feed-based progress, daily availability, greetings.
  * Home and Income share this math so both screens agree.
  */
 import type { SubscribedNode, SubscriptionItem } from "../types";
@@ -48,9 +48,9 @@ export function getRunDailyRate(
   return Number(rate) || 0;
 }
 
-/** Whole-UGX minimum allowed for collecting half of one day's income. */
+/** One fixed daily income payment, formatted as a whole UGX amount. */
 export function getRunMinimumClaimAmount(node: SubscribedNode): number {
-  return Math.ceil(Math.max(0, getRunDailyRate(node)) / 2);
+  return Math.ceil(Math.max(0, getRunDailyRate(node)));
 }
 
 function platformDateKey(date: Date): string {
@@ -77,27 +77,21 @@ export function getRunClaimableReturns(
   if (!Number.isFinite(activationTime)) return { amount: 0, days: 0, throughDate: null };
   const dailyRate = getRunDailyRate(node);
   if (node.eggImageUrl && node.dragonImageUrl && dailyRate > 0) {
-    const cycleEnd = getRunEndMs(node);
-    if (cycleEnd === null) return { amount: 0, days: 0, throughDate: null };
-
-    let accrualStart = activationTime;
-    if (node.lastClaimedDate) {
-      const checkpoint = String(node.lastClaimedDate);
-      if (/^\d{4}-\d{2}-\d{2}$/.test(checkpoint)) {
-        const nextDate = addDateKeyDays(checkpoint, 1);
-        accrualStart = new Date(`${nextDate}T00:00:00+03:00`).getTime();
-      } else {
-        const checkpointTime = new Date(checkpoint).getTime();
-        if (Number.isFinite(checkpointTime)) accrualStart = checkpointTime;
-      }
+    const throughDate = platformDateKey(now);
+    const totalDays = getRunTotalDays(node);
+    const daysFed = Math.min(totalDays, Math.max(0, Math.floor(Number(node.daysFed) || 0)));
+    if (String(node.status).toLowerCase() !== "active" || daysFed >= totalDays) {
+      return { amount: 0, days: 0, throughDate: null };
     }
 
-    const accrualEnd = Math.min(now.getTime(), cycleEnd);
-    const elapsed = Math.max(0, accrualEnd - accrualStart);
-    const amount = (dailyRate * elapsed) / 86_400_000;
-    const days = Math.floor(amount / dailyRate);
-    const throughDate = amount > 0 ? platformDateKey(new Date(accrualEnd)) : null;
-    return { amount, days, throughDate };
+    const lastClaimedDate = String(node.lastClaimedDate || "");
+    const lastClaimedPlatformDate = /^\d{4}-\d{2}-\d{2}$/.test(lastClaimedDate)
+      ? lastClaimedDate
+      : Number.isFinite(new Date(lastClaimedDate).getTime())
+        ? platformDateKey(new Date(lastClaimedDate))
+        : "";
+    if (lastClaimedPlatformDate === throughDate) return { amount: 0, days: 0, throughDate: null };
+    return { amount: getRunMinimumClaimAmount(node), days: 1, throughDate };
   }
 
   const activationDate = platformDateKey(new Date(activationTime));
@@ -125,8 +119,7 @@ export function getRunClaimableReturns(
 export function isRunCycleFinished(node: SubscribedNode, now = new Date()): boolean {
   if (String(node.status).toLowerCase() !== "active") return true;
   if (node.eggImageUrl && node.dragonImageUrl) {
-    const endMs = getRunEndMs(node);
-    return endMs !== null && now.getTime() >= endMs;
+    return Math.max(0, Math.floor(Number(node.daysFed) || 0)) >= getRunTotalDays(node);
   }
   const activationTime = new Date(node.startDate).getTime();
   if (!Number.isFinite(activationTime)) return false;
@@ -136,12 +129,14 @@ export function isRunCycleFinished(node: SubscribedNode, now = new Date()): bool
 }
 
 /**
- * Day-count estimate from credited earnings. Shared by Home and Income so
- * both screens agree, reading the same purchase-time snapshot the server
- * credits from.
+ * Chicken cycle progress advances only after a successful manual feed.
+ * Other products retain their credited-earnings day estimate.
  */
 export function getRunElapsedDays(node: SubscribedNode, items?: SubscriptionItem[]): number {
   const total = getRunTotalDays(node, items);
+  if (node.eggImageUrl && node.dragonImageUrl) {
+    return Math.min(total, Math.max(0, Math.floor(Number(node.daysFed) || 0)));
+  }
   const daily = getRunDailyRate(node, items);
   if (daily <= 0) return 1;
   const earned = Number(node.totalEarned) || 0;
@@ -177,10 +172,16 @@ export function getRunState(
 
 export function getRunEndMs(node: SubscribedNode): number | null {
   if (node.eggImageUrl && node.dragonImageUrl) {
+    // Manual-feed cycles have no scheduled end; completion happens on the
+    // final successful feed.
+    if (Math.max(0, Math.floor(Number(node.daysFed) || 0)) < getRunTotalDays(node)) return null;
+    const lastFeed = new Date(node.lastClaimedDate).getTime();
+    if (Number.isFinite(lastFeed)) return lastFeed;
     const activationTime = new Date(node.startDate).getTime();
     if (Number.isFinite(activationTime)) {
-      return activationTime + getRunTotalDays(node) * 86_400_000;
+      return activationTime;
     }
+    return 0;
   }
   const ms = new Date(node.endDate).getTime();
   return Number.isFinite(ms) ? ms : null;
