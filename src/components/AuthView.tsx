@@ -363,7 +363,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
       setRecoverySending(false);
     }
   };
-  const brandName = activeConfig?.brandName || "Cash Dragons";
+  const brandName = activeConfig?.brandName;
   const inviteBonus = Number(activeConfig?.inviteBonus ?? 0);
   const regBonus = Number(activeConfig?.registrationBonus ?? activeConfig?.welcomeBonus ?? 0);
   const authFormBrand = (

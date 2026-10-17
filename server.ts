@@ -287,12 +287,12 @@ app.get("/readyz", (_req, res) => {
 // Keep the authenticated product catalog out of public SEO pages and sitemap.
 const SEO_PUBLIC_PATHS = ["/welcome", "/faq"];
 
-const SEO_KEYWORDS = "Cash Dragons, hatch eggs, collect dragons, daily rewards, referral bonuses, mobile money deposits and withdrawals";
+const SEO_KEYWORDS = "KashChick, hatch eggs, collect dragons, daily rewards, referral bonuses, mobile money deposits and withdrawals";
 const SEO_DESCRIPTION = "Hatch eggs, raise chickens, and collect daily income. Invite friends, track rewards, and manage eligible deposits and withdrawals.";
 const SEO_SHARE_IMAGE = "/seo-share-image";
 
 function seoTitle(brand: string): string {
-  return `${brand} | Hatch eggs and collect dragons`;
+  return `${brand}`;
 }
 
 function getPublicBaseUrl(req: express.Request): string {
@@ -318,14 +318,14 @@ function formatSeoUgx(_value: unknown): string {
 async function getSeoData(): Promise<{ brand: string; description: string; items: any[]; config: any }> {
   try {
     const config = await getSiteConfig().catch(() => ({} as any));
-    const brand = String((config as any)?.brandName || "").trim() || "CashDragons";
+    const brand = String((config as any)?.brandName || "").trim() || "KashChick";
     // Placeholder format: fixed corporate description until final copy lands.
     // Products stay hidden behind auth — no catalog fetch here by design.
     const description = String(config?.seoDescription || "").trim() || SEO_DESCRIPTION;
     return { brand, description, items: [], config: config || {} };
   } catch {
     return {
-      brand: "CashDragons",
+      brand: "KashChick",
       description: SEO_DESCRIPTION,
       items: [],
       config: {},
@@ -380,7 +380,7 @@ ${jsonLdTag}
 }
 
 const SEO_FAQS: Array<{ q: string; a: string }> = [
-  { q: "How does Cash Dragons work?", a: "Top up My capital and use it to hatch eggs. Feed your chickens when a full day of income has accrued; earnings go to your withdrawable balance." },
+  { q: "How does KashChick work?", a: "Top up My capital and use it to hatch eggs. Feed your chickens when a full day of income has accrued; earnings go to your withdrawable balance." },
   { q: "How do withdrawals work?", a: "Withdrawals come from your withdrawable balance, require at least one product, and are paid to MTN, Airtel or USDT. Fees and minimums are shown in the app before you confirm." },
   { q: "How do referrals earn?", a: "Share your invite link. You earn Level 1–4 commissions when invitees activate products, paid while the invitee keeps an active product." },
   { q: "What is the daily check-in?", a: "Open the app every day to claim a check-in bonus into your withdrawable balance. Longer streaks unlock bigger rewards." },
@@ -506,8 +506,8 @@ app.get("/faq", async (req, res) => {
     `<p><a class="cta" href="/">Open the app</a></p>`;
   res.send(seoShell({
     brand,
-    title: `${brand} FAQs | Rentals, returns, and rewards`,
-    description: `Learn how Cash Dragons egg cycles, daily rewards, check-ins, referrals, withdrawals, and account access work.`,
+    title: `${brand} `,
+    description: `Learn how ${brand} egg cycles, daily rewards, check-ins, referrals, withdrawals, and account access work.`,
     image: `${base}${SEO_SHARE_IMAGE}`,
     canonical: `${base}/faq`,
     activePath: "/faq",
@@ -2393,8 +2393,8 @@ app.get("/api/manifest.json", async (req, res) => {
     const config = await getSiteConfig();
     const manifest = {
       id: "/",
-      name: config.brandName || "Cash Dragons",
-      short_name: config.manifestShortName || config.brandName || "Cash Dragons",
+      name: config.brandName || "KashChick",
+      short_name: config.manifestShortName || config.brandName || "KashChick",
       description: config.manifestDescription || SEO_DESCRIPTION,
       start_url: "/",
       display: "standalone",
@@ -2442,8 +2442,8 @@ app.get("/api/manifest.json", async (req, res) => {
     logError("[PWA] Manifest configuration lookup failed:", err);
     res.json({
       id: "/",
-      name: "Cash Dragons",
-      short_name: "Cash Dragons",
+      name: "KashChick",
+      short_name: "KashChick",
       description: SEO_DESCRIPTION,
       start_url: "/",
       display: "standalone",
@@ -2903,7 +2903,7 @@ async function startServer() {
         // Public title, description, and configured share image are injected for link preview crawlers.
         try {
           const config = await getSiteConfig().catch(() => ({} as any));
-          const brand = String((config as any)?.brandName || "").trim() || "Cash Dragons";
+          const brand = String((config as any)?.brandName || "").trim();
           const description = String((config as any)?.seoDescription || "").trim() || SEO_DESCRIPTION;
           const base = getPublicBaseUrl(req);
           const escBrand = escapeSeoHtml(brand);
