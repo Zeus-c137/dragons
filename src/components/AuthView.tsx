@@ -368,7 +368,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
   const regBonus = Number(activeConfig?.registrationBonus ?? activeConfig?.welcomeBonus ?? 0);
   const authFormBrand = (
     <div className="auth-form-brand flex items-center gap-3">
-      <BrandLogo siteConfig={activeConfig} className="flex h-14 w-14 shrink-0 items-center justify-center" />
+      <BrandLogo siteConfig={activeConfig} className="flex h-[60px] w-[60px] shrink-0 items-center justify-center" />
       <span className="font-display text-md font-black tracking-tight">{brandName}</span>
     </div>
   );
@@ -403,7 +403,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
         {/* Brand header */}
         {!isAuthFormScreen && (
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            <BrandLogo siteConfig={activeConfig} className="flex h-12 w-12 shrink-0 items-center justify-center sm:h-9 sm:w-9" />
+            <BrandLogo siteConfig={activeConfig} className="flex h-[60px] w-[60px] shrink-0 items-center justify-center sm:h-[45px] sm:w-[45px]" />
             <span className="min-w-0 truncate font-display text-sm font-black tracking-tight sm:text-base">{brandName}</span>
             <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             {screen === "welcome" && (

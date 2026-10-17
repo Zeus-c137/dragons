@@ -779,10 +779,10 @@ export default function DragonsHomeSection({
         ) : (
           <div className="rounded-[20px] border border-dashed border-[var(--theme-card-border)] px-5 py-8 text-center">
             <Egg className="mx-auto h-7 w-7 text-[var(--theme-primary)]" aria-hidden="true" />
-            <p className="mt-2 font-display text-[15px] font-black text-[var(--theme-text)]">The nest is waiting</p>
+            <p className="mt-2 font-display text-[15px] font-black text-[var(--theme-text)]">The farm is empty at the moment</p>
             <p className="mx-auto mt-1 max-w-[26rem] text-[14px] leading-relaxed text-[var(--theme-text)] opacity-60">
               {enabledProductCount > 0
-                ? `${enabledProductCount} store product${enabledProductCount === 1 ? "" : "s"} found, but egg and mature chicken artwork are not configured yet. Add egg, young chicken, and mature chicken artwork in Admin.`
+                ? `${enabledProductCount} store product${enabledProductCount === 1 ? "" : "s"} found, but egg and mature chicken are not configured yet. Add egg, young chicken, and mature chicken artwork in Admin.`
                 : "Egg products with egg and chicken artwork will appear here when they are added to the store."}
             </p>
           </div>

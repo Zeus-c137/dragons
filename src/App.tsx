@@ -50,7 +50,7 @@ import { motion, AnimatePresence } from "motion/react";
 
 import { ThemeProvider } from "./context/ThemeContext";
 import { useGatedInterval, useGatedTimeout, useAbortSignal } from "./hooks/useGatedInterval";
-import { fetchJsonWithSignal, abortableAll } from "./utils/abortableFetch";
+import { fetchJsonWithSignal } from "./utils/abortableFetch";
 
 // Last-known shell (theme preset + logo) cached on every successful site-config
 // load. The boot splash reads it synchronously so the first paint already
@@ -523,16 +523,27 @@ export default function App() {
         (s) => fetchJsonWithSignal<UserProfile>(`/api/profile/${phone}`, s),
         (s) => fetchJsonWithSignal<unknown>("/api/config/site", s),
       ];
-      const [itemsData, subsData, statsData, notifData, profileData, siteData] = await abortableAll(tasks, signal) as [unknown, unknown, unknown, unknown, unknown, unknown];
+      const results = await Promise.allSettled(tasks.map((task) => task(signal)));
       if (signal.aborted) return;
-      applyUserDataResults({
-        items: itemsData,
-        subs: subsData,
-        stats: statsData,
-        notifs: notifData,
+      const [itemsResult, subsResult, statsResult, notifResult, profileResult, siteResult] = results;
+      const userData: Record<string, unknown> = {};
+      if (itemsResult.status === "fulfilled") userData.items = itemsResult.value;
+      if (subsResult.status === "fulfilled") userData.subs = subsResult.value;
+      if (statsResult.status === "fulfilled") userData.stats = statsResult.value;
+      if (notifResult.status === "fulfilled") userData.notifs = notifResult.value;
+      applyUserDataResults(userData);
+      if (profileResult.status === "fulfilled" && profileResult.value) {
+        setUserProfile(profileResult.value as UserProfile);
+      }
+      if (siteResult.status === "fulfilled" && siteResult.value && !(siteResult.value as { error?: unknown }).error) {
+        setSiteConfig(siteResult.value);
+      }
+      const labels = ["catalog", "subscriptions", "system stats", "notifications", "profile", "site config"];
+      results.forEach((result, index) => {
+        if (result.status === "rejected" && (result.reason as Error)?.name !== "AbortError") {
+          console.warn(`Could not sync ${labels[index]}:`, result.reason);
+        }
       });
-      if (profileData) setUserProfile(profileData as UserProfile);
-      if (siteData && !(siteData as { error?: unknown }).error) setSiteConfig(siteData);
     } catch (e: unknown) {
       if ((e as Error)?.name === "AbortError") return;
       console.error("Failed to sync backend endpoints:", e);
