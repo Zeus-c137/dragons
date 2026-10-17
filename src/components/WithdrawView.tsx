@@ -211,7 +211,7 @@ export default function WithdrawView({
 
   if (paymentStatus !== "IDLE") {
     return (
-      <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] p-4 pt-4 min-h-[100dvh] space-y-4 select-none">
+      <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] p-4 pt-4 space-y-4 select-none">
 
         <div className="rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] p-8 text-center space-y-5 shadow-sm">
           {paymentStatus === "PENDING" ? (
@@ -251,7 +251,7 @@ export default function WithdrawView({
   }
 
   return (
-    <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] space-y-4 select-none p-4 pt-0 min-h-[100dvh]">
+    <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] space-y-4 select-none p-4 pt-0">
       <div className="flex justify-end">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/20 bg-[var(--theme-primary)]/8 px-3 py-1.5 text-[11px] font-bold text-[var(--theme-primary)]">
           <LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
