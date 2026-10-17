@@ -8,6 +8,7 @@ import { sanitizeSiteConfig } from "../utils/themeTokens";
 import { canonicalTypeOf, normalizeExternalReference } from "../utils/transactionMeta";
 import { dedupeCategories, normalizeVipActionUrl, normalizeVipTask } from "../utils/vip";
 import { getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmount, getRunTotalDays, isRunCycleFinished } from "../utils/runs";
+import { isValidUgandaPhone, normalizeUgandaPhone } from "../utils/ugandaPhone";
 
 
 export class DatabaseOperationError extends Error {
@@ -588,8 +589,13 @@ export async function registerUserProfile(data: any): Promise<any> {
   return { success: true, profile: newUser, ...newUser };
 }
 
-export async function loginUser(username: string, pass: string): Promise<UserProfile | null> {
-  const user = await getUserProfileByUsername(username);
+export async function loginUser(usernameOrPhone: string, pass: string): Promise<UserProfile | null> {
+  const identifier = usernameOrPhone.trim();
+  let user: UserProfile | null = null;
+  if (isValidUgandaPhone(identifier)) {
+    user = await getUserProfileByPhone(normalizeUgandaPhone(identifier));
+  }
+  if (!user) user = await getUserProfileByUsername(identifier);
   if (!user) return null;
   const { ok, needsRehash } = verifyPassword(user.password || "", pass);
   if (!ok) return null;

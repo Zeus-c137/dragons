@@ -86,6 +86,7 @@ import {
 } from "./src/server/db";
 import { verifyTelegramIdToken } from "./src/server/telegramAuth";
 import { normalizeExternalReference } from "./src/utils/transactionMeta";
+import { normalizeUgandaPhone } from "./src/utils/ugandaPhone";
 import { migratePreset as migratePresetServer, migrateCardStyle as migrateCardStyleServer, migrateFontFamily as migrateFontFamilyServer, sanitizeSiteConfig as sanitizeSiteConfigServer } from "./src/utils/themeTokens";
 
 // Ensure .env is loaded robustly in production iisnode and custom hosting environments (like SmarterASP)
@@ -520,7 +521,7 @@ const USERNAME_PATTERN = /^[a-zA-Z0-9_.-]{3,32}$/;
 const MAX_PASSWORD_LENGTH = 128;
 
 function normalizePhone(value: unknown): string {
-  return typeof value === "string" ? value.replace(/\s+/g, "").trim() : "";
+  return typeof value === "string" ? normalizeUgandaPhone(value) : "";
 }
 
 function logError(label: string, err: unknown) {
@@ -757,8 +758,8 @@ app.post("/api/auth/register", async (req, res) => {
     return res.status(400).json({ error: "Username must be 3–32 characters and use letters, numbers, dots, underscores, or hyphens." });
   }
 
-  if (normalizedPhone && !PHONE_PATTERN.test(normalizedPhone)) {
-    return res.status(400).json({ error: "Phone number must contain 9 or 10 digits." });
+  if (!PHONE_PATTERN.test(normalizedPhone)) {
+    return res.status(400).json({ error: "Enter a valid Ugandan phone number." });
   }
 
   if (password.length < 8 || password.length > MAX_PASSWORD_LENGTH) {
@@ -838,10 +839,10 @@ app.post("/api/auth/login", async (req, res) => {
   const { password } = req.body;
   
   if (!username || typeof password !== "string" || password.length === 0) {
-    return res.status(400).json({ error: "Enter your username and password." });
+    return res.status(400).json({ error: "Enter your username or phone number and password." });
   }
 
-  if (username.length > 64) return res.status(400).json({ error: "Username is too long." });
+  if (username.length > 64) return res.status(400).json({ error: "Username or phone number is too long." });
   if (password.length > MAX_PASSWORD_LENGTH) {
     return res.status(400).json({ error: "Password is too long." });
   }
@@ -849,7 +850,7 @@ app.post("/api/auth/login", async (req, res) => {
   try {
     const profile = await loginUser(username, password);
     if (!profile) {
-      return res.status(401).json({ success: false, error: "Username or password is incorrect." });
+      return res.status(401).json({ success: false, error: "Username, phone number, or password is incorrect." });
     }
     const config = await getSiteConfig();
     const secret = adminSessionSecret(config);

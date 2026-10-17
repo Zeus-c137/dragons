@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { BrandLogo } from "./BrandLogo";
 import { fixGitHubImageUrl } from "../utils/imageUtils";
 import { useReducedMotion } from "../hooks/useReducedMotion";
+import { formatUgandaPhoneInput, isValidUgandaPhone, normalizeUgandaPhone } from "../utils/ugandaPhone";
 
 interface AuthViewProps {
   onAuthSuccess: (profile: UserProfile) => void;
@@ -97,6 +98,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
   const reducedMotion = useReducedMotion();
 
   const [username, setUsername] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -247,12 +249,17 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
     e.preventDefault();
 
     if (!username.trim() || !password) {
-      toast.error("Please enter both username and password.");
+      toast.error(mode === "register" ? "Please enter a username and password." : "Please enter your username or phone number and password.");
       return;
     }
 
     if (mode === "register" && !USERNAME_PATTERN.test(username.trim())) {
       toast.error("Username must be 3–32 characters and use letters, numbers, dots, underscores, or hyphens.");
+      return;
+    }
+
+    if (mode === "register" && !isValidUgandaPhone(phone)) {
+      toast.error("Enter a valid Ugandan phone number.");
       return;
     }
 
@@ -267,7 +274,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
       const endpoint = mode === "register" ? "/api/auth/register" : "/api/auth/login";
       const payload =
         mode === "register"
-          ? { password, confirmPassword: password, inviteCode: inviteCode.trim().toUpperCase(), username: username.trim() }
+          ? { password, confirmPassword: password, inviteCode: inviteCode.trim().toUpperCase(), username: username.trim(), phone: normalizeUgandaPhone(phone) }
           : { username: username.trim(), password };
 
       const res = await fetch(endpoint, {
@@ -532,7 +539,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   Welcome back.
                 </h1>
                 <p className="mt-3 text-center text-[15px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
-                  Sign in to continue your collection.
+                  Sign in to continue your farm.
                 </p>
 
                 <form onSubmit={(e) => handleSubmit(e, "login")} className="mt-8 space-y-3.5">
@@ -542,8 +549,8 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                     required
                     autoComplete="username"
                     maxLength={64}
-                    aria-label="Username"
-                    placeholder="Username"
+                    aria-label="Username or phone number"
+                    placeholder="Username or phone number"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                   />
@@ -620,10 +627,10 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
             >
               <div className="auth-form-content">
                 <h1 className="mt-10 font-display font-black text-[clamp(2rem,5vw,2.6rem)] leading-[1.08] tracking-tight">
-                Start your collection.
+                Start your farm.
                 </h1>
                 <p className="mt-3 text-[15px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
-                Choose a username. Add payment details when you need them.
+                Choose a username, phone number, and password to get started.
                 </p>
 
                 <form onSubmit={(e) => handleSubmit(e, "register")} className="mt-8 space-y-3.5">
@@ -637,6 +644,18 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
+                />
+                <AuthField
+                  icon={<Phone className="w-5 h-5" />}
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  aria-label="Phone number"
+                  placeholder="07"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  onBlur={(e) => setPhone(formatUgandaPhoneInput(e.target.value))}
                 />
                 <div className="relative">
                   <AuthField
