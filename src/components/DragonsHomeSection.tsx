@@ -801,7 +801,7 @@ export default function DragonsHomeSection({
             <p className="text-[14px] font-black uppercase tracking-[0.18em] text-[var(--theme-primary)]">Hatching</p>
             <h2 id="egg-confirm-title" className="mt-2 font-display text-[25px] font-black leading-tight">{confirmingEgg.name}</h2>
             <p className="mt-2 text-[14px] leading-relaxed opacity-75">
-                  Your chick joins the flock immediately, and today&apos;s income is ready to collect. Feed it once per day; a new day starts at midnight. Each feed advances its {confirmingEgg.duration}-day cycle.
+                  Feed your chick once per day to earn daily income; Each feed advances its {confirmingEgg.duration}-day cycle.
             </p>
             <p className="mt-3 flex items-center gap-2 text-[14px] font-bold text-[var(--theme-primary)]">
               <Check className="h-4 w-4" aria-hidden="true" />
