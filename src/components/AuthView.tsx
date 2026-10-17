@@ -122,7 +122,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
         return response.json() as Promise<{ totalUsers?: unknown }>;
       })
       .then((stats) => {
-        const count = 18000 + (stats.totalUsers ? Number(stats.totalUsers) : 0); // Add 9000 to the count to make it look more impressive
+        const count = 300 + (stats.totalUsers ? Number(stats.totalUsers) : 0); // Add 9000 to the count to make it look more impressive
         if (Number.isFinite(count) && count >= 0) setPeopleCount(Math.floor(count));
       })
       .catch((error: unknown) => {
