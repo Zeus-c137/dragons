@@ -384,7 +384,7 @@ const SEO_FAQS: Array<{ q: string; a: string }> = [
   { q: "How do withdrawals work?", a: "Withdrawals come from your withdrawable balance, require at least one product, and are paid to MTN, Airtel or USDT. Fees and minimums are shown in the app before you confirm." },
   { q: "How do referrals earn?", a: "Share your invite link. You earn Level 1–4 commissions when invitees activate products, paid while the invitee keeps an active product." },
   { q: "What is the daily check-in?", a: "Open the app every day to claim a check-in bonus into your withdrawable balance. Longer streaks unlock bigger rewards." },
-  { q: "Do I need the app installed?", a: "No — the app works in the browser. You can also install it from your phone browser for faster access." },
+  { q: "Do I need the app installed?", a: "No, the app works in the browser. You can also install it from your phone browser for faster access." },
 ];
 
 // Private surfaces must never be indexed.

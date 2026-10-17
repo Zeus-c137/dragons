@@ -633,7 +633,16 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                 Choose a username, phone number, and password to get started.
                 </p>
 
-                <form onSubmit={(e) => handleSubmit(e, "register")} className="mt-8 space-y-3.5">
+                {regBonus > 0 && (
+                  <div className="relative mt-4 overflow-hidden rounded-2xl bg-[var(--theme-primary)]/10 px-3 py-2 tile-shimmer-5s">
+                    <p className="flex items-center gap-1.5 text-xs font-sans text-white">
+                      <Gift className="w-12 h-12 text-[var(--theme-primary)]" />
+                      Plus UGX {regBonus.toLocaleString()} Registration bonus upon first login.
+                    </p>
+                  </div>
+                )}
+
+                <form onSubmit={(e) => handleSubmit(e, "register")} className="mt-5 space-y-3.5">
                 <AuthField
                   icon={<User className="w-5 h-5" />}
                   type="text"
@@ -693,15 +702,6 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                     </p>
                   )}
                 </div>
-
-                {regBonus > 0 && (
-                  <div className="relative overflow-hidden rounded-2xl bg-[var(--theme-primary)]/10 px-3 py-2 tile-shimmer-5s">
-                    <p className="flex items-center gap-1.5 text-xs font-sans text-[var(--theme-text-muted)]">
-                      <Gift className="w-12 h-12 text-[var(--theme-primary)]" />
-                      Plus UGX {regBonus.toLocaleString()} Registration bonus upon first login.
-                    </p>
-                  </div>
-                )}
 
                 <div className="pt-3">
                   <PrimaryButton type="submit" disabled={isLoading}>

@@ -565,7 +565,7 @@ export default function App() {
   return (
     <ThemeProvider siteConfig={themeSeed}>
       {!isMainApp ? renderContent() : (
-      <div className="relative h-[100dvh] w-full bg-[var(--theme-bg)] text-[var(--theme-text)] font-sans selection:bg-blue-600/35 selection:text-white overflow-hidden flex items-center justify-center p-0 md:p-4">
+      <div className="user-app-viewport relative w-full bg-[var(--theme-bg)] text-[var(--theme-text)] font-sans selection:bg-blue-600/35 selection:text-white overflow-hidden flex items-center justify-center p-0 md:p-4">
       
 
       {/* Registration bonus handoff. */}
@@ -625,14 +625,14 @@ export default function App() {
 
       {/* Main application layout */}
       <div 
-        className="relative w-full max-w-xl md:max-w-3xl h-full md:h-[94vh] bg-[var(--theme-bg)] flex flex-col overflow-hidden z-10 font-[var(--theme-font-family)]"
+        className="user-app-frame relative w-full max-w-xl md:max-w-3xl h-full md:h-[94vh] min-h-0 bg-[var(--theme-bg)] flex flex-col overflow-hidden z-10 font-[var(--theme-font-family)]"
         style={{
           fontFamily: "var(--theme-font-family), 'Plus Jakarta Sans', sans-serif",
           fontSize: "var(--theme-font-base)",
         }}
       >
         
-        <header className="user-app-header sticky top-0 z-40 shrink-0">
+        <header className="user-app-header z-40 shrink-0">
           <div className="user-app-brand">
             <button
               type="button"
