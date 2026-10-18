@@ -45,19 +45,22 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
   const { formatCurrency } = useCurrency();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [txLoading, setTxLoading] = useState(false);
+  const [txError, setTxError] = useState("");
   const [historyFilter, setHistoryFilter] = useState<string>(initialFilter);
   const [catalog, setCatalog] = useState<any[]>([]);
 
   const fetchTxHistory = async () => {
     setTxLoading(true);
+    setTxError("");
     try {
-      const res = await fetch(`/api/profile/transactions/${phone}`);
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(data);
-      }
+      const res = await fetch(`/api/profile/transactions/${phone}`, { credentials: "same-origin" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Transaction history could not be loaded.");
+      setTransactions(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
+      setTransactions([]);
+      setTxError(err instanceof Error ? err.message : "Transaction history could not be loaded.");
     } finally {
       setTxLoading(false);
     }
@@ -182,7 +185,7 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
   };
 
   return (
-    <div className="transaction-history-view w-full flex-1 flex flex-col min-h-0 bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] border-0 rounded-none p-0">
+    <div className="transaction-history-view w-full min-h-full flex flex-col bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] border-0 rounded-none p-0">
       <div className="flex items-center justify-center py-5 shrink-0">
         <h1 className="text-xl sm:text-2xl font-display font-black tracking-tight text-[var(--theme-text)]">Transaction History</h1>
      
@@ -215,11 +218,17 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
       </div>
 
     
-      <div className="flex-1 overflow-y-auto overscroll-contain space-y-2 pb-8 scrollbar-none min-h-0">
+      <div className="flex-none space-y-2 pb-8">
         {txLoading ? (
           <div className="bg-transparent border border-white/10 rounded-[20px] p-10 flex flex-col items-center gap-2 backdrop-blur-[0px]">
             <Loader2 className="w-5 h-5 animate-spin text-[var(--theme-primary)]" />
             <span className="text-xs font-sans font-medium text-[var(--theme-text)] opacity-60">SYNCHRONIZING..</span>
+          </div>
+        ) : txError ? (
+          <div className="py-14 text-center" role="alert">
+            <Bell className="w-9 h-9 text-[var(--theme-text)] opacity-35 mx-auto mb-3" aria-hidden="true" />
+            <p className="text-xs font-sans font-semibold tracking-wide text-[var(--theme-text)]">History unavailable</p>
+            <p className="text-[11px] font-sans font-normal text-[var(--theme-text)] opacity-60 mt-1">{txError}</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-14 text-center">

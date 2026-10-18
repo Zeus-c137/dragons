@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Check, Coins, Copy, Info, Loader2, Share2, User2Icon, Users, X } from "lucide-react";
 import { useCurrency } from "@/src/currency";
+import { playCheckinSound, primeCheckinSound } from "@/src/utils/checkinSound";
 import {
   getLevelMetrics,
   getActiveLevelStats,
+  resolveInviteCode,
   buildInviteLink,
   shouldApplyConfig,
   toReferralList,
@@ -355,7 +357,7 @@ export default function ReferralView({ userProfile, siteConfig, onProfileChange,
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   useEffect(() => { setView(initialView); }, [initialView]);
   const [activeLevel, setActiveLevel] = useState<1 | 2 | 3 | 4>(1);
-  const inviteCode = userProfile.inviteCode || "";
+  const inviteCode = resolveInviteCode(userProfile.username, userProfile.phone, userProfile.inviteCode);
   const inviteLink = buildInviteLink(inviteCode);
   const levelMetrics = getLevelMetrics(stats, liveSiteConfig ?? siteConfig);
   const activeLevelStats = getActiveLevelStats(stats, activeLevel);
@@ -365,6 +367,7 @@ export default function ReferralView({ userProfile, siteConfig, onProfileChange,
   const closeHowItWorks = useCallback(() => setShowHowItWorks(false), []);
   const handleClaimRewards = useCallback(async () => {
     if (isClaiming || Number(userProfile.pendingReferralRewards) <= 0) return;
+    primeCheckinSound();
     setIsClaiming(true);
     try {
       const response = await fetch("/api/profile/referrals/claim", {
@@ -385,6 +388,7 @@ export default function ReferralView({ userProfile, siteConfig, onProfileChange,
         throw new Error("Your rewards were claimed, but the balance could not be refreshed. Please reload your account.");
       }
       onProfileChange(data.profile);
+      playCheckinSound();
       toast.success(`${formatCurrency(Number(data.claimed) || 0)} added to your balance.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not claim referral rewards.");

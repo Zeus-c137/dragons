@@ -973,14 +973,24 @@ export async function claimReferralRewards(phone: string): Promise<{ claimed: nu
       withdrawableBalance: sql`${schema.users.withdrawableBalance} + ${claimed}`,
       pendingReferralRewards: 0
     }).where(eq(schema.users.id, user.id));
-    await tx.update(schema.transactions).set({
-      status: "SUCCESSFUL",
-      mode: "manual"
-    }).where(and(
-      eq(schema.transactions.userId, user.id),
-      inArray(schema.transactions.type, ["referral_signup_bonus", "referral_level_income"]),
-      eq(schema.transactions.status, "CLAIMABLE")
-    ));
+    // Settle every pending referral row, including legacy `referral` rows.
+    // Older installs used the generic type, so filtering only the two current
+    // type names left those claims out of transaction history.
+    const userTransactions = await tx.select().from(schema.transactions)
+      .where(eq(schema.transactions.userId, user.id));
+    const referralTransactionIds = userTransactions
+      .filter((transaction) => {
+        const type = canonicalTypeOf(String(transaction.type), transaction.metadata) as string;
+        return String(transaction.status).toUpperCase() === "CLAIMABLE"
+          && (type === "referral_signup_bonus" || type === "referral_level_income");
+      })
+      .map((transaction) => transaction.id);
+    if (referralTransactionIds.length > 0) {
+      await tx.update(schema.transactions).set({
+        status: "SUCCESSFUL",
+        mode: "manual"
+      }).where(inArray(schema.transactions.id, referralTransactionIds));
+    }
   });
 
   await createNotification(
@@ -1232,10 +1242,33 @@ export async function getUserTransactions(phone: string): Promise<any[]> {
   const drizzleDb = getDb();
   if (drizzleDb) {
     try {
+      const userRows = await drizzleDb.select().from(schema.users).where(eq(schema.users.id, phone)).limit(1);
       list = await drizzleDb.select().from(schema.transactions).where(eq(schema.transactions.userId, phone));
+      // Before referral rows had dedicated type names, claimed income used
+      // the generic `referral` type. The old settlement query missed those
+      // rows. A zero pending balance proves those accumulated rewards have
+      // already been collected, so repair their ledger status when history is
+      // first loaded after that older claim.
+      if (Math.max(0, Number(userRows[0]?.pendingReferralRewards) || 0) === 0) {
+        const staleClaimedReferralIds = list
+          .filter((transaction) => String(transaction.type).toLowerCase() === "referral"
+            && String(transaction.status).toUpperCase() === "CLAIMABLE")
+          .map((transaction) => transaction.id);
+        if (staleClaimedReferralIds.length > 0) {
+          await drizzleDb.update(schema.transactions).set({ status: "SUCCESSFUL", mode: "manual" })
+            .where(inArray(schema.transactions.id, staleClaimedReferralIds));
+          const repairedIds = new Set(staleClaimedReferralIds);
+          list = list.map((transaction) => repairedIds.has(transaction.id)
+            ? { ...transaction, status: "SUCCESSFUL", mode: "manual" }
+            : transaction);
+        }
+      }
     } catch (err) {
       console.warn("[Database] getUserTransactions error:", err);
+      throw err;
     }
+  } else {
+    throw new Error("Transaction history is temporarily unavailable because the database is not connected.");
   }
   // Admin balance adjustments are audit-only: the ledger row exists for
   // admins, but users must never see it in their history.
