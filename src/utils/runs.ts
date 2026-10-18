@@ -322,6 +322,12 @@ export function msUntilPlatformMidnight(nowMs = Date.now()): number {
   return Math.max(0, 86400 * 1000 - elapsedSec * 1000 - (nowMs % 1000));
 }
 
+/** Friendly whole-hour countdown for the next feeding window. */
+export function getNextFeedingMessage(nowMs = Date.now()): string {
+  const hours = Math.max(1, Math.ceil(msUntilPlatformMidnight(nowMs) / (60 * 60 * 1000)));
+  return `This chick has been fed today. Come back in ${hours} ${hours === 1 ? "hour" : "hours"}.`;
+}
+
 /** Today on the platform calendar — matches dailyCheckin and ProfileView's todayStr. */
 export function getTodayKey(date = new Date()): string {
   return getPlatformDayKey(date);

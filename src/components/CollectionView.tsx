@@ -15,10 +15,13 @@ import type { Collectible, SubscribedNode, SubscriptionItem } from "../types";
 import { useCurrency } from "../currency";
 import { motion } from "motion/react";
 import { useReducedMotion } from "../hooks/useReducedMotion";
-import { formatClock, getRunClaimableReturns, getRunMinimumClaimAmount, getRunTotalDays, msUntilPlatformMidnight } from "../utils/runs";
+import { playCheckinSound, primeCheckinSound } from "../utils/checkinSound";
+import { celebrateFeed } from "../utils/feedCelebration";
+import { formatClock, getNextFeedingMessage, getRunClaimableReturns, getRunMinimumClaimAmount, getRunTotalDays, msUntilPlatformMidnight } from "../utils/runs";
 import tractor from "@/src/assets/svg/tractor.svg";
 import clockSvg from "@/src/assets/svg/clock.svg";
 import corn from "@/src/assets/svg/corn.svg";
+import priceTag from "@/src/assets/svg/price-tag.svg";
 
 const GROW_SPRING = { type: "spring", duration: 0.5, bounce: 0.15 } as const;
 
@@ -48,6 +51,8 @@ export default function CollectionView({
   const [swipeDir, setSwipeDir] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [feedingId, setFeedingId] = useState<string | null>(null);
+  const [shakingItemIds, setShakingItemIds] = useState<string[]>([]);
+  const [revealingItemId, setRevealingItemId] = useState<string | null>(null);
   const [collectingId, setCollectingId] = useState<string | null>(null);
   const [farmFilter, setFarmFilter] = useState<"growing" | "completed">("growing");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -79,8 +84,18 @@ export default function CollectionView({
     return () => window.clearInterval(timer);
   }, []);
 
-  const feedChicken = async (node: SubscribedNode) => {
+  const feedChicken = async (node: SubscribedNode, sourceRect: DOMRect) => {
     if (feedingId) return;
+    const minimumClaimAmount = getRunMinimumClaimAmount(node);
+    if (minimumClaimAmount <= 0) {
+      toast.info("This chicken is not configured to earn income.");
+      return;
+    }
+    if (getRunClaimableReturns(node, new Date()).amount < minimumClaimAmount) {
+      toast.info(getNextFeedingMessage());
+      return;
+    }
+    primeCheckinSound();
     setFeedingId(node.id);
     try {
       const res = await fetch("/api/subscriptions/claim", {
@@ -92,6 +107,15 @@ export default function CollectionView({
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || "Income could not be collected. Please try again.");
       onClaimSuccess(data.pointsClaimed, data.updatedPoints, node.id, data.lastClaimedDate, data.status, data.updatedWithdrawableBalance, data.daysFed);
+      setShakingItemIds((current) => [...new Set([...current, node.itemId])]);
+      window.setTimeout(() => setShakingItemIds((current) => current.filter((id) => id !== node.itemId)), 900);
+      const midpointFeed = Math.ceil(getRunTotalDays(node, products) / 2);
+      if (Number(node.daysFed || 0) < midpointFeed && Number(data.daysFed) >= midpointFeed) {
+        setRevealingItemId(node.itemId);
+        window.setTimeout(() => setRevealingItemId((current) => current === node.itemId ? null : current), 900);
+      }
+      if (!prefersReducedMotion) celebrateFeed([sourceRect]);
+      playCheckinSound();
       toast.success(`Fed ${data.itemName}.`);
     } catch (err: any) {
       toast.error(err.message || "Income could not be collected.");
@@ -260,24 +284,13 @@ export default function CollectionView({
 
   return (
     <div className="space-y-5 select-none bg-transparent text-[var(--theme-text)] p-1 relative">
-      {onBack ? (
-        <button type="button" onClick={onBack} className="flex items-center gap-2 text-xs font-extrabold opacity-70 hover:opacity-100 py-1.5 px-3 rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] shadow-sm cursor-pointer">
-          <ArrowLeft className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
-          <span>Back</span>
-        </button>
-      ) : null}
+     
 
-      <header className="flex items-center gap-3 rounded-[24px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/70 p-4">
-        <img src={tractor} alt="" aria-hidden="true" className="h-9 w-9 object-contain" />
-        <div>
-          <p className="text-[10px] font-sans font-black uppercase tracking-[0.16em] opacity-55">Growing and finished chickens</p>
-          <h1 className="font-display text-[22px] font-black leading-tight">My farm</h1>
-        </div>
-      </header>
-
+    
       <section aria-label={farmFilter === "growing" ? "Active chickens" : "Completed cycles"} className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-display text-[18px] font-black">{farmFilter === "growing" ? "Growing chickens" : "Completed cycles"}</h2>
+            
             <button
               type="button"
               onClick={() => setFarmFilter((current) => current === "growing" ? "completed" : "growing")}
@@ -311,22 +324,27 @@ export default function CollectionView({
               const mature = cycleFinished || daysFed >= Math.ceil(totalDays / 2);
               const artwork = mature ? node.dragonImageUrl : node.youngDragonImageUrl || node.dragonImageUrl;
               const progress = cycleFinished ? 100 : Math.min(100, Math.max(0, daysFed / totalDays * 100));
+              const product = products.find((entry) => entry.id === node.itemId);
               return (
-                <article key={node.id} className="overflow-hidden rounded-[24px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/75">
+                <article key={node.id} data-feed-card-item={node.itemId} className={`feed-celebration-card overflow-hidden rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/75 ${shakingItemIds.includes(node.itemId) ? "is-shaking" : ""}`}>
                   <div className="relative flex aspect-[1.5] items-center justify-center overflow-hidden bg-[var(--theme-primary)]/8 p-4">
-                    <img src={artwork} alt={`${node.itemName} ${mature ? "hen" : "chick"}`} loading="lazy" className="h-full w-full object-contain" />
-                    <span className="absolute bottom-3 left-3 rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[11px] font-black text-[var(--theme-primary)]">{dailyIncome > 0 ? Math.round((dailyIncome / Math.max(1, Number(node.amount))) * 100) : 0}% daily</span>
+                    <img src={artwork} alt={`${node.itemName} ${mature ? "hen" : "chick"}`} loading="lazy" className={`h-full w-full object-contain${revealingItemId === node.itemId ? " dragon-hatch-reveal" : ""}`} />
+                    <span className="absolute left-3 top-3 rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[11px] font-bold text-[var(--theme-text)]">{product?.category || "Chicken"}</span>
+                    <span className="absolute right-3 top-3 rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[11px] font-black text-[var(--theme-primary)] shadow-sm">{dailyIncome > 0 ? Math.round((dailyIncome / Math.max(1, Number(node.amount))) * 100) : 0}% daily</span>
                   </div>
                   <div className="space-y-2.5 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="min-w-0 truncate font-display text-[18px] font-black">{node.itemName}</h3>
-                      <p className="shrink-0 font-display text-[17px] font-black tabular-nums">{formatCurrency(node.amount)}</p>
+                      <p className="inline-flex shrink-0 items-center gap-1 font-display text-[17px] font-black tabular-nums">
+                        <img src={priceTag} alt="" aria-hidden="true" className="h-4 w-4 object-contain" />
+                        {formatCurrency(node.amount)}
+                      </p>
                     </div>
                     <div className="flex items-center justify-between text-[14px]">
                       <span className="inline-flex items-center gap-1.5 opacity-70"><Clock className="h-3.5 w-3.5" aria-hidden="true" /> Income per day</span>
                       <span className="font-display text-[17px] font-black tabular-nums">{formatCurrency(dailyIncome)}</span>
                     </div>
-                    <div className="space-y-2" aria-label={`Cycle progress: day ${cycleDay} of ${totalDays}`}>
+                    <div className={`feed-cycle-progress space-y-2 ${ready ? "is-ready" : ""}`} aria-label={`Cycle progress: day ${cycleDay} of ${totalDays}`}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           {!cycleFinished && !ready && dailyIncome > 0 ? <p className="text-left text-[12px] font-medium tabular-nums opacity-60">Next feeding in {formatClock(msUntilPlatformMidnight(nowMs))}</p> : null}
@@ -335,8 +353,11 @@ export default function CollectionView({
                           <img src={clockSvg} alt="" aria-hidden="true" className="h-3.5 w-3.5" /> Day {cycleDay}/{totalDays}
                         </span>
                       </div>
-                      <div role="progressbar" aria-label="Chicken cycle progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} className="h-2.5 overflow-hidden rounded-full bg-[var(--theme-card-border)]/70">
-                        <div className="h-full rounded-full bg-[var(--theme-primary)] transition-[width] duration-500" style={{ width: `${progress}%` }} />
+                      <div role="progressbar" aria-label="Chicken cycle progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} className="feed-corn-rail">
+                        <div className="feed-corn-fill" style={{ width: `${progress}%` }}>
+                          {Array.from({ length: 10 }, (_, kernelIndex) => <img key={kernelIndex} src={corn} alt="" aria-hidden="true" />)}
+                        </div>
+                        <img src={corn} alt="" aria-hidden="true" className={`feed-next-kernel ${ready ? "is-ready" : ""}`} style={{ left: `${Math.min(96, Math.max(4, progress))}%` }} />
                       </div>
                     </div>
                     {cycleFinished ? (
@@ -345,7 +366,10 @@ export default function CollectionView({
                         Collect hen
                       </button>
                     ) : (
-                      <button type="button" disabled={!ready || feedingId === node.id} onClick={() => void feedChicken(node)} className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-3 py-2.5 text-[13px] font-sans font-black disabled:cursor-not-allowed disabled:opacity-60 ${ready ? "bg-[var(--theme-primary)] text-[var(--theme-on-primary)]" : "bg-slate-300/70 text-slate-600 dark:bg-slate-700/70 dark:text-slate-300"}`}>
+                      <button type="button" disabled={feedingId === node.id} aria-disabled={!ready} onClick={(event) => {
+                        const card = event.currentTarget.closest<HTMLElement>("[data-feed-card-item]");
+                        void feedChicken(node, card?.getBoundingClientRect() || event.currentTarget.getBoundingClientRect());
+                      }} aria-label={ready ? "Feed chick. Today's income is ready to collect." : "Feed chick. Tap to see when it can be fed again."} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[var(--theme-accent)]/45 bg-[var(--theme-accent)]/12 px-5 py-2.5 text-[13px] font-black text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-accent)]/20 active:scale-[0.98] disabled:cursor-wait disabled:opacity-60">
                         {feedingId === node.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <img src={corn} alt="" className="h-5 w-5 object-contain" />}
                         Feed chick
                       </button>

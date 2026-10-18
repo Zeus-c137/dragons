@@ -13,7 +13,6 @@ import CollectionView from "./components/CollectionView";
 import DepositView from "./components/DepositView";
 import WithdrawView from "./components/WithdrawView";
 import ReferralView from "./components/ReferralView";
-import ProfileView from "./components/ProfileView";
 import BindAccountView from "./components/BindAccountView";
 import GuideView from "./components/GuideView";
 import ChatView from "./components/ChatView";
@@ -42,6 +41,60 @@ import { motion, AnimatePresence } from "motion/react";
 import { ThemeProvider } from "./context/ThemeContext";
 import { useGatedInterval, useAbortSignal } from "./hooks/useGatedInterval";
 import { fetchJsonWithSignal } from "./utils/abortableFetch";
+
+type AnimatedWithdrawableBalanceProps = {
+  amount: number;
+  formatCurrency: (amount: number) => string;
+  animationRequestId: number;
+};
+
+function AnimatedWithdrawableBalance({ amount, formatCurrency, animationRequestId }: AnimatedWithdrawableBalanceProps) {
+  const target = Math.max(0, Math.trunc(Number(amount) || 0));
+  const [displayedAmount, setDisplayedAmount] = useState(target);
+  const displayedAmountRef = useRef(target);
+  const previousTargetRef = useRef(target);
+  const previousAnimationRequestRef = useRef(animationRequestId);
+
+  useEffect(() => {
+    const previousTarget = previousTargetRef.current;
+    const shouldCountUp = animationRequestId !== previousAnimationRequestRef.current;
+    previousTargetRef.current = target;
+    previousAnimationRequestRef.current = animationRequestId;
+    if (target === previousTarget && !shouldCountUp) return;
+    if (!shouldCountUp || target <= displayedAmountRef.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      displayedAmountRef.current = target;
+      setDisplayedAmount(target);
+      return;
+    }
+
+    const startAmount = displayedAmountRef.current;
+    let frame = 0;
+    const delay = window.setTimeout(() => {
+      const startTime = performance.now();
+      const animate = (now: number) => {
+        const progress = Math.min(1, (now - startTime) / 680);
+        const easedProgress = 1 - Math.pow(1 - progress, 3);
+        const nextAmount = Math.floor(startAmount + (target - startAmount) * easedProgress);
+        displayedAmountRef.current = nextAmount;
+        setDisplayedAmount(nextAmount);
+        if (progress < 1) {
+          frame = window.requestAnimationFrame(animate);
+        } else {
+          displayedAmountRef.current = target;
+          setDisplayedAmount(target);
+        }
+      };
+      frame = window.requestAnimationFrame(animate);
+    }, 720);
+
+    return () => {
+      window.clearTimeout(delay);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [target, animationRequestId]);
+
+  return <>{formatCurrency(displayedAmount)}</>;
+}
 
 // Last-known shell (theme preset + logo) cached on every successful site-config
 // load. The boot splash reads it synchronously so the first paint already
@@ -161,12 +214,13 @@ export default function App() {
       cancelled = true;
     };
   }, [isAdminRoute]);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "catalog" | "income" | "collection" | "history" | "referral" | "chat" | "profile" | "account" | "guide" | "deposit" | "withdraw" | "alerts" | "vip" | "streaks">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "catalog" | "income" | "collection" | "history" | "referral" | "chat" | "account" | "guide" | "deposit" | "withdraw" | "alerts" | "vip" | "streaks">("dashboard");
+  const [withdrawableCountUpId, setWithdrawableCountUpId] = useState(0);
   const [historyFilterRequest, setHistoryFilterRequest] = useState<string | null>(null);
   const [journeyStage, setJourneyStage] = useState<string | null>(null);
   const [referralView, setReferralView] = useState<"overview" | "team">("overview");
-  const [streaksReturn, setStreaksReturn] = useState<"dashboard" | "profile">("dashboard");
-  const [collectionReturn, setCollectionReturn] = useState<"dashboard" | "income" | "profile">("profile");
+  const streaksReturn: "dashboard" = "dashboard";
+  const [collectionReturn, setCollectionReturn] = useState<"dashboard" | "income">("dashboard");
   const [siteConfig, setSiteConfig] = useState<any>(null);
   // Synchronous boot seed: theme + logo from the last successful load so the
   // splash and first paint already match the active preset.
@@ -291,7 +345,7 @@ export default function App() {
     }
   }, [siteConfig]);
 
-  const [previousTab, setPreviousTab] = useState<"dashboard" | "catalog" | "income" | "collection" | "history" | "referral" | "chat" | "profile" | "account" | "guide" | "deposit" | "withdraw" | "alerts" | "vip" | "streaks">("dashboard");
+  const [previousTab, setPreviousTab] = useState<"dashboard" | "catalog" | "income" | "collection" | "history" | "referral" | "chat" | "account" | "guide" | "deposit" | "withdraw" | "alerts" | "vip" | "streaks">("dashboard");
 
   useEffect(() => {
     if (activeTab !== "history" && !(activeTab === "alerts" && previousTab === "history")) {
@@ -313,7 +367,6 @@ export default function App() {
     if (!vipVisible) setJourneyStage(null);
   }, [vipVisible]);
   const [chatRoomDefault, setChatRoomDefault] = useState<"shared" | "admin" | "ai">("shared");
-  const [autoOpenWithdraw, setAutoOpenWithdraw] = useState(false);
   const [preselectedGpuRent, setPreselectedGpuRent] = useState<SubscriptionItem | null>(null);
   
   // Data lists
@@ -495,6 +548,7 @@ export default function App() {
 
   // Callback on manual points claims harvesting succeed
   const handleClaimSuccess = (_pointsEarned: number, newBalance: number, subId: string, lastClaimedDate: string, status: "active" | "expired", newWithdrawableBalance?: number, daysFed?: number) => {
+    setWithdrawableCountUpId((current) => current + 1);
     setUserProfile((current) => current ? {
       ...current,
       points: Math.max(Number(current.points) || 0, Number(newBalance) || 0),
@@ -652,7 +706,13 @@ export default function App() {
               className="user-app-balance user-app-withdrawable-balance appearance-none border-0 bg-transparent p-0 text-inherit cursor-pointer transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-on-primary)]"
             >
               <span className="inline-flex items-center justify-end gap-1.5"><Wallet className="h-3.5 w-3.5" aria-hidden="true" />Withdrawable</span>
-              <strong>{formatCurrency(Number(userProfile.withdrawableBalance) || 0)}</strong>
+              <strong>
+                <AnimatedWithdrawableBalance
+                  amount={Number(userProfile.withdrawableBalance) || 0}
+                  formatCurrency={formatCurrency}
+                  animationRequestId={withdrawableCountUpId}
+                />
+              </strong>
             </button>
           </div>
         </header>
@@ -675,11 +735,15 @@ export default function App() {
                   profile={userProfile}
                   activeNodes={activeNodes}
                   items={items}
+                  siteConfig={siteConfig}
                   onSubscribeSuccess={handleSubscribeSuccess}
                   onClaimSuccess={handleClaimSuccess}
                   onProfileUpdate={handleProfileChange}
                   onNavigateToCollection={() => { setCollectionReturn("dashboard"); setActiveTab("collection"); }}
                   onNavigateToHistory={() => { setHistoryFilterRequest("all"); setActiveTab("history"); }}
+                  onNavigateToAccount={() => setActiveTab("account")}
+                  onNavigateToDeposit={() => setActiveTab("deposit")}
+                  onNavigateToWithdraw={() => setActiveTab("withdraw")}
                   onSignOut={handleLogout}
                 />
               </motion.div>
@@ -763,9 +827,9 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="w-full flex-1 min-h-0 h-full flex flex-col overflow-hidden"
+                className="w-full flex-1 min-h-0 h-full overflow-x-hidden overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
-                <TransactionHistoryView phone={userProfile.id} siteConfig={siteConfig} initialFilter={historyFilterRequest || "all"} onBack={() => setActiveTab("profile")} />
+              <TransactionHistoryView phone={userProfile.id} siteConfig={siteConfig} initialFilter={historyFilterRequest || "all"} onBack={() => setActiveTab("dashboard")} />
               </motion.div>
             )}
 
@@ -859,7 +923,7 @@ export default function App() {
                 transition={{ duration: 0.12 }}
                 className="w-full flex-1 min-h-0 h-full flex flex-col overflow-hidden"
               >
-                <VipTasksPage phone={userProfile.id} siteConfig={siteConfig} userProfile={userProfile} onClaimSuccess={handleProfileChange} onBack={() => setActiveTab("profile")} focusStage={journeyStage} />
+                <VipTasksPage phone={userProfile.id} siteConfig={siteConfig} userProfile={userProfile} onClaimSuccess={handleProfileChange} onBack={() => setActiveTab("dashboard")} focusStage={journeyStage} />
               </motion.div>
             )}
 
@@ -874,7 +938,7 @@ export default function App() {
               >
                 <GuideView
                   siteConfig={siteConfig}
-                  onBack={() => setActiveTab("profile")}
+                  onBack={() => setActiveTab("dashboard")}
                 />
               </motion.div>
             )}
@@ -891,47 +955,6 @@ export default function App() {
                 <BindAccountView
                   userProfile={userProfile!}
                   onProfileUpdate={handleProfileChange}
-                  onBack={() => setActiveTab("profile")}
-                  onGoHome={() => setActiveTab("dashboard")}
-                />
-              </motion.div>
-            )}
-
-            {(activeTab === "profile" || (activeTab === "alerts" && previousTab === "profile")) && (
-              <motion.div
-                key="prof"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.12 }}
-                className="w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              >
-                <ProfileView
-                  userProfile={userProfile!}
-                  siteConfig={siteConfig}
-                  activeNodes={activeNodes}
-                  notifications={userNotifications}
-                  onProfileUpdate={handleProfileChange}
-                  onNavigateToDeposit={() => setActiveTab("deposit")}
-                  onNavigateToWithdraw={() => setActiveTab("withdraw")}
-                  onNavigateToTeamRevenue={() => { setReferralView("team"); setActiveTab("referral"); }}
-                  autoOpenWithdraw={autoOpenWithdraw}
-                  onCloseAutoWithdraw={() => setAutoOpenWithdraw(false)}
-                  onNavigate={(tab, room) => {
-                    if (tab === "streaks") {
-                      setStreaksReturn("profile");
-                    }
-                    if (tab === "referral") {
-                      setReferralView("overview");
-                    }
-                    if (room) {
-                      setChatRoomDefault(room);
-                    } else {
-                      setChatRoomDefault("shared");
-                    }
-                    setActiveTab(tab as any);
-                  }}
-                  onLogout={handleLogout}
                 />
               </motion.div>
             )}
@@ -988,10 +1011,10 @@ export default function App() {
               type="button"
               onClick={() => setActiveTab("dashboard")}
               aria-current={activeTab === "dashboard" ? "page" : undefined}
-              className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "dashboard" ? "is-active" : ""}`}
+              className={`user-app-nav-item flex flex-col items-center gap-0 py-1 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "dashboard" ? "is-active" : ""}`}
             >
-              <span className="grid place-items-center w-10 h-10">
-                <img src={homeNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
+              <span className="grid place-items-center w-11 h-11">
+                <img src={homeNavIcon} alt="" aria-hidden="true" className="h-11 w-11 object-contain" />
               </span>
               <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">The Farm</span>
               
@@ -1000,10 +1023,10 @@ export default function App() {
               type="button"
               onClick={() => { setCollectionReturn("dashboard"); setActiveTab("collection"); }}
               aria-current={activeTab === "collection" ? "page" : undefined}
-              className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "collection" ? "is-active" : ""}`}
+              className={`user-app-nav-item flex flex-col items-center gap-0 py-1 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "collection" ? "is-active" : ""}`}
             >
-              <span className="grid place-items-center w-10 h-10">
-                <img src={tractorNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
+              <span className="grid place-items-center w-11 h-11">
+                <img src={tractorNavIcon} alt="" aria-hidden="true" className="h-11 w-11 object-contain" />
               </span>
               <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">My chicks</span>
             </button>
@@ -1011,10 +1034,10 @@ export default function App() {
               type="button"
               onClick={() => setActiveTab("deposit")}
               aria-current={activeTab === "deposit" ? "page" : undefined}
-              className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "deposit" ? "is-active" : ""}`}
+              className={`user-app-nav-item flex flex-col items-center gap-0 py-1 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "deposit" ? "is-active" : ""}`}
             >
-              <span className="grid h-10 w-10 place-items-center">
-                <img src={depositNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
+              <span className="grid h-11 w-11 place-items-center">
+                <img src={depositNavIcon} alt="" aria-hidden="true" className="h-11 w-11 object-contain" />
               </span>
               <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Top up</span>
            
@@ -1024,10 +1047,10 @@ export default function App() {
               type="button"
               onClick={() => setActiveTab("withdraw")}
               aria-current={activeTab === "withdraw" ? "page" : undefined}
-              className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "withdraw" ? "is-active" : ""}`}
+              className={`user-app-nav-item flex flex-col items-center gap-0 py-1 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "withdraw" ? "is-active" : ""}`}
             >
-              <span className="grid h-10 w-10 place-items-center">
-                <img src={withdrawNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
+              <span className="grid h-11 w-11 place-items-center">
+                <img src={withdrawNavIcon} alt="" aria-hidden="true" className="h-11 w-11 object-contain" />
               </span>
               <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Withdraw</span>
               
@@ -1037,10 +1060,10 @@ export default function App() {
               type="button"
               onClick={() => { setReferralView("overview"); setActiveTab("referral"); }}
               aria-current={activeTab === "referral" ? "page" : undefined}
-              className={`user-app-nav-item flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "referral" ? "is-active" : ""}`}
+              className={`user-app-nav-item flex flex-col items-center gap-0 py-1 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "referral" ? "is-active" : ""}`}
             >
-              <span className="grid place-items-center w-12 h-12">
-                <img src={inviteNavIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />  
+              <span className="grid place-items-center w-11 h-11">
+                <img src={inviteNavIcon} alt="" aria-hidden="true" className="h-11 w-11 object-contain" />
               </span>
               <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Friends</span>
             

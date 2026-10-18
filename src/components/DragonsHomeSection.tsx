@@ -1,36 +1,48 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRight, Award, Check, Clock, Egg, Gift, Loader2, LogOut, Menu, Timer, X } from "lucide-react";
+import { ArrowRight, Award, Check, Clock, Egg, ExternalLink, Gift, Loader2, LogOut, Timer, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 import { useCurrency } from "../currency";
 import { useGatedInterval } from "../hooks/useGatedInterval";
-import type { Collectible, SubscribedNode, SubscriptionItem, UserProfile } from "../types";
+import type { Collectible, SiteConfig, SubscribedNode, SubscriptionItem, UserProfile } from "../types";
 import { readApiJson } from "../utils/api";
-import { formatClock, getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmount, getRunTotalDays, msUntilPlatformMidnight } from "../utils/runs";
+import { formatClock, getNextFeedingMessage, getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmount, getRunTotalDays, msUntilPlatformMidnight } from "../utils/runs";
 import { isDragonEggProduct } from "../utils/dragons";
+import { usePwaInstall } from "../hooks/usePwaInstall";
+import { celebrateFeed } from "../utils/feedCelebration";
 
 import egg from "@/src/assets/svg/celestial.png";
 import clockSvg from "@/src/assets/svg/clock.svg";
 import corn from "@/src/assets/svg/corn.svg";
 import priceTag from "@/src/assets/svg/price-tag.svg";
+import barnMenuIcon from "@/src/assets/svg/barn-menu.svg";
 import tractor from "@/src/assets/svg/tractor.svg";
 import transactionsIcon from "@/src/assets/svg/transactions.svg";
 import giftCodeIcon from "@/src/assets/svg/giftcode.svg";
+import accountDetailsIcon from "@/src/assets/svg/profile.svg";
+import downloadAppIcon from "@/src/assets/svg/download.svg";
+import communityIcon from "@/src/assets/svg/community.svg";
+import depositIcon from "@/src/assets/svg/deposit.svg";
+import withdrawIcon from "@/src/assets/svg/withdraw.svg";
+import { playCheckinSound, primeCheckinSound } from "../utils/checkinSound";
 
 type CoinFlight = { id: number; startX: number; startY: number; dx: number; dy: number; delay: number };
 const CLAIM_SUCCESS_TOAST_DELAY_MS = 1800;
-
 type Props = {
   isActive: boolean;
   profile: UserProfile;
   activeNodes: SubscribedNode[];
   items: SubscriptionItem[];
+  siteConfig?: SiteConfig | null;
   onSubscribeSuccess: (node: SubscribedNode, amount: number) => void;
   onClaimSuccess: (amount: number, balance: number, subId: string, lastClaimedDate: string, status: "active" | "expired", withdrawableBalance?: number, daysFed?: number) => void;
   onProfileUpdate: (profile: UserProfile) => void;
   onNavigateToCollection: () => void;
   onNavigateToHistory: () => void;
+  onNavigateToAccount: () => void;
+  onNavigateToDeposit: () => void;
+  onNavigateToWithdraw: () => void;
   onSignOut: () => void;
 };
 
@@ -43,15 +55,20 @@ export default function DragonsHomeSection({
   profile,
   activeNodes,
   items,
+  siteConfig,
   onSubscribeSuccess,
   onClaimSuccess,
   onProfileUpdate,
   onNavigateToCollection,
   onNavigateToHistory,
+  onNavigateToAccount,
+  onNavigateToDeposit,
+  onNavigateToWithdraw,
   onSignOut,
 }: Props) {
   const { formatCurrency } = useCurrency();
   const prefersReducedMotion = useReducedMotion();
+  const { canInstall, isInstalled, install } = usePwaInstall();
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [confirmingEgg, setConfirmingEgg] = useState<SubscriptionItem | null>(null);
   const [openingEggId, setOpeningEggId] = useState<string | null>(null);
@@ -60,15 +77,39 @@ export default function DragonsHomeSection({
   const [claimingNodeId, setClaimingNodeId] = useState<string | null>(null);
   const [isFeedingAll, setIsFeedingAll] = useState(false);
   const [coinFlights, setCoinFlights] = useState<CoinFlight[]>([]);
+  const [shakingItemIds, setShakingItemIds] = useState<string[]>([]);
   const [collectibles, setCollectibles] = useState<Collectible[]>([]);
   const [collectiblesLoaded, setCollectiblesLoaded] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [communityOpen, setCommunityOpen] = useState(false);
   const [homeGiftCodeOpen, setHomeGiftCodeOpen] = useState(false);
   const [giftCodeValue, setGiftCodeValue] = useState("");
   const [isRedeemingGiftCode, setIsRedeemingGiftCode] = useState(false);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const closeSettingsButtonRef = useRef<HTMLButtonElement>(null);
   const homeGiftCodeInputRef = useRef<HTMLInputElement>(null);
+  const communityChannels = [
+    { label: "WhatsApp community", href: siteConfig?.whatsappLink, icon: "/whatsapp.svg" },
+    { label: "Telegram community", href: siteConfig?.telegramLink, icon: "/telegram.svg" },
+  ].filter((channel): channel is { label: string; href: string; icon: string } => Boolean(channel.href?.trim()));
+
+  const handleDownloadApp = async () => {
+    setSettingsMenuOpen(false);
+    if (isInstalled) {
+      toast.info("App is already installed on this device.");
+      return;
+    }
+    if (canInstall) {
+      if (!(await install())) toast.info("Installation was cancelled.");
+      return;
+    }
+    toast.info("Use your browser menu and choose Install app or Add to Home screen.");
+  };
+
+  const triggerCardShake = (itemIds: string[]) => {
+    setShakingItemIds(itemIds);
+    window.setTimeout(() => setShakingItemIds([]), 900);
+  };
 
   const animateCoinsToBalance = (sourceRect: DOMRect, count = 9) => {
     if (prefersReducedMotion) return;
@@ -88,6 +129,12 @@ export default function DragonsHomeSection({
       delay: index * 0.045,
     })));
     window.setTimeout(() => setCoinFlights([]), 1150);
+  };
+
+  const celebrateFeeding = (sourceRects: DOMRect[], feedAll = false) => {
+    playCheckinSound();
+    if (sourceRects.length === 0 || prefersReducedMotion) return;
+    celebrateFeed(sourceRects, feedAll);
   };
 
   const toastAfterClaimAnimation = (message: string) => {
@@ -226,6 +273,7 @@ export default function DragonsHomeSection({
   const handleOpenEgg = async () => {
     if (!confirmingEgg || openingEggId) return;
     const egg = confirmingEgg;
+    primeCheckinSound();
     setOpeningEggId(egg.id);
     try {
       const response = await fetch("/api/items/subscribe", {
@@ -238,6 +286,7 @@ export default function DragonsHomeSection({
       if (!data.success || !data.subscription) throw new Error("The egg could not be opened. Please try again.");
       setConfirmingEgg(null);
       onSubscribeSuccess(data.subscription, egg.amount);
+      playCheckinSound();
       setHatchingEggId(egg.id);
       const hatchDuration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 2200;
       await new Promise((resolve) => window.setTimeout(resolve, hatchDuration));
@@ -259,8 +308,8 @@ export default function DragonsHomeSection({
     const cycleFinished = String(node.status).toLowerCase() !== "active" || nodeEndMs !== null && now.getTime() >= nodeEndMs;
     const minimumClaimAmount = getRunMinimumClaimAmount(node);
     if (accrued < minimumClaimAmount) {
-      toast.error(minimumClaimAmount > 0
-        ? "You have already fed this chick today. Come back tomorrow."
+      toast.info(minimumClaimAmount > 0
+        ? getNextFeedingMessage()
         : "This chicken is not configured to earn income.");
       return;
     }
@@ -269,6 +318,7 @@ export default function DragonsHomeSection({
       return;
     }
 
+    primeCheckinSound();
     setClaimingNodeId(node.id);
     try {
       const response = await fetch("/api/subscriptions/claim", {
@@ -290,7 +340,8 @@ export default function DragonsHomeSection({
       if (!data.success) throw new Error("Income could not be collected. Please try again.");
       onClaimSuccess(data.pointsClaimed, data.updatedPoints, node.id, data.lastClaimedDate, data.status, data.updatedWithdrawableBalance, data.daysFed);
       matureChickenAfterFeed(node, data.daysFed);
-      animateCoinsToBalance(sourceRect);
+      triggerCardShake([node.itemId]);
+      celebrateFeeding([sourceRect]);
       toastAfterClaimAnimation(`${formatCurrency(data.pointsClaimed)} fed to your hen from ${data.itemName}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Income could not be collected.");
@@ -311,6 +362,7 @@ export default function DragonsHomeSection({
       return;
     }
 
+    primeCheckinSound();
     setIsFeedingAll(true);
     try {
       const results = await Promise.allSettled(ready.map(async (node) => {
@@ -333,12 +385,22 @@ export default function DragonsHomeSection({
         if (!data.success) throw new Error("Income could not be collected.");
         onClaimSuccess(data.pointsClaimed, data.updatedPoints, node.id, data.lastClaimedDate, data.status, data.updatedWithdrawableBalance, data.daysFed);
         matureChickenAfterFeed(node, data.daysFed);
-        return Number(data.pointsClaimed) || 0;
+        return { itemId: node.itemId, amount: Number(data.pointsClaimed) || 0 };
       }));
-      const collected = results.reduce((sum, result) => sum + (result.status === "fulfilled" ? result.value : 0), 0);
+      const successfulClaims = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+      const collected = successfulClaims.reduce((sum, result) => sum + result.amount, 0);
       const failures = results.filter((result) => result.status === "rejected").length;
       if (collected > 0) {
-        animateCoinsToBalance(sourceRect, 14);
+        const successfulItemIds = successfulClaims.map((claim) => claim.itemId);
+        triggerCardShake(successfulItemIds);
+        const readyItemIds = new Set(successfulItemIds);
+        const cardRects = Array.from(document.querySelectorAll<HTMLElement>("[data-feed-card-item]"))
+          .filter((card) => {
+            const rect = card.getBoundingClientRect();
+            return readyItemIds.has(card.dataset.feedCardItem || "") && rect.bottom > 0 && rect.top < window.innerHeight;
+          })
+          .map((card) => card.getBoundingClientRect());
+        celebrateFeeding(cardRects.length ? cardRects : [sourceRect], true);
         toastAfterClaimAnimation(`${formatCurrency(collected)} fed to your hens.`);
       }
       if (failures > 0) toast.error("Some chickens could not be fed. Please try again.");
@@ -403,15 +465,13 @@ export default function DragonsHomeSection({
           onClick={() => setSettingsMenuOpen(true)}
           className="absolute right-0 top-0 grid h-10 w-10 place-items-center rounded-2xl border border-white/20 bg-[var(--theme-card-bg)]/70 text-[var(--theme-text)] shadow-lg backdrop-blur-xl transition-colors hover:bg-[var(--theme-card-bg)]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]"
         >
-          <Menu className="h-5 w-5" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          aria-label="Open My farm"
-          onClick={onNavigateToCollection}
-          className="absolute right-0 top-12 grid h-10 w-10 place-items-center rounded-2xl border border-white/20 bg-[var(--theme-card-bg)]/70 text-[var(--theme-primary)] shadow-lg backdrop-blur-xl transition-colors hover:bg-[var(--theme-card-bg)]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]"
-        >
-          <img src={tractor} alt="" aria-hidden="true" className="h-7 w-7 object-contain" />
+          <span className="relative grid h-8 w-8 place-items-center">
+            <img src={barnMenuIcon} alt="" aria-hidden="true" className="h-8 w-8 object-contain" />
+            <span className="absolute -right-1 -top-0.5 flex h-3 w-3" aria-hidden="true">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--theme-primary)] opacity-70 motion-reduce:animate-none" />
+              <span className="relative inline-flex h-3 w-3 rounded-full border-2 border-[var(--theme-card-bg)] bg-[var(--theme-primary)]" />
+            </span>
+          </span>
         </button>
       </div>
 
@@ -432,7 +492,7 @@ export default function DragonsHomeSection({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: prefersReducedMotion ? 0.01 : 0.24, ease: [0.32, 0.72, 0, 1] }}
+            transition={{ duration: prefersReducedMotion ? 0.01 : 0.42, ease: [0.22, 1, 0.36, 1] }}
             className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 sm:p-5"
             onClick={() => setSettingsMenuOpen(false)}
           >
@@ -444,11 +504,18 @@ export default function DragonsHomeSection({
               initial={{ opacity: 0, x: prefersReducedMotion ? 0 : "100vw" }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: prefersReducedMotion ? 0 : "100vw" }}
-              transition={{ duration: prefersReducedMotion ? 0.01 : 0.3, ease: [0.32, 0.72, 0, 1] }}
-              className="w-full max-w-sm rounded-[26px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] p-4 text-[var(--theme-text)] shadow-2xl"
+              transition={{ duration: prefersReducedMotion ? 0.01 : 0.48, ease: [0.22, 1, 0.36, 1] }}
+              className="max-h-[min(84dvh,40rem)] w-full max-w-md overflow-y-auto rounded-[30px] border-2 border-[var(--theme-accent)]/30 bg-[var(--theme-card-bg)] p-4 text-[var(--theme-text)] shadow-2xl sm:p-5"
             >
-              <div className="mb-2 flex items-center justify-between gap-3 px-1">
-                <h2 id="home-settings-title" className="font-display text-lg font-black">Quick menu</h2>
+              <div className="relative mb-4 overflow-hidden rounded-[24px] border border-[var(--theme-primary)]/25 bg-[var(--theme-primary)]/10 px-4 py-3">
+                <div className="pointer-events-none absolute -right-5 -top-8 h-28 w-28 rounded-full bg-[var(--theme-accent)]/15 blur-2xl" />
+                <div className="relative flex items-center gap-3">
+                  <img src={barnMenuIcon} alt="" aria-hidden="true" className="h-12 w-12 shrink-0 object-contain drop-shadow-md" />
+                  <div className="min-w-0 flex-1">
+   
+                    <h2 id="home-settings-title" className="font-display text-xl font-black leading-tight">Farm menu</h2>
+                    <p className="mt-0.5 text-xs font-semibold opacity-60">Choose an adventure</p>
+                  </div>
                 <button
                   ref={closeSettingsButtonRef}
                   type="button"
@@ -462,25 +529,96 @@ export default function DragonsHomeSection({
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
+                </div>
               </div>
-              <nav aria-label="Home menu" className="grid gap-1">
-                <button type="button" onClick={() => { setSettingsMenuOpen(false); onNavigateToHistory(); }} className="flex min-h-12 items-center gap-3 rounded-2xl px-3 text-left font-bold hover:bg-[var(--theme-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]">
-                  <img src={transactionsIcon} alt="" aria-hidden="true" className="h-6 w-6 object-contain" />
+              <nav aria-label="Home menu" className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => { setSettingsMenuOpen(false); onNavigateToHistory(); }} className="group flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/70 px-2 py-3 text-center font-bold shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--theme-accent)]/60 hover:bg-[var(--theme-accent)]/10 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]">
+                  <img src={transactionsIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain transition-transform group-hover:scale-105" />
                   <span>My transactions</span>
                 </button>
-                <button type="button" onClick={() => { setSettingsMenuOpen(false); onNavigateToCollection(); }} className="flex min-h-12 items-center gap-3 rounded-2xl px-3 text-left font-bold hover:bg-[var(--theme-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]">
-                  <img src={tractor} alt="" aria-hidden="true" className="h-6 w-6 object-contain" />
+                <button type="button" onClick={() => { setSettingsMenuOpen(false); onNavigateToCollection(); }} className="group flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/70 px-2 py-3 text-center font-bold shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--theme-accent)]/60 hover:bg-[var(--theme-accent)]/10 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]">
+                  <img src={tractor} alt="" aria-hidden="true" className="h-10 w-10 object-contain transition-transform group-hover:scale-105" />
                   <span>My farm</span>
                 </button>
-                <button type="button" onClick={() => { setSettingsMenuOpen(false); setHomeGiftCodeOpen(true); }} className="flex min-h-12 items-center gap-3 rounded-2xl px-3 text-left font-bold hover:bg-[var(--theme-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]">
-                  <img src={giftCodeIcon} alt="" aria-hidden="true" className="h-6 w-6 object-contain" />
+                <button type="button" onClick={() => { setSettingsMenuOpen(false); onNavigateToAccount(); }} className="group flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/70 px-2 py-3 text-center font-bold shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--theme-accent)]/60 hover:bg-[var(--theme-accent)]/10 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]">
+                  <img src={accountDetailsIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain transition-transform group-hover:scale-105" />
+                  <span>Account details</span>
+                </button>
+                <button type="button" onClick={() => { setSettingsMenuOpen(false); onNavigateToDeposit(); }} className="group flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/70 px-2 py-3 text-center font-bold shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--theme-accent)]/60 hover:bg-[var(--theme-accent)]/10 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]">
+                  <img src={depositIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain transition-transform group-hover:scale-105" />
+                  <span>Top up</span>
+                </button>
+                <button type="button" onClick={() => { setSettingsMenuOpen(false); onNavigateToWithdraw(); }} className="group flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/70 px-2 py-3 text-center font-bold shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--theme-accent)]/60 hover:bg-[var(--theme-accent)]/10 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]">
+                  <img src={withdrawIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain transition-transform group-hover:scale-105" />
+                  <span>Withdraw</span>
+                </button>
+                <button type="button" onClick={() => { setSettingsMenuOpen(false); setCommunityOpen(true); }} className="group flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/70 px-2 py-3 text-center font-bold shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--theme-accent)]/60 hover:bg-[var(--theme-accent)]/10 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]">
+                  <img src={communityIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain transition-transform group-hover:scale-105" />
+                  <span>Community</span>
+                </button>
+                {!isInstalled ? (
+                  <button type="button" onClick={() => void handleDownloadApp()} className="group flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/70 px-2 py-3 text-center font-bold shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--theme-accent)]/60 hover:bg-[var(--theme-accent)]/10 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]">
+                    <img src={downloadAppIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain transition-transform group-hover:scale-105" />
+                    <span>Download app</span>
+                  </button>
+                ) : null}
+                <button type="button" onClick={() => { setSettingsMenuOpen(false); setHomeGiftCodeOpen(true); }} className="group flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/70 px-2 py-3 text-center font-bold shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--theme-accent)]/60 hover:bg-[var(--theme-accent)]/10 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]">
+                  <img src={giftCodeIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain transition-transform group-hover:scale-105" />
                   <span>Gift code</span>
                 </button>
-                <button type="button" onClick={() => { setSettingsMenuOpen(false); onSignOut(); }} className="flex min-h-12 items-center gap-3 rounded-2xl px-3 text-left font-bold text-rose-500 hover:bg-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500">
-                  <LogOut className="h-5 w-5" aria-hidden="true" />
+                <button type="button" onClick={() => { setSettingsMenuOpen(false); onSignOut(); }} className="group col-span-2 flex min-h-14 items-center justify-center gap-3 rounded-[20px] border border-rose-500/20 bg-rose-500/5 px-3 text-center font-bold text-rose-500 transition-colors hover:bg-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500">
+                  <LogOut className="h-8 w-8" aria-hidden="true" />
                   <span>Sign out</span>
                 </button>
               </nav>
+            </motion.section>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {communityOpen ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0.01 : 0.42, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 sm:p-5"
+            onClick={() => setCommunityOpen(false)}
+          >
+            <motion.section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="community-title"
+              initial={{ opacity: 0, x: prefersReducedMotion ? 0 : 32, scale: prefersReducedMotion ? 1 : 0.98 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: prefersReducedMotion ? 0 : 20, scale: prefersReducedMotion ? 1 : 0.98 }}
+              transition={{ duration: prefersReducedMotion ? 0.01 : 0.48, ease: [0.22, 1, 0.36, 1] }}
+              onClick={(event) => event.stopPropagation()}
+              className="relative flex max-h-[min(84dvh,36rem)] w-full max-w-md flex-col overflow-y-auto rounded-[30px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] p-5 text-[var(--theme-text)] shadow-2xl"
+            >
+              <div className="flex items-center justify-between gap-4 border-b border-[var(--theme-card-border)] pb-4">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--theme-primary)]">Stay updated.</p>
+                  <h2 id="community-title" className="mt-1 font-display text-xl font-black">Our community</h2>
+                </div>
+                <button type="button" onClick={() => setCommunityOpen(false)} aria-label="Close community" className="grid h-10 w-10 place-items-center rounded-xl hover:bg-[var(--theme-bg)]">
+                  <X className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
+              <p className="mt-4 text-sm leading-relaxed opacity-70">Join the official channels for updates, support, and community rewards.</p>
+              <div className="mt-5 grid gap-2">
+                {communityChannels.map((channel) => (
+                  <a key={channel.label} href={channel.href} target="_blank" rel="noopener noreferrer" className="flex min-h-14 items-center gap-3 rounded-2xl border border-[var(--theme-card-border)] px-3 transition-colors hover:bg-[var(--theme-bg)]">
+                    <img src={channel.icon} alt="" aria-hidden="true" className="h-7 w-7 object-contain" />
+                    <span className="flex-1 font-bold">{channel.label}</span>
+                    <ExternalLink className="h-4 w-4 opacity-50" aria-hidden="true" />
+                  </a>
+                ))}
+                {communityChannels.length === 0 ? (
+                  <p className="rounded-2xl border border-dashed border-[var(--theme-card-border)] px-4 py-6 text-sm leading-relaxed opacity-65">Community channels have not been configured yet.</p>
+                ) : null}
+              </div>
             </motion.section>
           </motion.div>
         ) : null}
@@ -492,7 +630,7 @@ export default function DragonsHomeSection({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: prefersReducedMotion ? 0.01 : 0.24, ease: [0.32, 0.72, 0, 1] }}
+            transition={{ duration: prefersReducedMotion ? 0.01 : 0.42, ease: [0.22, 1, 0.36, 1] }}
             className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 sm:p-5"
             onClick={() => setHomeGiftCodeOpen(false)}
           >
@@ -501,10 +639,10 @@ export default function DragonsHomeSection({
               aria-modal="true"
               aria-labelledby="home-gift-code-title"
               onClick={(event) => event.stopPropagation()}
-              initial={{ opacity: 0, x: prefersReducedMotion ? 0 : "100vw" }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: prefersReducedMotion ? 0 : "100vw" }}
-              transition={{ duration: prefersReducedMotion ? 0.01 : 0.3, ease: [0.32, 0.72, 0, 1] }}
+              initial={{ opacity: 0, x: prefersReducedMotion ? 0 : 32, scale: prefersReducedMotion ? 1 : 0.98 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: prefersReducedMotion ? 0 : 20, scale: prefersReducedMotion ? 1 : 0.98 }}
+              transition={{ duration: prefersReducedMotion ? 0.01 : 0.48, ease: [0.22, 1, 0.36, 1] }}
               className="relative w-full max-w-md overflow-hidden rounded-[30px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] text-[var(--theme-text)] shadow-2xl"
             >
               <button
@@ -632,7 +770,12 @@ export default function DragonsHomeSection({
               const minimumClaimAmount = ownedNode ? getRunMinimumClaimAmount(ownedNode) : 0;
               const isFeedReady = Boolean(claimable && minimumClaimAmount > 0 && claimable.amount >= minimumClaimAmount);
               return (
-                <article key={egg.id} className="overflow-hidden rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/75">
+                <article
+                  key={egg.id}
+                  data-feed-card-item={egg.id}
+                  className={`feed-celebration-card overflow-hidden rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/75 ${shakingItemIds.includes(egg.id) ? "is-shaking" : ""}`}
+                  style={{ "--feed-stagger": `${Math.min(index, 5) * 30}ms` } as React.CSSProperties}
+                >
                   <div className={`relative flex aspect-[1.5] items-center justify-center overflow-hidden p-4 ${dragonOwned ? "bg-[var(--theme-primary)]/8" : "bg-[var(--theme-primary)]/6"}`}>
                     <img
                       src={isHatching ? egg.eggImageUrl : dragonOwned ? activeDragonArtwork : egg.eggImageUrl}
@@ -689,11 +832,11 @@ export default function DragonsHomeSection({
                           </span>
                           <span className="font-display text-[17px] font-black tabular-nums text-[var(--theme-primary)]">{formatCurrency(ownedNode.dailyYield)}</span>
                         </div>
-                        <div className="space-y-2" aria-label={`Cycle progress: day ${currentCycleDay} of ${totalDays}`}>
+                        <div className={`feed-cycle-progress space-y-2 ${isFeedReady ? "is-ready" : ""}`} aria-label={`Cycle progress: day ${currentCycleDay} of ${totalDays}`}>
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0 flex-1">
                               {minimumClaimAmount > 0 && claimable.amount === 0 ? (
-                                <p className="text-left text-[12px] font-medium tabular-nums text-[var(--theme-text)] opacity-60">
+                                <p className="text-left text-[12px] font-medium tabular-nums text-[var(--theme-primary)] opacity-90">
                                   Next feeding in {formatClock(msUntilPlatformMidnight(nowMs))}
                                 </p>
                               ) : null}
@@ -712,21 +855,34 @@ export default function DragonsHomeSection({
                             aria-valuemin={0}
                             aria-valuemax={100}
                             aria-valuenow={Math.round(cycleProgress)}
-                            className="h-2.5 overflow-hidden rounded-full bg-[var(--theme-card-border)]/70"
+                            className="feed-corn-rail"
                           >
-                            <div className="h-full rounded-full bg-[var(--theme-primary)] transition-[width] duration-500" style={{ width: `${cycleProgress}%` }} />
+                            <div className="feed-corn-fill" style={{ width: `${cycleProgress}%` }}>
+                              {Array.from({ length: 10 }, (_, kernelIndex) => (
+                                <img key={kernelIndex} src={corn} alt="" aria-hidden="true" />
+                              ))}
+                            </div>
+                            <img
+                              src={corn}
+                              alt=""
+                              aria-hidden="true"
+                              className={`feed-next-kernel ${isFeedReady ? "is-ready" : ""}`}
+                              style={{ left: `${Math.min(96, Math.max(4, cycleProgress))}%` }}
+                            />
                           </div>
                         </div>
                         <button
                           type="button"
-                          onClick={(event) => void handleClaimIncome(ownedNode, event.currentTarget.getBoundingClientRect())}
+                          onClick={(event) => {
+                            const card = event.currentTarget.closest<HTMLElement>("[data-feed-card-item]");
+                            void handleClaimIncome(ownedNode, card?.getBoundingClientRect() || event.currentTarget.getBoundingClientRect());
+                          }}
                           disabled={claimingNodeId === ownedNode.id || isFeedingAll}
+                          aria-disabled={!isFeedReady}
                           aria-label={isFeedReady
                             ? "Feed chick. Today's income is ready to collect."
-                            : "Today's feed has been claimed. come back tomorrow."}
-                          className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-3 py-2.5 text-[13px] font-sans font-black transition-colors duration-200 disabled:cursor-not-allowed ${isFeedReady
-                            ? "bg-[var(--theme-primary)] text-[var(--theme-on-primary)] hover:brightness-105"
-                            : "bg-slate-300/70 text-slate-600 dark:bg-slate-700/70 dark:text-slate-300"}`}
+                            : "Feed chick. Tap to see when it can be fed again."}
+                          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[var(--theme-accent)]/45 bg-[var(--theme-accent)]/12 px-5 py-2.5 text-[13px] font-black text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-accent)]/20 active:scale-[0.98] disabled:cursor-wait disabled:opacity-60"
                         >
                           {claimingNodeId === ownedNode.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <img src={corn} alt="" className="h-5 w-5 object-contain" />}
                           Feed chick
