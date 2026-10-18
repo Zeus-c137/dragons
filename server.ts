@@ -1052,12 +1052,13 @@ app.post("/api/profile/withdraw", async (req, res) => {
 // Progress and rewards are calculated server-side; both endpoints require the
 // signed user session created during login.
 app.get("/api/profile/vip-tasks/:phone", async (req, res) => {
+  const userId = String(req.params.phone || "").trim();
   const authenticatedPhone = await getAuthenticatedUserPhone(req);
-  if (!authenticatedPhone || authenticatedPhone !== normalizePhone(req.params.phone)) {
+  if (!authenticatedPhone || authenticatedPhone !== userId) {
     return res.status(401).json({ error: "Please sign in again to view your milestones." });
   }
   try {
-    const board = await getVipTaskboard(req.params.phone);
+    const board = await getVipTaskboard(userId);
     res.json(board);
   } catch (error: any) {
     logError("[Milestones] load error:", error);
@@ -1072,8 +1073,9 @@ app.post("/api/profile/vip-tasks/claim", async (req, res) => {
     return res.status(400).json({ error: "Choose a task or journey stage to claim." });
   }
 
+  const userId = String(phone || "").trim();
   const authenticatedPhone = await getAuthenticatedUserPhone(req);
-  if (!authenticatedPhone || authenticatedPhone !== normalizePhone(phone)) {
+  if (!authenticatedPhone || authenticatedPhone !== userId) {
     return res.status(401).json({ error: "Please sign in again before claiming this reward." });
   }
 
@@ -1089,7 +1091,7 @@ app.post("/api/profile/vip-tasks/claim", async (req, res) => {
       const result = await verifyVipTask(authenticatedPhone, String(taskId));
       return res.json(result);
     }
-    const result = await claimTierReward(phone, String(category));
+    const result = await claimTierReward(userId, String(category));
     res.json(result);
   } catch (error: any) {
     logError("Claim milestone error:", error);
@@ -1099,8 +1101,9 @@ app.post("/api/profile/vip-tasks/claim", async (req, res) => {
 
 app.post("/api/profile/vip-tasks/verify", async (req, res) => {
   const { phone, taskId } = req.body || {};
+  const userId = String(phone || "").trim();
   const authenticatedPhone = await getAuthenticatedUserPhone(req);
-  if (!authenticatedPhone || authenticatedPhone !== normalizePhone(phone)) {
+  if (!authenticatedPhone || authenticatedPhone !== userId) {
     return res.status(401).json({ error: "Please sign in again before verifying a task." });
   }
   try {
@@ -1692,12 +1695,15 @@ app.post("/api/profile/deposit", async (req, res) => {
 // Fetch non-simulated persistent user notification logs
 app.get("/api/profile/notifications/:phone", async (req, res) => {
   try {
-    const phone = normalizePhone(req.params.phone);
+    // Profile IDs are the values stored in the session and used by the client.
+    // Do not run them through phone normalization: current account IDs are
+    // random hex strings, so normalization turns them into unrelated digits.
+    const userId = String(req.params.phone || "").trim();
     const authenticatedPhone = await getAuthenticatedUserPhone(req);
-    if (!authenticatedPhone || authenticatedPhone !== phone) {
+    if (!authenticatedPhone || authenticatedPhone !== userId) {
       return res.status(401).json({ error: "Please sign in again to view alert history." });
     }
-    const logs = await getUserNotifications(phone);
+    const logs = await getUserNotifications(userId);
     res.json(logs);
   } catch (error: any) {
     logError("Fetch notifications list exception:", error);
@@ -1708,12 +1714,13 @@ app.get("/api/profile/notifications/:phone", async (req, res) => {
 // Fetch non-simulated user transactions
 app.get("/api/profile/transactions/:phone", async (req, res) => {
   try {
-    const phone = normalizePhone(req.params.phone);
+    // The route parameter is a profile ID, not a phone number.
+    const userId = String(req.params.phone || "").trim();
     const authenticatedPhone = await getAuthenticatedUserPhone(req);
-    if (!authenticatedPhone || authenticatedPhone !== phone) {
+    if (!authenticatedPhone || authenticatedPhone !== userId) {
       return res.status(401).json({ error: "Please sign in again to view transaction history." });
     }
-    const list = await getUserTransactions(phone);
+    const list = await getUserTransactions(userId);
     res.json(list);
   } catch (error: any) {
     logError("Fetch transactions exception:", error);

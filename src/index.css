@@ -300,8 +300,8 @@ body {
 .user-app-bottom-nav {
   width: calc(100% - 0.5rem);
   max-width: 42rem;
-  margin: 0 auto calc(0.5rem + env(safe-area-inset-bottom));
-  padding: 0.5rem 0.5rem 0.375rem;
+  margin: 0 auto calc(0.25rem + env(safe-area-inset-bottom));
+  padding: 0.25rem 0.375rem;
   border: 1px solid color-mix(in srgb, var(--theme-on-primary) 24%, transparent);
   border-radius: 1rem;
   background: color-mix(in srgb, var(--theme-primary) 78%, transparent);
@@ -379,6 +379,93 @@ body {
     clip-path: polygon(7% 0, 100% 0, 100% 100%, 0 100%);
   }
 
+}
+
+.feed-celebration-card {
+  position: relative;
+  transform-origin: 50% 72%;
+}
+
+.feed-celebration-card.is-shaking {
+  animation: feed-card-shake 520ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: var(--feed-stagger, 0ms);
+}
+
+.feed-corn-rail {
+  position: relative;
+  height: 1rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-card-border) 78%, transparent);
+}
+
+.feed-corn-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  overflow: hidden;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--theme-primary) 20%, transparent);
+  transition: width 360ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.feed-corn-fill img {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 1rem;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.16));
+}
+
+.feed-next-kernel {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 1.25rem;
+  height: 1.25rem;
+  object-fit: contain;
+  filter: grayscale(1);
+  opacity: 0.45;
+  transform: translate(-50%, -50%);
+  transition: opacity 180ms ease-out, filter 180ms ease-out;
+}
+
+.feed-next-kernel.is-ready {
+  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--theme-primary) 28%, transparent));
+  opacity: 0.9;
+}
+
+.feed-cycle-progress.is-ready .feed-corn-rail::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(110deg, transparent 34%, rgba(255, 255, 255, 0.18) 50%, transparent 66%);
+  background-size: 260% 100%;
+  opacity: 0.32;
+  content: "";
+  animation: feed-ready-shimmer 4.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes feed-ready-shimmer {
+  from { background-position: 135% 0; }
+  to { background-position: -135% 0; }
+}
+
+@keyframes feed-card-shake {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  24% { transform: translateX(-2px) rotate(-0.2deg); }
+  48% { transform: translateX(2px) rotate(0.2deg); }
+  72% { transform: translateX(-1px) rotate(-0.1deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-corn-fill,
+  .feed-next-kernel { transition: none; }
+  .feed-cycle-progress.is-ready .feed-corn-rail::after,
+  .feed-celebration-card.is-shaking { animation: none; }
 }
 
 .dark {

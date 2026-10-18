@@ -1,5 +1,6 @@
 // TODO: flagged untested — add minimal src/utils/referral.test.ts and src/hooks/useClipboard.test.ts once vitest configured
 import type { ReferralStat, SiteConfig } from "@/src/types";
+import { normalizeUgandaPhone } from "./ugandaPhone";
 
 export type LevelMetric = {
   level: 1 | 2 | 3 | 4;
@@ -7,6 +8,17 @@ export type LevelMetric = {
   earned: number;
   pct: number;
 };
+
+export function resolveInviteCode(username?: string | null, phone?: string | null, storedCode?: string | null): string {
+  const cleanUsername = String(username || "").trim();
+  const cleanCode = String(storedCode || "").trim();
+  const normalizedPhone = normalizeUgandaPhone(String(phone || ""));
+  const isPhone = (value: string) => Boolean(normalizedPhone) && normalizeUgandaPhone(value) === normalizedPhone;
+
+  if (cleanUsername && !isPhone(cleanUsername)) return cleanUsername;
+  if (cleanCode && !isPhone(cleanCode)) return cleanCode;
+  return cleanUsername || cleanCode;
+}
 
 export const LEVEL_FALLBACK_PCT: Record<number, number> = {
   1: 15,
