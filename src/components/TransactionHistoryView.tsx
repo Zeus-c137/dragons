@@ -242,6 +242,18 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
             const isPositive = isPositiveTransaction(tx.type, tx.metadata);
             const { fee, payout } = getWithdrawalDisplayAmounts(tx);
             const amount = meta.canon === "withdrawal" ? payout : (tx.amount||0);
+            const showStatus = meta.canon === "deposit" || meta.canon === "withdrawal";
+            const status = String(tx.status || "").toUpperCase();
+            const statusLabel = isSuccessfulStatus(status)
+              ? "Successful"
+              : status === "FAILED" || status === "REJECTED"
+                ? "Failed"
+                : "Pending";
+            const statusClass = statusLabel === "Successful"
+              ? "text-emerald-400"
+              : statusLabel === "Failed"
+                ? "text-rose-400"
+                : "text-amber-400";
             const showFee = meta.canon === "withdrawal" && fee>0;
             const level = meta.isReferralLevel ? meta.level : undefined;
             const txMetadata = asMetadataRecord(tx.metadata);
@@ -290,6 +302,7 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
                 </div>
                 <div className="text-right shrink-0 flex flex-col justify-center">
                   <p className={`text-[18px] sm:text-base font-display font-black tracking-tight leading-tight ${isPositive?"text-[var(--theme-primary)]":"text-[var(--theme-text)]"}`}>{isPositive?"+":"-"} {formatCurrency(amount)}</p>
+                  {showStatus && <p className={`mt-1 text-[11px] font-semibold leading-none ${statusClass}`}>{statusLabel}</p>}
                   {siteConfig?.usdtRate && (tx.operator==="USDT"||String(tx.usdtAddress||"").startsWith("T")||String(tx.phone||"").startsWith("T")) && <p className="text-[12px] font-sans font-medium text-[var(--theme-primary)] mt-1">≈ ${(amount/ siteConfig.usdtRate).toFixed(2)}</p>}
                 </div>
               </div>

@@ -82,8 +82,8 @@ export const GUIDE_SECTIONS: { title: string; body: string[] }[] = [
     title: "App installation",
     body: [
       "Tap Profile, then Install App on your phone.",
-      "The installed app enables update checks.",
-      "Check Profile for software updates anytime.",
+      "Cash Dragons checks for updates in the background.",
+      "Ready updates install when you leave the app.",
     ],
   },
   {

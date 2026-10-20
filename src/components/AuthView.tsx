@@ -69,7 +69,7 @@ function AuthField({
       </span>
       <input
         {...props}
-        className={`w-full pl-12 pr-12 py-4 bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] rounded-2xl text-[var(--theme-text)] placeholder:text-[var(--theme-text-muted)] text-[15px] font-sans font-medium outline-none transition-colors focus:border-[var(--theme-primary)] select-text ${className ?? ""}`}
+        className={`w-full pl-11 pr-11 py-3 bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] rounded-xl text-[var(--theme-text)] placeholder:text-[var(--theme-text-muted)] text-[15px] font-sans font-medium outline-none transition-colors focus:border-[var(--theme-primary)] select-text ${className ?? ""}`}
       />
     </div>
   );
@@ -542,7 +542,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   Sign in to continue your farm.
                 </p>
 
-                <form onSubmit={(e) => handleSubmit(e, "login")} className="mt-8 space-y-3.5">
+                <form onSubmit={(e) => handleSubmit(e, "login")} className="mt-7 space-y-2.5">
                   <AuthField
                     icon={<User className="w-5 h-5" />}
                     type="text"
@@ -642,7 +642,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   </div>
                 )}
 
-                <form onSubmit={(e) => handleSubmit(e, "register")} className="mt-5 space-y-3.5">
+                <form onSubmit={(e) => handleSubmit(e, "register")} className="mt-5 space-y-2.5">
                 <AuthField
                   icon={<User className="w-5 h-5" />}
                   type="text"
