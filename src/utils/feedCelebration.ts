@@ -20,7 +20,7 @@ export function celebrateFeed(sourceRects: DOMRect[], feedAll = false): void {
   const targetRect = balance.getBoundingClientRect();
   const targetX = targetRect.left + targetRect.width / 2;
   const targetY = targetRect.top + targetRect.height / 2;
-  const piecesPerCard = feedAll ? 2 : 4;
+  const piecesPerCard = feedAll ? 40 : 60;
 
   sourceRects.slice(0, 12).forEach((sourceRect, sourceIndex) => {
     const count = piecesPerCard;
@@ -31,7 +31,7 @@ export function celebrateFeed(sourceRects: DOMRect[], feedAll = false): void {
       const dx = targetX - startX;
       const dy = targetY - startY;
       const fan = (pieceIndex - (count - 1) / 2) * 5;
-      const delay = sourceIndex * 35 + pieceIndex * (feedAll ? 55 : 75);
+      const delay = sourceIndex * 35 + pieceIndex * (feedAll ? 45 : 30);
 
       image.src = corn;
       image.alt = "";

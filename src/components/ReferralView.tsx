@@ -84,7 +84,7 @@ function OverviewView({
        
       </section>
 
-      <section aria-label="Your referral link" className="flex items-center gap-2 rounded-[24px] border border-white/15 bg-[var(--theme-card-bg)]/40 p-3 backdrop-blur-[20px] backdrop-saturate-[180%]">
+      <section aria-label="Your referral link" className="invite-link-shimmer -mx-1 flex items-center gap-1.5 rounded-[4px] px-2 py-2 backdrop-blur-[20px] backdrop-saturate-[180%]">
         <p className="min-w-0 flex-1 select-all break-all text-[14px] leading-relaxed text-[var(--theme-text)]">{inviteLink || "N/A"}</p>
         <div className="flex shrink-0 items-center gap-1">
           <button
@@ -112,15 +112,15 @@ function OverviewView({
         <button
           type="button"
           onClick={onViewTeam}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--theme-primary)] px-4 py-2.5 text-[12px] font-sans font-black text-[var(--theme-on-primary)] shadow-lg shadow-black/10 ring-1 ring-white/30 transition-transform active:scale-[0.98]"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-sm bg-[var(--theme-primary)] px-4 py-2.5 text-[12px] font-sans font-black text-[var(--theme-on-primary)] shadow-lg shadow-black/10 ring-1 ring-white/30 transition-transform active:scale-[0.98]"
         >
           <User2Icon className="h-4 w-4" aria-hidden="true" />
           My invites
         </button>
       </div>
 
-      <section aria-label="Referral summary" className="grid grid-cols-2 divide-x divide-white/10 rounded-[24px] border border-white/10 bg-[var(--theme-card-bg)]/40 p-4 backdrop-blur-[20px] backdrop-saturate-[180%]">
-        <div className="flex flex-col items-center gap-1.5 px-2 text-center">
+      <section aria-label="Referral summary" className="-mx-1 grid grid-cols-2 divide-x divide-white/10 rounded-[24px] border border-white/10 bg-[var(--theme-card-bg)]/40 p-3 backdrop-blur-[20px] backdrop-saturate-[180%]">
+        <div className="flex flex-col items-center gap-1.5 px-1 text-center">
          
           {isLoading ? (
             <div className="h-6 w-24 animate-pulse rounded bg-[var(--theme-card-border)]/40" />
@@ -129,7 +129,7 @@ function OverviewView({
           )}
           <p className="text-[16px] font-sans text-black">Referral income</p>
         </div>
-        <div className="flex flex-col items-center gap-1.5 px-2 text-center">
+        <div className="flex flex-col items-center gap-1.5 px-1 text-center">
         
           <p className="font-display text-[22px] font-black tabular-nums text-black">{isLoading ? "—" : directInvites}</p>
           <p className="text-[16px] font-sans text-black">Friends referred</p>
@@ -442,7 +442,7 @@ export default function ReferralView({ userProfile, siteConfig, onProfileChange,
     team: <InviteTeamView stats={stats} isLoading={isLoading} activeLevel={activeLevel} onActiveLevelChange={setActiveLevel as (l: 1 | 2 | 3 | 4) => void} activeLevelStats={activeLevelStats} siteConfig={liveSiteConfig ?? siteConfig} pendingReferralRewards={Number(userProfile.pendingReferralRewards) || 0} isClaiming={isClaiming} onClaimRewards={() => void handleClaimRewards()} />,
   };
   return (
-    <div className="min-h-full w-full space-y-4 rounded-[28px]  p-4 pb-16 text-[var(--theme-on-primary)]">
+    <div className="min-h-full w-full space-y-4 rounded-[28px] px-3 py-4 pb-16 text-[var(--theme-on-primary)]">
       {view !== "overview" && (
         <button type="button" onClick={goBack} className="inline-flex items-center gap-2 rounded-full px-2 py-1.5 text-xs font-semibold text-[var(--theme-text)] opacity-65 transition-opacity hover:opacity-100">
           <ArrowLeft className="h-3.5 w-3.5 text-[var(--theme-primary)]" />

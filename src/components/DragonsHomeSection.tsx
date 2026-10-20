@@ -455,17 +455,18 @@ export default function DragonsHomeSection({
         </AnimatePresence>,
         document.body
       ) : null}
-      <div className="sticky top-2 z-40 ml-auto -mb-[88px] h-[88px] w-11">
+      <div className="sticky -top-1 z-40 ml-auto -mb-[88px] h-[88px] w-[126px] -translate-x-2.5 -translate-y-[5px]">
         <button
           ref={settingsButtonRef}
           type="button"
-          aria-label="Open home menu"
+          aria-label="Open farm menu"
           aria-haspopup="dialog"
           aria-expanded={settingsMenuOpen}
           onClick={() => setSettingsMenuOpen(true)}
-          className="absolute right-0 top-0 grid h-10 w-10 place-items-center rounded-2xl border border-white/20 bg-[var(--theme-card-bg)]/70 text-[var(--theme-text)] shadow-lg backdrop-blur-xl transition-colors hover:bg-[var(--theme-card-bg)]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]"
+          className="absolute right-0 top-0 inline-flex h-10 items-center gap-1.5 rounded-2xl border border-white/20 bg-[var(--theme-card-bg)]/70 px-2 text-[var(--theme-text)] shadow-lg backdrop-blur-xl transition-colors hover:bg-[var(--theme-card-bg)]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]"
         >
-          <span className="relative grid h-8 w-8 place-items-center">
+          <span className="whitespace-nowrap text-[11px] font-bold">Farm menu</span>
+          <span className="relative grid h-8 w-8 shrink-0 place-items-center">
             <img src={barnMenuIcon} alt="" aria-hidden="true" className="h-8 w-8 object-contain" />
             <span className="absolute -right-1 -top-0.5 flex h-3 w-3" aria-hidden="true">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--theme-primary)] opacity-70 motion-reduce:animate-none" />
@@ -476,14 +477,12 @@ export default function DragonsHomeSection({
       </div>
 
       <header className="space-y-1 justify-center text-left flex flex-col px-1">
-        <div className="relative flex min-h-8 items-center justify-center px-10">
+        <div className="relative flex min-h-8 items-left justify-start px-10">
           <p className="text-[10px] font-sans font-black uppercase tracking-[0.18em] text-[var(--theme-primary)]">
             {profile.username?.trim() ? `${profile.username.trim()}’s chicken farm` : "Chicken farm"}
           </p>
         </div>
-        <h1 className="max-w-[28rem] text-left font-display text-[18px] font-black leading-tight tracking-tight text-[var(--theme-text)]">
-          Hatch eggs and watch your chicken grow as you earn!
-        </h1>
+      
       </header>
 
       <AnimatePresence>
@@ -493,7 +492,7 @@ export default function DragonsHomeSection({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: prefersReducedMotion ? 0.01 : 0.42, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 sm:p-5"
+            className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/60 p-2 sm:p-4"
             onClick={() => setSettingsMenuOpen(false)}
           >
             <motion.section
@@ -505,16 +504,16 @@ export default function DragonsHomeSection({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: prefersReducedMotion ? 0 : "100vw" }}
               transition={{ duration: prefersReducedMotion ? 0.01 : 0.48, ease: [0.22, 1, 0.36, 1] }}
-              className="max-h-[min(84dvh,40rem)] w-full max-w-md overflow-y-auto rounded-[30px] border-2 border-[var(--theme-accent)]/30 bg-[var(--theme-card-bg)] p-4 text-[var(--theme-text)] shadow-2xl sm:p-5"
+              className="home-farm-menu max-h-[calc(100dvh-1rem)] w-full max-w-sm overflow-y-auto overscroll-contain rounded-[24px] border border-[var(--theme-accent)]/30 bg-[var(--theme-card-bg)] p-3 text-[var(--theme-text)] shadow-2xl sm:max-h-[min(84dvh,40rem)] sm:max-w-md sm:rounded-[28px] sm:p-4"
             >
-              <div className="relative mb-4 overflow-hidden rounded-[24px] border border-[var(--theme-primary)]/25 bg-[var(--theme-primary)]/10 px-4 py-3">
-                <div className="pointer-events-none absolute -right-5 -top-8 h-28 w-28 rounded-full bg-[var(--theme-accent)]/15 blur-2xl" />
-                <div className="relative flex items-center gap-3">
-                  <img src={barnMenuIcon} alt="" aria-hidden="true" className="h-12 w-12 shrink-0 object-contain drop-shadow-md" />
+              <div className="relative mb-3 overflow-hidden rounded-2xl border border-[var(--theme-primary)]/25 bg-[var(--theme-primary)]/10 px-3 py-2.5">
+                <div className="pointer-events-none absolute -right-5 -top-8 h-24 w-24 rounded-full bg-[var(--theme-accent)]/15 blur-2xl" />
+                <div className="relative flex items-center gap-2.5">
+                  <img src={barnMenuIcon} alt="" aria-hidden="true" className="h-10 w-10 shrink-0 object-contain drop-shadow-md" />
                   <div className="min-w-0 flex-1">
    
-                    <h2 id="home-settings-title" className="font-display text-xl font-black leading-tight">Farm menu</h2>
-                    <p className="mt-0.5 text-xs font-semibold opacity-60">Choose an adventure</p>
+                    <h2 id="home-settings-title" className="font-display text-lg font-black leading-tight">Farm menu</h2>
+                    <p className="mt-0.5 text-[11px] font-semibold opacity-60">Choose an adventure</p>
                   </div>
                 <button
                   ref={closeSettingsButtonRef}
@@ -531,7 +530,7 @@ export default function DragonsHomeSection({
                 </button>
                 </div>
               </div>
-              <nav aria-label="Home menu" className="grid grid-cols-2 gap-2">
+              <nav aria-label="Home menu">
                 <button type="button" onClick={() => { setSettingsMenuOpen(false); onNavigateToHistory(); }} className="group flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/70 px-2 py-3 text-center font-bold shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--theme-accent)]/60 hover:bg-[var(--theme-accent)]/10 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]">
                   <img src={transactionsIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain transition-transform group-hover:scale-105" />
                   <span>My transactions</span>
@@ -566,7 +565,7 @@ export default function DragonsHomeSection({
                   <img src={giftCodeIcon} alt="" aria-hidden="true" className="h-10 w-10 object-contain transition-transform group-hover:scale-105" />
                   <span>Gift code</span>
                 </button>
-                <button type="button" onClick={() => { setSettingsMenuOpen(false); onSignOut(); }} className="group col-span-2 flex min-h-14 items-center justify-center gap-3 rounded-[20px] border border-rose-500/20 bg-rose-500/5 px-3 text-center font-bold text-rose-500 transition-colors hover:bg-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500">
+                <button type="button" onClick={() => { setSettingsMenuOpen(false); onSignOut(); }} className="group col-span-full flex min-h-14 items-center justify-center gap-3 rounded-[20px] border border-rose-500/20 bg-rose-500/5 px-3 text-center font-bold text-rose-500 transition-colors hover:bg-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500">
                   <LogOut className="h-8 w-8" aria-hidden="true" />
                   <span>Sign out</span>
                 </button>
@@ -776,7 +775,7 @@ export default function DragonsHomeSection({
                   className={`feed-celebration-card overflow-hidden rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/75 ${shakingItemIds.includes(egg.id) ? "is-shaking" : ""}`}
                   style={{ "--feed-stagger": `${Math.min(index, 5) * 30}ms` } as React.CSSProperties}
                 >
-                  <div className={`relative flex aspect-[1.5] items-center justify-center overflow-hidden p-4 ${dragonOwned ? "bg-[var(--theme-primary)]/8" : "bg-[var(--theme-primary)]/6"}`}>
+                  <div className={`relative flex aspect-[1.85] items-center justify-center overflow-hidden p-3 ${dragonOwned ? "bg-[var(--theme-primary)]/8" : "bg-[var(--theme-primary)]/6"}`}>
                     <img
                       src={isHatching ? egg.eggImageUrl : dragonOwned ? activeDragonArtwork : egg.eggImageUrl}
                       alt={isHatching ? `${egg.name} egg hatching` : dragonOwned ? `${egg.name} ${isMatureDragon ? "mature hen" : "young chicken"}` : egg.name}
@@ -835,10 +834,11 @@ export default function DragonsHomeSection({
                         <div className={`feed-cycle-progress space-y-2 ${isFeedReady ? "is-ready" : ""}`} aria-label={`Cycle progress: day ${currentCycleDay} of ${totalDays}`}>
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              {minimumClaimAmount > 0 && claimable.amount === 0 ? (
-                                <p className="text-left text-[12px] font-medium tabular-nums text-[var(--theme-primary)] opacity-90">
-                                  Next feeding in {formatClock(msUntilPlatformMidnight(nowMs))}
-                                </p>
+                              {minimumClaimAmount > 0 ? (
+                                <div className={`feed-availability ${isFeedReady ? "is-ready" : "is-waiting"}`} aria-live="polite">
+                                  <img src={corn} alt="" aria-hidden="true" />
+                                  <span>{isFeedReady ? "Ready to feed" : `Next feed in ${formatClock(msUntilPlatformMidnight(nowMs))}`}</span>
+                                </div>
                               ) : null}
                             </div>
                             <span
@@ -882,7 +882,7 @@ export default function DragonsHomeSection({
                           aria-label={isFeedReady
                             ? "Feed chick. Today's income is ready to collect."
                             : "Feed chick. Tap to see when it can be fed again."}
-                          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[var(--theme-accent)]/45 bg-[var(--theme-accent)]/12 px-5 py-2.5 text-[13px] font-black text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-accent)]/20 active:scale-[0.98] disabled:cursor-wait disabled:opacity-60"
+                          className={`feed-action-button inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-5 py-2.5 text-[13px] font-black text-[var(--theme-text)] transition-colors active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 ${isFeedReady ? "is-ready" : "is-waiting"}`}
                         >
                           {claimingNodeId === ownedNode.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <img src={corn} alt="" className="h-5 w-5 object-contain" />}
                           Feed chick
