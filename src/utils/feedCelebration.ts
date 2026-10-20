@@ -1,48 +1,72 @@
-import confetti from "canvas-confetti";
+import corn from "@/src/assets/svg/corn.svg";
 
-const CORN_PATH = "M 9 0 C 14 0 18 4 18 10 C 18 16 14 22 9 25 C 4 22 0 16 0 10 C 0 4 4 0 9 0 Z";
-let cornShape: confetti.Shape | null = null;
+const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 
-export function getCornConfettiShape(): confetti.Shape {
-  if (!cornShape) cornShape = confetti.shapeFromPath(CORN_PATH);
-  return cornShape;
+function cornFrame(x: number, y: number, scale: number, rotate: number, opacity: number) {
+  return {
+    transform: `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%) scale(${scale}) rotate(${rotate}deg)`,
+    opacity,
+  };
 }
 
+/** Pop corn out of the fed card, then carry it into the withdrawable balance. */
 export function celebrateFeed(sourceRects: DOMRect[], feedAll = false): void {
-  if (!sourceRects.length) return;
+  if (!sourceRects.length || typeof window === "undefined") return;
+  if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-  try {
-    const sources = sourceRects.slice(0, 12);
-    const totalParticles = feedAll ? 168 : 84;
-    const particlesPerSource = Math.max(14, Math.ceil(totalParticles / sources.length));
-    const balanceRect = document.querySelector<HTMLElement>(".user-app-withdrawable-balance")?.getBoundingClientRect();
+  const balance = document.querySelector<HTMLElement>(".user-app-withdrawable-balance");
+  if (!balance) return;
 
-    sources.forEach((sourceRect, index) => {
-      const startX = sourceRect.left + sourceRect.width / 2;
-      const startY = sourceRect.top + sourceRect.height / 2;
-      const targetX = balanceRect ? balanceRect.left + balanceRect.width / 2 : startX;
-      const targetY = balanceRect ? balanceRect.top + balanceRect.height / 2 : startY - 1;
+  const targetRect = balance.getBoundingClientRect();
+  const targetX = targetRect.left + targetRect.width / 2;
+  const targetY = targetRect.top + targetRect.height / 2;
+  const piecesPerCard = feedAll ? 2 : 4;
 
-      confetti({
-        particleCount: particlesPerSource,
-        angle: balanceRect ? Math.atan2(startY - targetY, targetX - startX) * (180 / Math.PI) : 84,
-        spread: feedAll ? 62 : 48,
-        startVelocity: feedAll ? 38 : 35,
-        gravity: 0.55,
-        decay: 0.91,
-        ticks: 78,
-        scalar: 0.92,
-        shapes: [getCornConfettiShape()],
-        origin: {
-          x: Math.min(0.98, Math.max(0.02, startX / window.innerWidth)),
-          y: Math.min(0.98, Math.max(0.02, startY / window.innerHeight)),
-        },
-        zIndex: 130,
-        disableForReducedMotion: true,
-        drift: index % 2 === 0 ? -0.25 : 0.25,
+  sourceRects.slice(0, 12).forEach((sourceRect, sourceIndex) => {
+    const count = piecesPerCard;
+    for (let pieceIndex = 0; pieceIndex < count; pieceIndex += 1) {
+      const image = document.createElement("img");
+      const startX = sourceRect.left + sourceRect.width * (0.38 + Math.random() * 0.24);
+      const startY = sourceRect.top + sourceRect.height * (0.58 + Math.random() * 0.2);
+      const dx = targetX - startX;
+      const dy = targetY - startY;
+      const fan = (pieceIndex - (count - 1) / 2) * 5;
+      const delay = sourceIndex * 35 + pieceIndex * (feedAll ? 55 : 75);
+
+      image.src = corn;
+      image.alt = "";
+      image.setAttribute("aria-hidden", "true");
+      Object.assign(image.style, {
+        position: "fixed",
+        left: `${startX}px`,
+        top: `${startY}px`,
+        width: "28px",
+        height: "28px",
+        objectFit: "contain",
+        pointerEvents: "none",
+        zIndex: "130",
+        filter: "drop-shadow(0 2px 3px rgb(0 0 0 / 0.28))",
       });
-    });
-  } catch {
-    // A visual celebration should never interfere with a successful claim.
-  }
+      document.body.appendChild(image);
+
+      const flight = image.animate([
+        { ...cornFrame(0, 0, 0.55, -fan, 0), offset: 0 },
+        { ...cornFrame(-4, -2, 0.88, -16 - fan, 1), offset: 0.1, easing: "ease-in-out" },
+        { ...cornFrame(4, 1, 1, 13 - fan, 1), offset: 0.17, easing: "ease-in-out" },
+        { ...cornFrame(-2, -1, 1.08, -8 - fan, 1), offset: 0.23, easing: "ease-in-out" },
+        { ...cornFrame(0, -24, 1.05, 8 + fan, 1), offset: 0.36 },
+        { ...cornFrame(dx * 0.38, dy * 0.32 - 36, 0.88, 125 + fan, 1), offset: 0.62 },
+        { ...cornFrame(dx * 0.78, dy * 0.78 - 12, 0.62, 255 - fan, 0.9), offset: 0.84 },
+        { ...cornFrame(dx, dy, 0.3, 360 + fan, 0.15), offset: 1 },
+      ], {
+        duration: 980,
+        delay,
+        easing: EASE_OUT,
+        fill: "forwards",
+      });
+
+      flight.onfinish = () => image.remove();
+      flight.oncancel = () => image.remove();
+    }
+  });
 }

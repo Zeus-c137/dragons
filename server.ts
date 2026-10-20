@@ -1424,16 +1424,16 @@ app.post("/api/payment/status", async (req, res) => {
 
 // 3. GATEWAY WITHDRAW / DISBURSEMENT
 app.post("/api/payment/withdraw", async (req, res) => {
-  const phone = normalizePhone(req.body?.phone);
+  const userId = typeof req.body?.phone === "string" ? req.body.phone.trim() : "";
   const operator = String(req.body?.operator || "").trim().toUpperCase();
   const withdrawPhone = typeof req.body?.withdrawPhone === "string" ? req.body.withdrawPhone.trim() : "";
   const withAmt = Number(req.body?.amount);
-  const authenticatedPhone = await getAuthenticatedUserPhone(req);
+  const authenticatedUserId = await getAuthenticatedUserPhone(req);
 
-  if (!authenticatedPhone || authenticatedPhone !== phone) {
+  if (!authenticatedUserId || authenticatedUserId !== userId) {
     return res.status(401).json({ error: "Please sign in again before requesting a withdrawal." });
   }
-  if (!phone || !Number.isInteger(withAmt) || withAmt <= 0 || !["MTN", "AIRTEL", "USDT"].includes(operator) || !withdrawPhone) {
+  if (!userId || !Number.isInteger(withAmt) || withAmt <= 0 || !["MTN", "AIRTEL", "USDT"].includes(operator) || !withdrawPhone) {
     return res.status(400).json({ error: "Missing payout parameters. Enter a valid withdrawal amount." });
   }
 
@@ -1448,7 +1448,7 @@ app.post("/api/payment/withdraw", async (req, res) => {
       return res.status(400).json({ error: `Maximum withdrawal is UGX ${maximumWithdrawal.toLocaleString()}.` });
     }
 
-    const activeSubscriptions = await getUserSubscriptions(phone);
+    const activeSubscriptions = await getUserSubscriptions(userId);
     if (!activeSubscriptions.some((subscription) => subscription.status === "active")) {
       return res.status(400).json({ error: "You must have an active product subscription to withdraw." });
     }
@@ -1464,7 +1464,7 @@ app.post("/api/payment/withdraw", async (req, res) => {
     // Give the user a balance-specific response before checking gateway
     // configuration. The atomic reservation below repeats this check to
     // protect against concurrent withdrawals.
-    const currentUser = await getUserProfile(phone);
+    const currentUser = await getUserProfile(userId);
     if (!currentUser) {
       return res.status(404).json({ error: "User account not found." });
     }
@@ -1476,7 +1476,7 @@ app.post("/api/payment/withdraw", async (req, res) => {
     // always settled manually by admin — even in automatic mode and even
     // when no Mobile Money credentials are configured.
     if (withdrawMode === "manual" || operator === "USDT") {
-      const cashoutResult = await requestCashout(phone, withAmt, undefined, "manual", withdrawPhone, operator, {
+      const cashoutResult = await requestCashout(userId, withAmt, undefined, "manual", withdrawPhone, operator, {
         feePercent: withdrawFeePercent,
         feeAmount: withdrawFeeAmount,
         payoutAmount
@@ -1503,7 +1503,7 @@ app.post("/api/payment/withdraw", async (req, res) => {
 
     // Record the pending withdrawal before contacting the provider. A fast
     // provider callback must always find a local transaction to settle.
-    const cashoutResult = await requestCashout(phone, withAmt, trans_id, "automatic", withdrawPhone, operator, {
+    const cashoutResult = await requestCashout(userId, withAmt, trans_id, "automatic", withdrawPhone, operator, {
       feePercent: withdrawFeePercent,
       feeAmount: withdrawFeeAmount,
       payoutAmount
@@ -1559,7 +1559,7 @@ app.post("/api/payment/withdraw", async (req, res) => {
     }
 
     const finalTransaction = await getTransaction(trans_id);
-    const finalProfile = await getUserProfile(phone);
+    const finalProfile = await getUserProfile(userId);
     res.json({
       success: true,
       status: String(finalTransaction?.status || "PENDING").toUpperCase(),

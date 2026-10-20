@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { SubscribedNode, SubscriptionItem, UserProfile, Collectible } from "../types";
 import {
   Lock,
@@ -23,17 +22,15 @@ import CellsProgress from "./CellsProgress";
 import { Button } from "./ui/button";
 import { useCurrency } from "../currency";
 import { getRunElapsedDays, getRunTotalDays, getRunDailyRate, getRunMinimumClaimAmount, getRunState, getRunClaimableReturns, isRunCycleFinished } from "../utils/runs";
+import { celebrateFeed } from "../utils/feedCelebration";
 import { rarityMapForCatalog } from "../utils/rarity";
 import RarityBadge from "./RarityBadge";
 import confetti from "canvas-confetti";
 import { toast } from "sonner";
 import dollar3d from "@/src/assets/3d/3dicons-dollar-iso-premium.png";
-import corn from "@/src/assets/svg/corn.svg";
 import tractor from "@/src/assets/svg/tractor.svg";
 
 const RUNS_LAYOUT_KEY = "rentdue_runs_layout";
-type CoinFlight = { id: number; startX: number; startY: number; dx: number; dy: number; delay: number };
-
 function getIncomeRunState(node: SubscribedNode, items: SubscriptionItem[]) {
   if (getRunClaimableReturns(node).days > 0) return "active";
   const state = getRunState(node, items);
@@ -64,8 +61,6 @@ export default function IncomeView({
   onCollectibleClaimed
 }: IncomeViewProps) {
   const { formatCurrency } = useCurrency();
-  const prefersReducedMotion = useReducedMotion();
-  const [coinFlights, setCoinFlights] = useState<CoinFlight[]>([]);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [claimingCollectibleId, setClaimingCollectibleId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -160,26 +155,6 @@ export default function IncomeView({
   const completedCount = completedNodes.length;
   const completedTotalCollected = completedNodes.reduce((acc, n) => acc + (Number(n.totalEarned) || 0), 0);
 
-  const animateCoinsToWithdrawable = (sourceRect: DOMRect) => {
-    if (prefersReducedMotion) return;
-    const target = document.querySelector<HTMLElement>(".user-app-withdrawable-balance")?.getBoundingClientRect();
-    if (!target) return;
-    const startX = sourceRect.left + sourceRect.width / 2;
-    const startY = sourceRect.top + sourceRect.height / 2;
-    const dx = target.left + target.width / 2 - startX;
-    const dy = target.top + target.height / 2 - startY;
-    const now = Date.now();
-    setCoinFlights(Array.from({ length: 9 }, (_, index) => ({
-      id: now + index,
-      startX: startX + (Math.random() - 0.5) * 24,
-      startY: startY + (Math.random() - 0.5) * 16,
-      dx: dx + (Math.random() - 0.5) * 24,
-      dy: dy + (Math.random() - 0.5) * 18,
-      delay: index * 0.045,
-    })));
-    window.setTimeout(() => setCoinFlights([]), 1150);
-  };
-
   const handleClaim = async (subId: string, sourceRect: DOMRect) => {
     const selectedNode = activeNodes.find((node) => node.id === subId);
     const isChicken = Boolean(selectedNode?.eggImageUrl && selectedNode?.dragonImageUrl);
@@ -208,11 +183,8 @@ export default function IncomeView({
       }
 
       if (Number(data.pointsClaimed) > 0) {
-        confetti({
-          particleCount: 120,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
+        if (isChicken) celebrateFeed([sourceRect]);
+        else confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
       }
 
       toast.success(isChicken
@@ -222,7 +194,6 @@ export default function IncomeView({
       if (onClaimSuccess) {
         onClaimSuccess(data.pointsClaimed, data.updatedPoints, subId, data.lastClaimedDate, data.status, data.updatedWithdrawableBalance, data.daysFed);
       }
-      if (isChicken) animateCoinsToWithdrawable(sourceRect);
       void loadCollectibles();
     } catch (err: any) {
       toast.error(err.message || "Failed to claim earnings.");
@@ -260,27 +231,6 @@ export default function IncomeView({
 
   return (
     <div className="space-y-5 select-none bg-transparent text-[var(--theme-text)] p-1 rounded-[var(--theme-radius)] relative">
-      {coinFlights.length > 0 && typeof document !== "undefined" ? createPortal(
-        <AnimatePresence>
-          <div className="pointer-events-none fixed inset-0 z-[120] overflow-hidden" aria-hidden="true">
-            {coinFlights.map((coin) => (
-              <motion.img
-                key={coin.id}
-                src={corn}
-                alt=""
-                initial={{ x: 0, y: 0, scale: 0.8, rotate: 0, opacity: 1 }}
-                animate={{ x: coin.dx, y: coin.dy, scale: 0.35, rotate: 360, opacity: 0.1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.72, delay: coin.delay, ease: [0.22, 1, 0.36, 1] }}
-                className="absolute h-7 w-7 object-contain drop-shadow-md"
-                style={{ left: coin.startX - 14, top: coin.startY - 14 }}
-              />
-            ))}
-          </div>
-        </AnimatePresence>,
-        document.body
-      ) : null}
-
       {/* Aggregate Stats — sticky so run list scrolls below */}
       <div className="sticky top-0 z-20 -mx-1 px-1 pt-1 pb-2">
         {onNavigateToCollection && (

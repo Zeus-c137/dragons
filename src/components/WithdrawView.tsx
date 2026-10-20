@@ -157,6 +157,7 @@ export default function WithdrawView({
     try {
       const res = await fetch("/api/payment/withdraw", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           phone: userProfile.id,
@@ -327,7 +328,7 @@ export default function WithdrawView({
 
             <div className="" />
             <div className="flex justify-between text-sm font-black">
-              <span>Estimated payout</span>
+              <span>Final amount</span>
               <span>{formatCurrency(payout)}</span>
             </div>
             {withdrawOperator === "USDT" && (
