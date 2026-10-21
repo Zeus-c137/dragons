@@ -313,7 +313,7 @@ export default function CollectionView({
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {displayedChickens.map((node) => {
+            {displayedChickens.map((node, index) => {
               const totalDays = getRunTotalDays(node, products);
               const daysFed = Math.max(0, Math.floor(Number(node.daysFed) || 0));
               const cycleFinished = farmFilter === "completed";
@@ -328,7 +328,9 @@ export default function CollectionView({
               return (
                 <article key={node.id} data-feed-card-item={node.itemId} className={`feed-celebration-card overflow-hidden rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/75 ${shakingItemIds.includes(node.itemId) ? "is-shaking" : ""}`}>
                   <div className="relative flex aspect-[1.85] items-center justify-center overflow-hidden bg-[var(--theme-primary)]/8 p-3">
-                    <img src={artwork} alt={`${node.itemName} ${mature ? "hen" : "chick"}`} loading="lazy" className={`h-full w-full object-contain${revealingItemId === node.itemId ? " dragon-hatch-reveal" : ""}`} />
+                    <span className="dragon-chicken-art dragon-chicken-art-contained" style={{ animationDelay: `${(index % 5) * -0.55}s` }}>
+                      <img src={artwork} alt={`${node.itemName} ${mature ? "hen" : "chick"}`} loading="lazy" className={`h-full w-full object-contain${revealingItemId === node.itemId ? " dragon-hatch-reveal" : ""}`} />
+                    </span>
                     <span className="absolute left-3 top-3 rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[11px] font-bold text-[var(--theme-text)]">{product?.category || "Chicken"}</span>
                     <span className="absolute right-3 top-3 rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[11px] font-black text-[var(--theme-primary)] shadow-sm">{dailyIncome > 0 ? Math.round((dailyIncome / Math.max(1, Number(node.amount))) * 100) : 0}% daily</span>
                   </div>
