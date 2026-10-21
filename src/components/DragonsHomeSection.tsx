@@ -288,7 +288,7 @@ export default function DragonsHomeSection({
       onSubscribeSuccess(data.subscription, egg.amount);
       playCheckinSound();
       setHatchingEggId(egg.id);
-      const hatchDuration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 2200;
+      const hatchDuration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1450;
       await new Promise((resolve) => window.setTimeout(resolve, hatchDuration));
       setRevealingDragonId(egg.id);
       window.setTimeout(() => setRevealingDragonId((current) => current === egg.id ? null : current), 900);
@@ -504,7 +504,7 @@ export default function DragonsHomeSection({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: prefersReducedMotion ? 0 : "100vw" }}
               transition={{ duration: prefersReducedMotion ? 0.01 : 0.48, ease: [0.22, 1, 0.36, 1] }}
-              className="home-farm-menu max-h-[calc(100dvh-1rem)] w-full max-w-sm overflow-y-auto overscroll-contain rounded-[24px] border border-[var(--theme-accent)]/30 bg-[var(--theme-card-bg)] p-3 text-[var(--theme-text)] shadow-2xl sm:max-h-[min(84dvh,40rem)] sm:max-w-md sm:rounded-[28px] sm:p-4"
+              className="liquid-glass-panel home-farm-menu max-h-[calc(100dvh-1rem)] w-full max-w-sm overflow-y-auto overscroll-contain rounded-[24px] border border-[var(--theme-accent)]/30 p-3 text-[var(--theme-text)] shadow-2xl sm:max-h-[min(84dvh,40rem)] sm:max-w-md sm:rounded-[28px] sm:p-4"
             >
               <div className="relative mb-3 overflow-hidden rounded-2xl border border-[var(--theme-primary)]/25 bg-[var(--theme-primary)]/10 px-3 py-2.5">
                 <div className="pointer-events-none absolute -right-5 -top-8 h-24 w-24 rounded-full bg-[var(--theme-accent)]/15 blur-2xl" />
@@ -594,7 +594,7 @@ export default function DragonsHomeSection({
               exit={{ opacity: 0, x: prefersReducedMotion ? 0 : 20, scale: prefersReducedMotion ? 1 : 0.98 }}
               transition={{ duration: prefersReducedMotion ? 0.01 : 0.48, ease: [0.22, 1, 0.36, 1] }}
               onClick={(event) => event.stopPropagation()}
-              className="relative flex max-h-[min(84dvh,36rem)] w-full max-w-md flex-col overflow-y-auto rounded-[30px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] p-5 text-[var(--theme-text)] shadow-2xl"
+              className="liquid-glass-panel relative flex max-h-[min(84dvh,36rem)] w-full max-w-md flex-col overflow-y-auto rounded-[30px] border border-[var(--theme-card-border)] p-5 text-[var(--theme-text)] shadow-2xl"
             >
               <div className="flex items-center justify-between gap-4 border-b border-[var(--theme-card-border)] pb-4">
                 <div>
@@ -642,7 +642,7 @@ export default function DragonsHomeSection({
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: prefersReducedMotion ? 0 : 20, scale: prefersReducedMotion ? 1 : 0.98 }}
               transition={{ duration: prefersReducedMotion ? 0.01 : 0.48, ease: [0.22, 1, 0.36, 1] }}
-              className="relative w-full max-w-md overflow-hidden rounded-[30px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] text-[var(--theme-text)] shadow-2xl"
+              className="liquid-glass-panel relative w-full max-w-md overflow-hidden rounded-[30px] border border-[var(--theme-card-border)] text-[var(--theme-text)] shadow-2xl"
             >
               <button
                 type="button"
@@ -776,17 +776,21 @@ export default function DragonsHomeSection({
                   style={{ "--feed-stagger": `${Math.min(index, 5) * 30}ms` } as React.CSSProperties}
                 >
                   <div className={`relative flex aspect-[1.85] items-center justify-center overflow-hidden p-3 ${dragonOwned ? "bg-[var(--theme-primary)]/8" : "bg-[var(--theme-primary)]/6"}`}>
-                    <img
-                      src={isHatching ? egg.eggImageUrl : dragonOwned ? activeDragonArtwork : egg.eggImageUrl}
-                      alt={isHatching ? `${egg.name} egg hatching` : dragonOwned ? `${egg.name} ${isMatureDragon ? "mature hen" : "young chicken"}` : egg.name}
-                      loading="lazy"
-                      className={`${isHatching
-                        ? "h-full w-full object-contain dragon-egg-hatching"
-                        : dragonOwned
-                          ? `h-full w-full object-contain${revealingDragonId === egg.id ? " dragon-hatch-reveal" : ""}`
-                          : "h-full w-full object-contain dragon-egg-float"}`}
-                      style={dragonOwned || isHatching ? undefined : { animationDelay: `${(index % 5) * -0.65}s` }}
-                    />
+                    <span
+                      className={`dragon-egg-art${dragonOwned ? " dragon-chicken-art" : !isHatching ? " dragon-egg-float" : ""}`}
+                      style={isHatching ? undefined : { animationDelay: `${(index % 5) * -0.65}s` }}
+                    >
+                      <img
+                        src={isHatching ? egg.eggImageUrl : dragonOwned ? activeDragonArtwork : egg.eggImageUrl}
+                        alt={isHatching ? `${egg.name} egg hatching` : dragonOwned ? `${egg.name} ${isMatureDragon ? "mature hen" : "young chicken"}` : egg.name}
+                        loading="lazy"
+                        className={`h-full w-full object-contain${isHatching
+                          ? " dragon-egg-hatching"
+                          : dragonOwned
+                            ? (revealingDragonId === egg.id ? " dragon-hatch-reveal" : "")
+                            : " dragon-egg-idle-spin"}`}
+                      />
+                    </span>
                     <span className="absolute left-3 top-3 rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[14px] font-bold text-[var(--theme-text)]">
                       {egg.category}
                     </span>
@@ -951,7 +955,7 @@ export default function DragonsHomeSection({
             role="dialog"
             aria-modal="true"
             aria-labelledby="egg-confirm-title"
-            className="w-full max-w-sm overflow-hidden rounded-[28px] border border-[var(--theme-card-border)] bg-[var(--theme-bg)] p-5 text-[var(--theme-text)] shadow-2xl"
+            className="liquid-glass-panel liquid-glass-money-panel w-full max-w-sm overflow-hidden rounded-[28px] border border-[var(--theme-card-border)] p-5 text-[var(--theme-text)] shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <p className="text-[14px] font-black uppercase tracking-[0.18em] text-[var(--theme-primary)]">Hatching</p>

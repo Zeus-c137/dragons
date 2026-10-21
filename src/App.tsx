@@ -34,6 +34,7 @@ import {
 import homeNavIcon from "@/src/assets/svg/home.svg";
 import depositNavIcon from "@/src/assets/svg/deposit.svg";
 import withdrawNavIcon from "@/src/assets/svg/withdraw.svg";
+import cornIcon from "@/src/assets/svg/corn.svg";
 import inviteNavIcon from "@/src/assets/svg/invite.svg";
 import tractorNavIcon from "@/src/assets/svg/tractor.svg";
 import { motion, AnimatePresence } from "motion/react";
@@ -640,7 +641,7 @@ export default function App() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="welcome-modal-title"
-              className="relative flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-[var(--theme-radius)] border border-white/10 bg-[var(--theme-card-bg)]/40 text-[var(--theme-text)] shadow-2xl backdrop-blur-[20px] backdrop-saturate-[180%] z-[210] font-[var(--theme-font-family)]"
+              className="liquid-glass-panel relative flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-[var(--theme-radius)] border border-white/10 text-[var(--theme-text)] shadow-2xl z-[210] font-[var(--theme-font-family)]"
             >
               <div className="absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-[var(--theme-primary)]/20 to-transparent pointer-events-none" />
 
@@ -705,7 +706,7 @@ export default function App() {
               aria-label={`Open transaction history. Withdrawable balance ${formatCurrency(Number(userProfile.withdrawableBalance) || 0)}`}
               className="user-app-balance user-app-withdrawable-balance appearance-none border-0 bg-transparent p-0 text-inherit cursor-pointer transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-on-primary)]"
             >
-              <span className="inline-flex items-center justify-end gap-1.5"><Wallet className="h-3.5 w-3.5" aria-hidden="true" />Withdrawable</span>
+              <span className="inline-flex items-center justify-end gap-1.5"><img src={cornIcon} alt="" aria-hidden="true" className="h-4 w-4 object-contain" />Withdrawable</span>
               <strong>
                 <AnimatedWithdrawableBalance
                   amount={Number(userProfile.withdrawableBalance) || 0}
@@ -979,7 +980,7 @@ export default function App() {
                 animate={{ y: 0 }}
                 exit={{ y: "100%" }}
                 transition={{ type: "spring", damping: 25, stiffness: 220 }}
-                className="relative w-full h-[96vh] max-h-[96vh] bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] border border-white/10 rounded-t-[var(--theme-radius)] flex flex-col overflow-hidden z-10 shadow-2xl"
+                className="liquid-glass-panel relative w-full h-[96vh] max-h-[96vh] border border-white/10 rounded-t-[var(--theme-radius)] flex flex-col overflow-hidden z-10 shadow-2xl"
               >
                 {/* Drag Handle + Close */}
                 <div className="flex items-center justify-center relative py-3 shrink-0">
