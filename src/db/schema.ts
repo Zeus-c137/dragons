@@ -45,6 +45,7 @@ export const users = mysqlTable(
     usdtAddress: varchar("usdt_address", { length: 255 }).default(""),
     lastCheckinDate: varchar("last_checkin_date", { length: 32 }).default(""),
     checkinStreak: int("checkin_streak").default(0).notNull(),
+    genesisOpenedMonth: varchar("genesis_opened_month", { length: 7 }).default("").notNull(),
     redeemedGiftCodes: json("redeemed_gift_codes").$type<string[]>().default([]),
     createdAt: varchar("created_at", { length: 64 }).notNull()
   },

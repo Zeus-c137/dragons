@@ -29,6 +29,7 @@ import confetti from "canvas-confetti";
 import { toast } from "sonner";
 import dollar3d from "@/src/assets/3d/3dicons-dollar-iso-premium.png";
 import tractor from "@/src/assets/svg/tractor.svg";
+import corn from "@/src/assets/svg/corn.svg";
 
 const RUNS_LAYOUT_KEY = "rentdue_runs_layout";
 function getIncomeRunState(node: SubscribedNode, items: SubscriptionItem[]) {
@@ -187,9 +188,9 @@ export default function IncomeView({
         else confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
       }
 
-      toast.success(isChicken
+      window.setTimeout(() => toast.success(isChicken
         ? `${formatCurrency(Number(data.pointsClaimed) || 0)} added to your withdrawable balance from ${data.itemName}.`
-        : `Claimed ${formatCurrency(Number(data.pointsClaimed) || 0)} from ${data.itemName}!`);
+        : `Claimed ${formatCurrency(Number(data.pointsClaimed) || 0)} from ${data.itemName}!`), 3000);
 
       if (onClaimSuccess) {
         onClaimSuccess(data.pointsClaimed, data.updatedPoints, subId, data.lastClaimedDate, data.status, data.updatedWithdrawableBalance, data.daysFed);
@@ -270,7 +271,7 @@ export default function IncomeView({
                 setHorizontalActiveIndex(0);
               }}
               aria-label={showCompleted ? "Show active runs" : "Show completed runs"}
-              className={`p-2 rounded-full cursor-pointer active:scale-95 transition-all text-[var(--theme-primary)] ${showCompleted ? "bg-[var(--theme-primary)]/15" : ""}`}
+              className={`user-glossy-button grid h-9 w-9 place-items-center rounded-full p-2 text-[var(--theme-on-primary)] cursor-pointer active:scale-95 transition-all ${showCompleted ? "brightness-90" : ""}`}
             >
               <SlidersHorizontal className="w-4 h-4" />
             </button>
@@ -405,16 +406,18 @@ export default function IncomeView({
 
                   {/* Progress */}
                   <div className="pt-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-sans text-[var(--theme-text)] opacity-60">
-                        Day {Math.min(totalDays, isChicken ? elapsedDays + 1 : elapsedDays)} of {totalDays}
-                      </span>
+                    <div className="flex items-center justify-end gap-2">
                       <span className="font-sans font-semibold text-[12px] tabular-nums shrink-0 text-[var(--theme-text)]">
                         {Math.round(progressPercent)}%
                       </span>
                     </div>
                     <div className="mt-1">
                       <CellsProgress pct={progressPercent} />
+                    </div>
+                    <div className="mt-1.5 flex justify-end">
+                      <span className="rounded-full bg-[var(--theme-primary)]/12 px-2.5 py-1 font-sans text-[11px] font-semibold tabular-nums text-[var(--theme-primary)]">
+                        Day {Math.min(totalDays, isChicken ? elapsedDays + 1 : elapsedDays)} of {totalDays}
+                      </span>
                     </div>
                   </div>
 
@@ -438,10 +441,10 @@ export default function IncomeView({
                       type="button"
                       disabled={claimingId === node.id}
                       onClick={(event) => handleClaim(node.id, event.currentTarget.getBoundingClientRect())}
-                      className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-[var(--theme-primary)] text-[var(--theme-on-primary)] text-[13px] font-sans font-black cursor-pointer active:scale-[0.98] transition-all disabled:opacity-60"
+                      className="user-glossy-button mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-[var(--theme-on-primary)] text-[13px] font-sans font-black cursor-pointer active:scale-[0.98] transition-all disabled:opacity-60"
                     >
-                      {claimingId === node.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                      {isChicken ? "Feed chick" : `Claim ${formatCurrency(claimableReturns.amount)}`}
+                      {isChicken ? <img src={corn} alt="" aria-hidden="true" className="h-5 w-5 object-contain" /> : <Zap className="w-4 h-4" />}
+                      {isChicken ? (claimingId === node.id ? "Feeding..." : "Feed chick") : `Claim ${formatCurrency(claimableReturns.amount)}`}
                       {claimableReturns.days > 1 ? ` · ${claimableReturns.days} days` : ""}
                     </button>
                   )}

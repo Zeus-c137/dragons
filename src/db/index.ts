@@ -94,6 +94,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
       usdt_address VARCHAR(255) DEFAULT '',
       last_checkin_date VARCHAR(32) DEFAULT '',
       checkin_streak INT NOT NULL DEFAULT 0,
+      genesis_opened_month VARCHAR(7) NOT NULL DEFAULT '',
       redeemed_gift_codes JSON NOT NULL,
       created_at VARCHAR(64) NOT NULL,
       INDEX idx_users_invite_code (invite_code),
@@ -249,6 +250,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
   }
 
   for (const [table, column] of [
+    ["users", "genesis_opened_month"],
     ["catalog_products", "egg_image_url"],
     ["catalog_products", "young_dragon_image_url"],
     ["catalog_products", "dragon_image_url"],
@@ -258,7 +260,11 @@ export async function ensureDatabaseSchema(): Promise<void> {
     ["subscribed_nodes", "days_fed"],
   ]) {
     try {
-      const definition = column === "days_fed" ? "INT NOT NULL DEFAULT 0" : "VARCHAR(512) DEFAULT ''";
+      const definition = column === "days_fed"
+        ? "INT NOT NULL DEFAULT 0"
+        : table === "users" && column === "genesis_opened_month"
+          ? "VARCHAR(7) NOT NULL DEFAULT ''"
+          : "VARCHAR(512) DEFAULT ''";
       await connection.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
     } catch (error: any) {
       if (!String(error?.code || "").includes("DUPLICATE") && error?.errno !== 1060) throw error;
