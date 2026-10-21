@@ -240,7 +240,7 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
           filtered.map(tx => {
             const meta = getMeta(tx.type, tx.metadata);
             const isPositive = isPositiveTransaction(tx.type, tx.metadata);
-            const { fee, payout } = getWithdrawalDisplayAmounts(tx);
+            const { payout } = getWithdrawalDisplayAmounts(tx);
             const amount = meta.canon === "withdrawal" ? payout : (tx.amount||0);
             const showStatus = meta.canon === "deposit" || meta.canon === "withdrawal";
             const status = String(tx.status || "").toUpperCase();
@@ -254,7 +254,6 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
               : statusLabel === "Failed"
                 ? "text-rose-400"
                 : "text-amber-400";
-            const showFee = meta.canon === "withdrawal" && fee>0;
             const level = meta.isReferralLevel ? meta.level : undefined;
             const txMetadata = asMetadataRecord(tx.metadata);
 
@@ -297,8 +296,7 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
                     <span className="text-[18px] font-sans font-bold tracking-tight text-[var(--theme-text)] leading-tight">{displayLabel}</span>
                     {level != null && <span className="text-[12px] font-sans font-semibold px-1.5 py-0.5 rounded-full bg-[var(--theme-primary)]/12 text-[var(--theme-primary)] border border-[var(--theme-primary)]/15">L{level}</span>}
                   </div>
-                  <p className="text-[12px] font-sans font-normal text-[var(--theme-text)] opacity-50 truncate mt-1 leading-none">{new Date(tx.createdAt||tx.timestamp||Date.now()).toLocaleDateString()} {tx.operator ? `• ${tx.operator}` : ""}</p>
-                  {showFee && <p className="text-[11px] font-sans font-normal text-[var(--theme-text)] opacity-45 mt-0.5">Fee {formatCurrency(fee)} • Payout {formatCurrency(payout)}</p>}
+                  <p className="text-[12px] font-sans font-normal text-[var(--theme-text)] opacity-50 truncate mt-1 leading-none">{new Date(tx.createdAt||tx.timestamp||Date.now()).toLocaleDateString()}{meta.canon !== "withdrawal" && tx.operator ? ` • ${tx.operator}` : ""}</p>
                 </div>
                 <div className="text-right shrink-0 flex flex-col justify-center">
                   <p className={`text-[18px] sm:text-base font-display font-black tracking-tight leading-tight ${isPositive?"text-[var(--theme-primary)]":"text-[var(--theme-text)]"}`}>{isPositive?"+":"-"} {formatCurrency(amount)}</p>

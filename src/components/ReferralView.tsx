@@ -273,7 +273,7 @@ function HowItWorksSheet({ metrics, onClose }: HowItWorksSheetProps) {
         animate={{ opacity: 1, transform: "translateY(0px)" }}
         exit={reducedMotion ? { opacity: 0, transition: { duration: 0.01 } } : { opacity: 0, transform: "translateY(12px)", transition: { duration: 0.16, ease: "easeOut" } }}
         transition={reducedMotion ? { duration: 0.01 } : { duration: 0.26, ease: [0.32, 0.72, 0, 1] }}
-        className="relative z-[10] flex h-[85vh] h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[15px] border border-[var(--theme-card-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] shadow-2xl sm:rounded-[26px]"
+        className="liquid-glass-panel relative z-[10] flex h-[85vh] h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[15px] border border-[var(--theme-card-border)] text-[var(--theme-text)] shadow-2xl sm:rounded-[26px]"
       >
         <div className="flex shrink-0 items-start justify-between gap-3 px-4 pb-3 pt-4 sm:gap-4 sm:px-5 sm:pt-5">
           <div className="min-w-0">
