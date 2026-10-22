@@ -76,24 +76,24 @@ function OverviewView({
   const firstLevelRate = metrics.find((metric) => metric.level === 1)?.pct ?? 0;
 
   return (
-    <div className="space-y-6">
-      <section aria-label="Invite friends" className="space-y-3">
-        <p className="max-w-[28rem] font-display text-[25px]  text-[var(--theme-primary)]">
+    <div className="space-y-4">
+      <section aria-label="Invite friends" className="space-y-2">
+        <p className="max-w-[28rem] font-display text-[21px] leading-tight text-[var(--theme-primary)] sm:text-[23px]">
           Share your {brandName} code, get up to <span className="text-[var(--theme-primary)]">{firstLevelRate}% on Level 1 invites.</span>
         </p>
      
        
       </section>
 
-      <section aria-label="Your referral link" className="invite-link-shimmer -mx-1 flex items-center gap-1.5 rounded-[4px] px-2 py-2 backdrop-blur-[20px] backdrop-saturate-[180%]">
-        <p className="min-w-0 flex-1 select-all break-all text-[14px] leading-relaxed text-[var(--theme-text)]">{inviteLink || "N/A"}</p>
+      <section aria-label="Your referral link" className="invite-link-shimmer -mx-0.5 flex items-center gap-2 rounded-[20px] p-2.5 backdrop-blur-[20px] backdrop-saturate-[180%] sm:p-3">
+        <p className="min-w-0 flex-1 select-all break-all px-1 text-[12px] leading-relaxed text-[var(--theme-text)] sm:text-[13px]">{inviteLink || "N/A"}</p>
         <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
             onClick={onCopyLink}
             disabled={!inviteLink}
             aria-label={copiedLink ? "Referral link copied" : "Copy referral link"}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/[0.08] text-[var(--theme-primary)] transition-colors hover:bg-white/[0.16] disabled:opacity-45"
+            className="liquid-glass-panel inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-[var(--theme-primary)] transition-colors hover:bg-white/[0.16] disabled:opacity-45"
           >
             {copiedLink ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
           </button>
@@ -102,7 +102,7 @@ function OverviewView({
             onClick={onShare}
             disabled={!inviteLink}
             aria-label="Share referral link"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/[0.08] text-[var(--theme-primary)] transition-colors hover:bg-white/[0.16] disabled:opacity-45"
+            className="liquid-glass-panel inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-[var(--theme-primary)] transition-colors hover:bg-white/[0.16] disabled:opacity-45"
           >
             <Share2 className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -113,31 +113,31 @@ function OverviewView({
         <button
           type="button"
           onClick={onViewTeam}
-          className="user-glossy-button inline-flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-[12px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98]"
+          className="user-glossy-button inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98]"
         >
-          <img src={inviteNavIcon} alt="" aria-hidden="true" className="h-6 w-6 object-contain" />
+        <img src={inviteNavIcon} alt="" aria-hidden="true" className="h-5 w-5 object-contain" />
           My invites
         </button>
       </div>
 
-      <section aria-label="Referral summary" className="-mx-1 grid grid-cols-2 divide-x divide-white/10 rounded-[24px] border border-white/10 bg-[var(--theme-card-bg)]/40 p-3 backdrop-blur-[20px] backdrop-saturate-[180%]">
+      <section aria-label="Referral summary" className="liquid-glass-panel -mx-0.5 grid grid-cols-2 divide-x divide-white/15 rounded-[22px] border border-white/15 p-3 backdrop-blur-[20px] backdrop-saturate-[180%]">
         <div className="flex flex-col items-center gap-1.5 px-1 text-center">
          
           {isLoading ? (
             <div className="h-6 w-24 animate-pulse rounded bg-[var(--theme-card-border)]/40" />
           ) : (
-            <p className="max-w-full truncate font-display text-[17px] font-black tabular-nums text-black">{formatCurrency(totalEarned)}</p>
+            <p className="max-w-full truncate font-display text-[17px] font-black tabular-nums text-[var(--theme-text)]">{formatCurrency(totalEarned)}</p>
           )}
-          <p className="text-[16px] font-sans text-black">Referral income</p>
+          <p className="text-[13px] font-sans text-[var(--theme-text)] opacity-70">Referral income</p>
         </div>
         <div className="flex flex-col items-center gap-1.5 px-1 text-center">
         
-          <p className="font-display text-[22px] font-black tabular-nums text-black">{isLoading ? "—" : directInvites}</p>
-          <p className="text-[16px] font-sans text-black">Friends referred</p>
+          <p className="font-display text-[20px] font-black tabular-nums text-[var(--theme-text)]">{isLoading ? "—" : directInvites}</p>
+          <p className="text-[13px] font-sans text-[var(--theme-text)] opacity-70">Friends referred</p>
         </div>
       </section>
 
-      <section aria-label="Referral rewards ready to claim" className="space-y-3 rounded-[24px] border border-[var(--theme-primary)]/25 bg-[var(--theme-card-bg)]/55 p-4">
+      <section aria-label="Referral rewards ready to claim" className="liquid-glass-panel space-y-3 rounded-[22px] border border-[var(--theme-primary)]/25 p-3.5 backdrop-blur-[20px] backdrop-saturate-[180%]">
         <div className="flex items-end justify-between gap-3">
           <div className="space-y-1">
             
@@ -152,7 +152,7 @@ function OverviewView({
           onClick={onClaimRewards}
           disabled={pendingReferralRewards <= 0 || isClaiming}
           aria-busy={isClaiming}
-          className="user-glossy-button inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-5 py-3 text-[14px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+          className="user-glossy-button inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
         >
           {isClaiming ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
           {isClaiming ? "Claiming…" : "Claim referral income"}
@@ -184,16 +184,16 @@ type CodeViewProps = {
 
 function CodeView({ inviteLink, copiedLink, onCopyLink, onShare, onHowItWorks }: CodeViewProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
      
 
-      <section aria-label="Your referral link" className="flex items-center gap-3 rounded-[24px] border border-white/10 bg-[var(--theme-card-bg)]/40 px-4 py-4 backdrop-blur-[20px] backdrop-saturate-[180%]">
-        <p className="min-w-0 flex-1 select-all break-all text-[16px]  leading-relaxed">{inviteLink || "N/A"}</p>
+      <section aria-label="Your referral link" className="invite-link-shimmer flex items-center gap-2 rounded-[20px] p-2.5 backdrop-blur-[20px] backdrop-saturate-[180%]">
+        <p className="min-w-0 flex-1 select-all break-all px-1 text-[12px] leading-relaxed sm:text-[13px]">{inviteLink || "N/A"}</p>
         <button
           type="button"
           onClick={onCopyLink}
           aria-label={copiedLink ? "Referral link copied" : "Copy referral link"}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[var(--theme-primary)] transition-colors hover:bg-[var(--theme-primary)]/10"
+          className="liquid-glass-panel flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/20 text-[var(--theme-primary)] transition-colors hover:bg-white/[0.16]"
         >
           {copiedLink ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
         </button>
@@ -204,7 +204,7 @@ function CodeView({ inviteLink, copiedLink, onCopyLink, onShare, onHowItWorks }:
           type="button"
           onClick={onShare}
           disabled={!inviteLink}
-          className="user-glossy-button w-full rounded-md px-5 py-3.5 text-[16px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:opacity-50"
+          className="user-glossy-button w-full rounded-xl px-4 py-3 text-[14px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:opacity-50"
         >
           <span className="inline-flex items-center justify-center gap-2">
             <Share2 className="h-4 w-4" aria-hidden="true" />
@@ -214,7 +214,7 @@ function CodeView({ inviteLink, copiedLink, onCopyLink, onShare, onHowItWorks }:
         <button
           type="button"
           onClick={onHowItWorks}
-          className="inline-flex w-md items-center justify-center gap-2 py-2 text-[13px] font-sans font-bold text-[var(--theme-text)] opacity-70 underline decoration-white/20 underline-offset-4 transition-opacity hover:opacity-100"
+          className="inline-flex w-full items-center justify-center gap-2 py-2 text-[13px] font-sans font-bold text-[var(--theme-text)] opacity-70 underline decoration-white/20 underline-offset-4 transition-opacity hover:opacity-100"
         >
           <Info className="h-4 w-4" aria-hidden="true" />
           How does it work?
@@ -443,7 +443,7 @@ export default function ReferralView({ userProfile, siteConfig, onProfileChange,
     team: <InviteTeamView stats={stats} isLoading={isLoading} activeLevel={activeLevel} onActiveLevelChange={setActiveLevel as (l: 1 | 2 | 3 | 4) => void} activeLevelStats={activeLevelStats} siteConfig={liveSiteConfig ?? siteConfig} pendingReferralRewards={Number(userProfile.pendingReferralRewards) || 0} isClaiming={isClaiming} onClaimRewards={() => void handleClaimRewards()} />,
   };
   return (
-    <div className="min-h-full w-full space-y-4 rounded-[28px] px-3 py-4 pb-16 text-[var(--theme-on-primary)]">
+    <div className="min-h-full w-full space-y-3 rounded-[28px] px-3 py-3 pb-16 text-[var(--theme-on-primary)] sm:px-4">
       {view !== "overview" && (
         <button type="button" onClick={goBack} className="inline-flex items-center gap-2 rounded-full px-2 py-1.5 text-xs font-semibold text-[var(--theme-text)] opacity-65 transition-opacity hover:opacity-100">
           <ArrowLeft className="h-3.5 w-3.5 text-[var(--theme-primary)]" />

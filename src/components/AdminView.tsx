@@ -2948,9 +2948,6 @@ export default function AdminView() {
                                 {(() => {
                                   const st = (tx.status || "").toUpperCase();
                                   const isPending = st === "PENDING" || st === "PROCESSING";
-                                  if (isPending && isAutomaticWithdrawal) {
-                                    return <span className="text-xs text-blue-400 font-mono">Webhook</span>;
-                                  }
                                   if (isPending) {
                                     return (
                                       <>
@@ -2967,8 +2964,9 @@ export default function AdminView() {
                                               <button 
                                                 onClick={() => { handleUpdateTxStatus(tx.id, "SUCCESSFUL"); setActiveDropdown(null); }} 
                                                 className="px-4 py-2.5 text-left hover:bg-[var(--theme-bg)] text-emerald-400 flex items-center gap-2 cursor-pointer font-medium"
+                                                title={isAutomaticWithdrawal ? "Confirm that the payout was sent" : undefined}
                                               >
-                                                <CheckCircle2 className="w-4 h-4" /> Approve
+                                                <CheckCircle2 className="w-4 h-4" /> {isAutomaticWithdrawal ? "Approve payout" : "Approve"}
                                               </button>
                                               <div className="h-px bg-[var(--theme-card-border)] my-1 mx-2"></div>
                                               <button 

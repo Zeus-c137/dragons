@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 import { useCurrency } from "../currency";
 import { formatUgandaPhoneInput, isValidUgandaPhone, normalizeUgandaPhone } from "../utils/ugandaPhone";
+import { formatDecimalAmountText, formatIntegerAmount, handleDecimalAmountInput, handleIntegerAmountInput, parseDecimalAmountText } from "../utils/amountInput";
 import PaymentMethodSelect from "./PaymentMethodSelect";
 import { Button } from "./ui/button";
 import phoneInputIcon from "@/src/assets/svg/input-phone.svg";
@@ -69,8 +70,8 @@ export default function DepositView({
   useEffect(() => {
     if (depositAmount === 20_000) setDepositAmount(minimumDeposit);
     if (manualAmount === 20_000) setManualAmount(minimumDeposit);
-    if (usdtAmountUSD === 5.5 && Number(config.usdtRate) > 0) {
-      setUsdtAmountUSD(Number((minimumDeposit / Number(config.usdtRate)).toFixed(2)));
+    if (parseDecimalAmountText(usdtAmountUSD) === 5.5 && Number(config.usdtRate) > 0) {
+      setUsdtAmountUSD(formatDecimalAmountText((minimumDeposit / Number(config.usdtRate)).toFixed(2)));
     }
   }, [minimumDeposit, config.usdtRate]);
 
@@ -87,7 +88,7 @@ export default function DepositView({
 
   const [senderPhone, setSenderPhone] = useState(userProfile.phone || "");
   const [manualAmount, setManualAmount] = useState<number>(20000);
-  const [usdtAmountUSD, setUsdtAmountUSD] = useState<number>(5.5);
+  const [usdtAmountUSD, setUsdtAmountUSD] = useState<string>("5.5");
   const [manualRef, setManualRef] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -257,7 +258,7 @@ export default function DepositView({
       payType === "gpu"
         ? selectedGpu?.amount || 0
         : depositMode === "usdt"
-        ? usdtAmountUSD * config.usdtRate
+        ? parseDecimalAmountText(usdtAmountUSD) * config.usdtRate
         : manualAmount;
     const limitError = getDepositLimitError(finalAmount);
     if (limitError) {
@@ -305,7 +306,7 @@ export default function DepositView({
     depositMode === "usdt"
       ? payType === "gpu"
         ? selectedGpu?.amount || 0
-        : usdtAmountUSD * config.usdtRate
+        : parseDecimalAmountText(usdtAmountUSD) * config.usdtRate
       : depositMode === "manual"
       ? payType === "gpu"
         ? selectedGpu?.amount || 0
@@ -323,7 +324,7 @@ export default function DepositView({
   const usdtDepositIsValid = Boolean(config.usdtAddress?.trim()) && Boolean(manualRef.trim()) && amountIsValid && productIsValid;
 
   return (
-    <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] space-y-4 select-none p-4 pt-0">
+    <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] space-y-3 select-none p-3 pt-0 sm:p-4 sm:pt-0">
       <div className="flex justify-end">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/20 bg-[var(--theme-primary)]/8 px-3 py-1.5 text-[11px] font-bold text-[var(--theme-primary)]">
           <LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
@@ -363,9 +364,9 @@ export default function DepositView({
       </div>
 
       {paymentStatus === "IDLE" ? (
-        <div className="rounded-[var(--theme-radius)]">
+        <div className="liquid-glass-panel overflow-hidden rounded-[26px] border border-white/15 shadow-[0_14px_36px_color-mix(in_srgb,var(--theme-card-shadow)_22%,transparent)]">
           {/* Payment method dropdown */}
-          <div className="p-3 space-y-3">
+          <div className="space-y-2 px-2.5 py-2.5 sm:px-3">
             <PaymentMethodSelect
               value={depositMode === "usdt" ? "crypto" : "mobile-money"}
               usdtNetwork={config.usdtNetwork || "TRC20"}
@@ -377,14 +378,14 @@ export default function DepositView({
               }}
             />
             {depositMode !== "usdt" && autoEnabled && manualEnabled ? (
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label htmlFor="mobile-money-deposit-mode" className="text-xs font-semibold text-[var(--theme-text)] opacity-60">Mobile Money option</label>
                 <div className="relative">
                   <select
                     id="mobile-money-deposit-mode"
                     value={depositMode}
                     onChange={(event) => { setDepositMode(event.target.value as "auto" | "manual"); setErrorMsg(""); }}
-                    className="w-full appearance-none rounded-2xl border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] px-4 py-3 pr-11 text-sm font-semibold text-[var(--theme-text)] outline-none focus:border-[var(--theme-primary)] focus:ring-2 focus:ring-[var(--theme-primary)]/20"
+                    className="w-full appearance-none rounded-xl border border-white/20 bg-[var(--theme-card-bg)]/70 px-3.5 py-2.5 pr-10 text-[13px] font-semibold text-[var(--theme-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] outline-none backdrop-blur-xl focus:border-[var(--theme-primary)] focus:ring-2 focus:ring-[var(--theme-primary)]/20"
                   >
                     <option value="auto">Instant mobile payment</option>
                     <option value="manual">Manual transfer</option>
@@ -396,12 +397,12 @@ export default function DepositView({
           </div>
 
           {/* Forms */}
-          <div className="p-4 space-y-4">
+          <div className="space-y-3 p-2.5 sm:p-3">
             {depositMode === "auto" && (
-              <form noValidate onSubmit={handleStartPayment} className="flex min-h-[50dvh] flex-col gap-5">
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <label htmlFor="deposit-mobile-number" className="text-[16px] font-sans font-medium opacity-60">Phone number</label>
+              <form noValidate onSubmit={handleStartPayment} className="flex flex-col gap-3">
+                <div className="space-y-2.5">
+                  <div className="space-y-1.5">
+                    <label htmlFor="deposit-mobile-number" className="text-[13px] font-sans font-semibold opacity-65">Phone number</label>
                     <div className="relative">
                       <img src={phoneInputIcon} alt="" className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 object-contain" aria-hidden="true" />
                       <input
@@ -417,14 +418,14 @@ export default function DepositView({
                         onBlur={() => setMobileNumber((value) => formatUgandaPhoneInput(value))}
                         aria-describedby="deposit-mobile-number-format"
                         aria-invalid={mobileNumber.length > 0 && !isValidUgandaPhone(mobileNumber)}
-                        className="w-full bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] rounded-2xl py-4 pl-10 pr-4 text-[15px] font-bold outline-none placeholder:font-medium placeholder:opacity-40 transition-colors"
+                        className="w-full rounded-xl border border-white/20 bg-[var(--theme-card-bg)]/70 py-2.5 pl-10 pr-3.5 text-[14px] font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] outline-none backdrop-blur-xl transition-colors placeholder:font-medium placeholder:opacity-40 focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)]"
                       />
                     </div>
                     <span id="deposit-mobile-number-format" className="sr-only">Enter a Ugandan mobile money number, including the country code +256.</span>
                   </div>
 
-                  <div className="space-y-2">
-                    <label htmlFor="deposit-amount" className="text-[16px] font-sans font-medium opacity-60">Amount (UGX)</label>
+                  <div className="space-y-1.5">
+                    <label htmlFor="deposit-amount" className="text-[13px] font-sans font-semibold opacity-65">Amount (UGX)</label>
                     <div className="relative">
                       <img src={amountInputIcon} alt="" className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 object-contain" aria-hidden="true" />
                       <input
@@ -438,15 +439,15 @@ export default function DepositView({
                         disabled={payType === "gpu"}
                         aria-describedby="deposit-amount-rules"
                         aria-invalid={!amountIsValid}
-                        value={payType === "gpu" ? selectedGpu?.amount || 0 : depositAmount}
-                        onChange={(e) => setDepositAmount(Number(e.target.value.replace(/[^0-9]/g, "")) || 0)}
-                        className="w-full bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] rounded-2xl py-4 pl-10 pr-4 text-[15px] font-black outline-none transition-colors disabled:opacity-60"
+                        value={payType === "gpu" ? formatIntegerAmount(selectedGpu?.amount || 0) : formatIntegerAmount(depositAmount)}
+                        onChange={(e) => handleIntegerAmountInput(e, setDepositAmount)}
+                        className="w-full rounded-xl border border-white/20 bg-[var(--theme-card-bg)]/70 py-2.5 pl-10 pr-3.5 text-[14px] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] outline-none backdrop-blur-xl transition-colors focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] disabled:opacity-60"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 space-y-3">
+                <div className="mt-1 space-y-2.5">
                   <Button
                     variant="primary"
                     size="md"
@@ -466,12 +467,12 @@ export default function DepositView({
             )}
 
             {depositMode === "manual" && (
-              <form noValidate onSubmit={handleStartManualPayment} className="flex min-h-[50dvh] flex-col gap-5">
+              <form noValidate onSubmit={handleStartManualPayment} className="flex flex-col gap-3">
                 {/* Receiver cards */}
-                <div className="space-y-2">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {config.mtnReceiverPhone ? (
-                      <div className="rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] p-3 flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2 rounded-2xl border border-white/15 bg-[var(--theme-card-bg)]/65 p-2.5 shadow-sm backdrop-blur-xl">
                         <div className="flex items-center gap-2 min-w-0">
                           {config.mtnLogoUrl ? (
                             <img src={config.mtnLogoUrl} alt="MTN" className="w-8 h-8 rounded-full bg-white p-1 object-contain border border-[var(--theme-card-border)] shrink-0" />
@@ -499,7 +500,7 @@ export default function DepositView({
                       <div className="rounded-[var(--theme-radius)] bg-[var(--theme-bg)] border border-dashed border-[var(--theme-card-border)] p-3 text-xs font-bold opacity-50">MTN offline</div>
                     )}
                     {config.airtelReceiverPhone ? (
-                      <div className="rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] p-3 flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2 rounded-2xl border border-white/15 bg-[var(--theme-card-bg)]/65 p-2.5 shadow-sm backdrop-blur-xl">
                         <div className="flex items-center gap-2 min-w-0">
                           {config.airtelLogoUrl ? (
                             <img src={config.airtelLogoUrl} alt="Airtel" className="w-8 h-8 rounded-full bg-white p-1 object-contain border border-[var(--theme-card-border)] shrink-0" />
@@ -545,9 +546,9 @@ export default function DepositView({
                   </div>
                 </div>
 
-                <div className="space-y-3 pt-1">
-                  <div className="space-y-2">
-                    <label htmlFor="manual-sender-number" className="text-[13px] font-sans font-medium opacity-60">Your sender number</label>
+                <div className="space-y-2.5">
+                  <div className="space-y-1.5">
+                    <label htmlFor="manual-sender-number" className="text-[13px] font-sans font-semibold opacity-65">Your sender number</label>
                     <div className="relative">
                       <img src={phoneInputIcon} alt="" className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 object-contain" aria-hidden="true" />
                       <input
@@ -563,13 +564,13 @@ export default function DepositView({
                         onBlur={() => setSenderPhone((value) => formatUgandaPhoneInput(value))}
                         aria-describedby="manual-sender-number-format"
                         aria-invalid={senderPhone.length > 0 && !manualPhoneIsValid}
-                        className="w-full bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] rounded-2xl py-4 pl-10 pr-4 text-[15px] font-bold outline-none placeholder:font-medium placeholder:opacity-40"
+                        className="w-full rounded-xl border border-white/20 bg-[var(--theme-card-bg)]/70 py-2.5 pl-10 pr-3.5 text-[14px] font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] outline-none backdrop-blur-xl placeholder:font-medium placeholder:opacity-40 focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)]"
                       />
                     </div>
                     <span id="manual-sender-number-format" className="sr-only">Enter a mobile number in international format, for example +256 7XX XXX XXX.</span>
                   </div>
-                  <div className="space-y-2">
-                    <label htmlFor="manual-deposit-amount" className="text-[13px] font-sans font-medium opacity-60">Amount sent (UGX)</label>
+                  <div className="space-y-1.5">
+                    <label htmlFor="manual-deposit-amount" className="text-[13px] font-sans font-semibold opacity-65">Amount sent (UGX)</label>
                     <div className="relative">
                       <img src={amountInputIcon} alt="" className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 object-contain" aria-hidden="true" />
                       <input
@@ -583,14 +584,14 @@ export default function DepositView({
                         disabled={payType === "gpu"}
                         aria-describedby="manual-deposit-amount-rules"
                         aria-invalid={!amountIsValid}
-                        value={payType === "gpu" ? selectedGpu?.amount || 0 : manualAmount}
-                        onChange={(e) => setManualAmount(Number(e.target.value.replace(/[^0-9]/g, "")) || 0)}
-                        className="w-full bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] rounded-2xl py-4 pl-10 pr-4 text-[15px] font-black outline-none disabled:opacity-60"
+                        value={payType === "gpu" ? formatIntegerAmount(selectedGpu?.amount || 0) : formatIntegerAmount(manualAmount)}
+                        onChange={(e) => handleIntegerAmountInput(e, setManualAmount)}
+                        className="w-full rounded-xl border border-white/20 bg-[var(--theme-card-bg)]/70 py-2.5 pl-10 pr-3.5 text-[14px] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] outline-none backdrop-blur-xl focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] disabled:opacity-60"
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <label htmlFor="manual-deposit-reference" className="text-[13px] font-sans font-medium opacity-60">Transaction ID</label>
+                  <div className="space-y-1.5">
+                    <label htmlFor="manual-deposit-reference" className="text-[13px] font-sans font-semibold opacity-65">Transaction ID</label>
                     <input
                       id="manual-deposit-reference"
                       name="transactionId"
@@ -600,12 +601,12 @@ export default function DepositView({
                       placeholder="Paste mobile money TxID"
                       value={manualRef}
                       onChange={(e) => setManualRef(e.target.value)}
-                      className="w-full bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] rounded-2xl py-4 px-4 text-[15px] font-bold outline-none placeholder:font-medium placeholder:opacity-40"
+                      className="w-full rounded-xl border border-white/20 bg-[var(--theme-card-bg)]/70 px-3.5 py-2.5 text-[14px] font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] outline-none backdrop-blur-xl placeholder:font-medium placeholder:opacity-40 focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)]"
                     />
                   </div>
                 </div>
 
-                <div className="mt-auto space-y-4 pt-6">
+                <div className="mt-1 space-y-2.5">
                   <Button
                     variant="primary"
                     size="lg"
@@ -624,14 +625,14 @@ export default function DepositView({
             )}
 
             {depositMode === "usdt" && (
-              <form noValidate onSubmit={handleStartManualPayment} className="flex min-h-[50dvh] flex-col gap-5">
+              <form noValidate onSubmit={handleStartManualPayment} className="flex flex-col gap-3">
                 {/* Step 1 — QR + wallet */}
                 <div className="space-y-3">
                   <p className="text-[15px] font-sans font-extrabold tracking-tight">Send USDT</p>
-                    <div className="p-5 space-y-4">
+                  <div className="space-y-3 p-2.5 sm:p-3">
                     {config.usdtQrUrl && (
                       <div className="flex justify-center">
-                        <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-2xl overflow-hidden bg-white p-2.5 border border-[var(--theme-card-border)] shadow-sm">
+                        <div className="h-40 w-40 overflow-hidden rounded-2xl border border-white/40 bg-white p-2.5 shadow-lg sm:h-44 sm:w-44">
                           <img src={config.usdtQrUrl} alt="USDT QR" className="w-full h-full object-contain" />
                         </div>
                       </div>
@@ -662,9 +663,9 @@ export default function DepositView({
                   </div>
                 </div>
 
-                <div className="space-y-3 pt-1">
-                  <div className="space-y-2">
-                    <label htmlFor="usdt-deposit-amount" className="text-[13px] font-sans font-medium opacity-60">Amount sent (USD)</label>
+                <div className="space-y-2.5">
+                  <div className="space-y-1.5">
+                    <label htmlFor="usdt-deposit-amount" className="text-[13px] font-sans font-semibold opacity-65">Amount sent (USD)</label>
                     <div className="relative">
                       <img src={amountInputIcon} alt="" className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 object-contain" aria-hidden="true" />
                       <input
@@ -677,14 +678,14 @@ export default function DepositView({
                         disabled={payType === "gpu"}
                         aria-describedby="usdt-deposit-amount-rules"
                         aria-invalid={!amountIsValid}
-                        value={payType === "gpu" ? ((selectedGpu?.amount || 0) / (config.usdtRate || 3700)).toFixed(2) : usdtAmountUSD}
-                        onChange={(e) => setUsdtAmountUSD(Number(e.target.value) || 0)}
-                        className="w-full bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] rounded-2xl py-4 pl-10 pr-4 text-[15px] font-black outline-none disabled:opacity-60"
+                        value={payType === "gpu" ? formatDecimalAmountText(((selectedGpu?.amount || 0) / (config.usdtRate || 3700)).toFixed(2)) : usdtAmountUSD}
+                        onChange={(e) => handleDecimalAmountInput(e, setUsdtAmountUSD)}
+                        className="w-full rounded-xl border border-white/20 bg-[var(--theme-card-bg)]/70 py-2.5 pl-10 pr-3.5 text-[14px] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] outline-none backdrop-blur-xl focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] disabled:opacity-60"
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <label htmlFor="usdt-deposit-reference" className="text-[13px] font-sans font-medium opacity-60">Transaction Hash</label>
+                  <div className="space-y-1.5">
+                    <label htmlFor="usdt-deposit-reference" className="text-[13px] font-sans font-semibold opacity-65">Transaction Hash</label>
                     <input
                       id="usdt-deposit-reference"
                       name="transactionHash"
@@ -693,12 +694,12 @@ export default function DepositView({
                       autoComplete="off"
                       value={manualRef}
                       onChange={(e) => setManualRef(e.target.value)}
-                      className="w-full bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] rounded-2xl py-4 px-4 text-[15px] font-bold outline-none placeholder:font-medium placeholder:opacity-40"
+                      className="w-full rounded-xl border border-white/20 bg-[var(--theme-card-bg)]/70 px-3.5 py-2.5 text-[14px] font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] outline-none backdrop-blur-xl placeholder:font-medium placeholder:opacity-40 focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)]"
                     />
                   </div>
                 </div>
 
-                <div className="mt-auto space-y-4 pt-6">
+                <div className="mt-1 space-y-2.5">
                   <Button
                     variant="primary"
                     size="lg"

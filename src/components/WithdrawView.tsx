@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 import { useCurrency } from "../currency";
 import { formatUgandaPhoneInput, isValidUgandaPhone } from "../utils/ugandaPhone";
+import { formatIntegerAmount, handleIntegerAmountInput } from "../utils/amountInput";
 import PaymentMethodSelect from "./PaymentMethodSelect";
 import { Button } from "./ui/button";
 import phoneInputIcon from "@/src/assets/svg/input-phone.svg";
@@ -252,7 +253,7 @@ export default function WithdrawView({
   }
 
   return (
-    <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] space-y-4 select-none p-4 pt-0">
+    <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] space-y-3 select-none p-3 pt-0 sm:p-4 sm:pt-0">
       <div className="flex justify-end">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/20 bg-[var(--theme-primary)]/8 px-3 py-1.5 text-[11px] font-bold text-[var(--theme-primary)]">
           <LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
@@ -260,8 +261,8 @@ export default function WithdrawView({
         </span>
       </div>
 
-      <div className="rounded-[var(--theme-radius)]">
-        <div className="p-3 space-y-3">
+      <div className="liquid-glass-panel overflow-hidden rounded-[26px] border border-white/15 shadow-[0_14px_36px_color-mix(in_srgb,var(--theme-card-shadow)_22%,transparent)]">
+        <div className="space-y-2 px-2.5 py-2.5 sm:px-3">
           <PaymentMethodSelect
             value={withdrawOperator === "USDT" ? "crypto" : "mobile-money"}
             usdtNetwork={siteConfig?.usdtNetwork || "TRC20"}
@@ -271,9 +272,9 @@ export default function WithdrawView({
           />
         </div>
 
-        <form noValidate onSubmit={handleWithdrawal} className="flex min-h-[70dvh] flex-col gap-4 p-4">
+        <form noValidate onSubmit={handleWithdrawal} className="flex flex-col gap-3 p-2.5 sm:p-3">
           <div className="space-y-1.5">
-            <label htmlFor="withdraw-destination" className="text-[13px] font-sans font-medium opacity-60">
+            <label htmlFor="withdraw-destination" className="text-[13px] font-sans font-semibold opacity-65">
               {withdrawOperator === "USDT" ? "USDT wallet address" : "Withdrawal phone number"}
             </label>
             <div className="relative">
@@ -296,14 +297,14 @@ export default function WithdrawView({
                 }}
                 aria-describedby={withdrawOperator === "USDT" ? undefined : "withdraw-phone-format"}
                 aria-invalid={!destinationIsValid && (withdrawOperator === "USDT" ? usdtAddress.length > 0 : withdrawalPhone.length > 0)}
-                className={`w-full ${withdrawOperator === "USDT" ? "px-4" : "pl-10 pr-4"} py-4 bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] text-[var(--theme-text)] text-[15px] rounded-2xl outline-none font-bold placeholder:font-medium placeholder:opacity-40 focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] transition-all`}
+                className={`w-full ${withdrawOperator === "USDT" ? "px-3.5" : "pl-10 pr-3.5"} py-2.5 rounded-xl border border-white/20 bg-[var(--theme-card-bg)]/70 text-[14px] font-semibold text-[var(--theme-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] outline-none backdrop-blur-xl placeholder:font-medium placeholder:opacity-40 transition-all focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)]`}
               />
             </div>
             {withdrawOperator !== "USDT" && <span id="withdraw-phone-format" className="sr-only">Enter a Ugandan phone number, for example +256 7XX XXX XXX.</span>}
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="withdrawal-amount" className="text-[13px] font-sans font-medium opacity-60">Amount (UGX)</label>
+            <label htmlFor="withdrawal-amount" className="text-[13px] font-sans font-semibold opacity-65">Amount (UGX)</label>
             <div className="relative">
               <img src={amountInputIcon} alt="" className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 object-contain" aria-hidden="true" />
               <input
@@ -314,19 +315,17 @@ export default function WithdrawView({
                 pattern="[0-9]*"
                 autoComplete="off"
                 required
-                value={pointsToWithdraw || ""}
-                onChange={(e) => setPointsToWithdraw(parseInt(e.target.value.replace(/[^0-9]/g, "")) || 0)}
+                value={formatIntegerAmount(pointsToWithdraw)}
+                onChange={(e) => handleIntegerAmountInput(e, setPointsToWithdraw)}
                 aria-describedby="withdrawal-rules"
                 aria-invalid={pointsToWithdraw > 0 && (!Number.isInteger(pointsToWithdraw) || pointsToWithdraw < minimumWithdrawal || (maximumWithdrawal > 0 && pointsToWithdraw > maximumWithdrawal) || pointsToWithdraw > (userProfile.withdrawableBalance || 0))}
-                className="w-full pl-10 pr-20 py-4 bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] text-[var(--theme-text)] text-[15px] rounded-2xl outline-none font-bold placeholder:font-medium placeholder:opacity-40 focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)] transition-all"
+                className="w-full rounded-xl border border-white/20 bg-[var(--theme-card-bg)]/70 py-2.5 pl-10 pr-20 text-[14px] font-semibold text-[var(--theme-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] outline-none backdrop-blur-xl placeholder:font-medium placeholder:opacity-40 transition-all focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--theme-primary)_20%,transparent)]"
               />
              
             </div>
           </div>
 
-          <div className="space-y-2.5 p-3 rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)]">
-
-            <div className="" />
+          <div className="space-y-2 rounded-2xl border border-white/20 bg-[var(--theme-card-bg)]/65 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.28)] backdrop-blur-xl">
             <div className="flex justify-between text-sm font-black">
               <span>Final amount</span>
               <span>{formatCurrency(payout)}</span>
@@ -351,7 +350,7 @@ export default function WithdrawView({
 
 
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-1 space-y-2.5">
             <Button
               variant="primary"
               size="lg"

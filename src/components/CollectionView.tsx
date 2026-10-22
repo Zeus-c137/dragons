@@ -339,8 +339,10 @@ export default function CollectionView({
                     <span className="dragon-chicken-art dragon-chicken-art-contained" style={{ animationDelay: `${(index % 5) * -0.55}s` }}>
                       <img src={artwork} alt={`${node.itemName} ${mature ? "hen" : "chick"}`} loading="lazy" className={`h-full w-full object-contain${revealingItemId === node.itemId ? " dragon-hatch-reveal" : ""}`} />
                     </span>
-                    <span className="absolute left-3 top-3 rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[11px] font-bold text-[var(--theme-text)]">{product?.category || "Chicken"}</span>
-                    <span className="absolute right-3 top-3 rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[11px] font-black text-[var(--theme-primary)] shadow-sm">{dailyIncome > 0 ? Math.round((dailyIncome / Math.max(1, Number(node.amount))) * 100) : 0}% daily</span>
+                    <div className="absolute left-3 top-3 flex flex-col items-start gap-1">
+                      <span className="rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[11px] font-bold text-[var(--theme-text)]">{product?.category || "Chicken"}</span>
+                      <span className="rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[11px] font-black text-[var(--theme-primary)] shadow-sm">{dailyIncome > 0 ? Math.round((dailyIncome / Math.max(1, Number(node.amount))) * 100) : 0}% daily</span>
+                    </div>
                   </div>
                   <div className="space-y-2.5 p-4">
                     <div className="flex items-center justify-between gap-3">
