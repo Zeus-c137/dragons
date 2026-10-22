@@ -2460,10 +2460,6 @@ export async function adminUpdateTransactionStatus(txId: string, status: string)
   if (!transaction) throw new Error("Transaction was not found.");
 
   const isWithdrawal = transaction.type === "withdrawal";
-  const isAutomaticWithdrawal = isWithdrawal && String(transaction.mode || "").toLowerCase() === "automatic";
-  if (isAutomaticWithdrawal && normalizedStatus !== "PENDING") {
-    throw new Error("This withdrawal is settled only by the payment-provider webhook.");
-  }
   if (normalizedStatus === "SUCCESSFUL" || normalizedStatus === "COMPLETED") {
     if (transaction.type === "deposit") {
       await completeSuccessfulDeposit(transaction.userId, transaction.amount, transaction.phone || undefined, transaction.operator || undefined, transaction.id);

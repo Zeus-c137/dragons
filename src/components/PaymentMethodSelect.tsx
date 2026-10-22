@@ -105,9 +105,9 @@ export default function PaymentMethodSelect({
               setOpen(true);
             }
           }}
-          className="flex min-h-[68px] w-full items-center gap-3 rounded-2xl border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] px-3.5 py-3 text-left transition-colors hover:border-[var(--theme-primary)]/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--theme-bg)]"
+        className="flex min-h-[56px] w-full items-center gap-2.5 rounded-2xl border border-white/20 bg-[var(--theme-card-bg)]/70 px-3 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] backdrop-blur-xl transition-colors hover:border-[var(--theme-primary)]/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--theme-bg)]"
         >
-          {renderMethodArt(value)}
+          {renderMethodArt(value, true)}
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-black text-[var(--theme-text)]">{title}</span>
             <span className="mt-0.5 block truncate text-xs font-medium text-[var(--theme-text)] opacity-60">{description}</span>
@@ -135,7 +135,7 @@ export default function PaymentMethodSelect({
                   aria-selected={selected}
                   disabled={disabled}
                   onClick={() => choose(option.channel)}
-                  className={`flex min-h-[60px] w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${selected ? "border-[var(--theme-primary)]/40 bg-[var(--theme-primary)]/8" : "border-transparent hover:bg-[var(--theme-bg)]"} disabled:cursor-not-allowed disabled:opacity-45`}
+                  className={`flex min-h-[52px] w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition-colors ${selected ? "border-[var(--theme-primary)]/40 bg-[var(--theme-primary)]/8" : "border-transparent hover:bg-[var(--theme-bg)]"} disabled:cursor-not-allowed disabled:opacity-45`}
                 >
                   {renderMethodArt(option.channel, true)}
                   <span className="min-w-0 flex-1">

@@ -814,26 +814,28 @@ export default function DragonsHomeSection({
                             : " dragon-egg-idle-spin"}`}
                       />
                     </span>
-                    <span className="absolute left-3 top-3 rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[14px] font-bold text-[var(--theme-text)]">
+                    <div className="absolute left-3 top-3 flex flex-col items-start gap-1">
+                    <span className="rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[14px] font-bold text-[var(--theme-text)]">
                       {egg.category}
                     </span>
-                    <span className="absolute right-3 top-3 rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[11px] font-black text-[var(--theme-primary)] shadow-sm">
+                    <span className="rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[11px] font-black text-[var(--theme-primary)] shadow-sm">
                       {dailyIncomePercent}% daily
                     </span>
                     {!dragonOwned && (
                       <span
                         aria-label={`${totalDays} day${totalDays === 1 ? "" : "s"} duration`}
-                        className="absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[10px] font-sans font-bold tabular-nums text-[var(--theme-primary)] shadow-sm"
+                        className="inline-flex items-center gap-1 rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[10px] font-sans font-bold tabular-nums text-[var(--theme-primary)] shadow-sm"
                       >
                         <Timer className="h-3.5 w-3.5" aria-hidden="true" />
                         {totalDays} {totalDays === 1 ? "day" : "days"}
                       </span>
                     )}
                     {hatchCount > 0 && !dragonOwned ? (
-                      <span className="absolute left-3 top-11 rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[var(--theme-text)]">
+                      <span className="rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[var(--theme-text)]">
                         Hatched ×{hatchCount}
                       </span>
                     ) : null}
+                    </div>
 
                     {!dragonOwned && soldOut ? (
                       <span className="absolute bottom-3 right-3 rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[14px] font-black text-[var(--theme-text)]">SOLD OUT</span>
@@ -969,44 +971,78 @@ export default function DragonsHomeSection({
         )}
       </section>
 
-      {confirmingEgg ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/65 p-5 backdrop-blur-sm" onClick={() => openingEggId || setConfirmingEgg(null)}>
-          <section
+      <AnimatePresence>
+        {confirmingEgg ? (
+          <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0.01 : 0.18 }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-md sm:p-5"
+          onClick={() => openingEggId || setConfirmingEgg(null)}
+        >
+          <motion.section
             role="dialog"
             aria-modal="true"
             aria-labelledby="egg-confirm-title"
-            className="liquid-glass-panel liquid-glass-money-panel w-full max-w-sm overflow-hidden rounded-[28px] border border-[var(--theme-card-border)] p-5 text-[var(--theme-text)] shadow-2xl"
+            initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 18, scale: prefersReducedMotion ? 1 : 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: prefersReducedMotion ? 0 : 10, scale: prefersReducedMotion ? 1 : 0.98 }}
+            transition={prefersReducedMotion ? { duration: 0.01 } : { type: "spring", stiffness: 360, damping: 30, mass: 0.8 }}
+            className="liquid-glass-panel liquid-glass-money-panel relative w-full max-w-md overflow-hidden rounded-[30px] border border-white/20 p-4 text-[var(--theme-text)] shadow-2xl sm:p-5"
             onClick={(event) => event.stopPropagation()}
           >
-            <p className="text-[14px] font-black uppercase tracking-[0.18em] text-[var(--theme-primary)]">Hatching</p>
-            <h2 id="egg-confirm-title" className="mt-2 font-display text-[25px] font-black leading-tight">{confirmingEgg.name}</h2>
-            <p className="mt-2 text-[14px] leading-relaxed opacity-75">
-                  Feed your chick once per day to earn daily income; Each feed advances its {confirmingEgg.duration}-day cycle.
-            </p>
-            <p className="mt-3 flex items-center gap-2 text-[14px] font-bold text-[var(--theme-primary)]">
-              <Check className="h-4 w-4" aria-hidden="true" />
-              My capital after hatch: {formatCurrency((Number(profile.rechargeableBalance) || 0) - confirmingEgg.amount)}
-            </p>
+            <div className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-[var(--theme-primary)]/15 blur-3xl" />
+            <div className="relative flex items-center gap-4">
+              <div className="liquid-glass-panel grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-[26px] border border-white/25 bg-[var(--theme-primary)]/10 p-2.5 shadow-lg sm:h-28 sm:w-28">
+                <img
+                  src={confirmingEgg.eggImageUrl || confirmingEgg.imageUrl || egg}
+                  alt={`${confirmingEgg.name} egg`}
+                  className="h-full w-full object-contain drop-shadow-[0_8px_12px_rgba(15,23,42,0.22)]"
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--theme-primary)]">Ready to hatch</p>
+                <h2 id="egg-confirm-title" className="mt-1 font-display text-[23px] font-black leading-tight sm:text-[26px]">{confirmingEgg.name}</h2>
+                <p className="mt-1.5 text-[13px] leading-relaxed opacity-70">
+                  Feed your chick once per day. Each feed advances its {confirmingEgg.duration}-day cycle.
+                </p>
+              </div>
+            </div>
+
+            <div className="relative mt-5 space-y-3 rounded-[22px] border border-white/20 bg-white/[0.12] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-xl">
+              <div className="flex items-center justify-between gap-3 text-[14px]">
+                <span className="font-medium opacity-65">Egg cost</span>
+                <span className="font-display font-black tabular-nums">{formatCurrency(confirmingEgg.amount)}</span>
+              </div>
+              <div className="h-px bg-[var(--theme-card-border)]/60" />
+              
+            </div>
+
             {(Number(profile.rechargeableBalance) || 0) < confirmingEgg.amount ? (
-              <p className="mt-3 text-[14px] font-semibold text-rose-700">Your capital is too low to open this egg.</p>
+              <p className="relative mt-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3.5 py-3 text-[13px] font-semibold text-rose-700">
+                Your capital is too low to open this egg.
+              </p>
             ) : null}
-            <div className="mt-5 flex gap-3">
-              <button type="button" onClick={() => setConfirmingEgg(null)} disabled={!!openingEggId} className="min-h-11 flex-1 rounded-full bg-[var(--theme-card-bg)] px-4 py-3 text-[13px] font-bold disabled:opacity-50">
+
+            <div className="relative mt-5 flex gap-3">
+              <button type="button" onClick={() => setConfirmingEgg(null)} disabled={!!openingEggId} className="liquid-glass-panel min-h-12 flex-1 rounded-2xl border border-white/20 px-4 py-3 text-[13px] font-bold transition-transform active:scale-[0.98] disabled:opacity-50">
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => void handleOpenEgg()}
                 disabled={!!openingEggId || (Number(profile.rechargeableBalance) || 0) < confirmingEgg.amount}
-                className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-[var(--theme-primary)] px-4 py-3 text-[13px] font-black text-[var(--theme-on-primary)] disabled:opacity-50"
+                className="user-glossy-button inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
               >
-                {openingEggId === confirmingEgg.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Hatch for {formatCurrency(confirmingEgg.amount)}
+                {openingEggId === confirmingEgg.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Egg className="h-4 w-4" aria-hidden="true" />}
+                {openingEggId === confirmingEgg.id ? "Hatching..." : "Hatch egg"}
               </button>
             </div>
-          </section>
-        </div>
+          </motion.section>
+        </motion.div>
       ) : null}
+      </AnimatePresence>
     </section>
   );
 }

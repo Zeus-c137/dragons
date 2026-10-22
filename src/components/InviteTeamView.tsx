@@ -41,14 +41,14 @@ function TeamHero({ stats, isLoading, siteConfig }: { stats: ReferralStat[]; isL
     <section>
       <div>
 
-        <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="liquid-glass-panel mt-1 grid grid-cols-2 gap-3 rounded-[22px] border border-white/15 p-3.5 backdrop-blur-[20px] backdrop-saturate-[180%]">
           <div>
-            <p className="text-[14px] font-sans  text-[var(--theme-text)] opacity-50">Friends referred</p>
-            {isLoading && stats.length === 0 ? <div className="mt-2 h-7 w-16 rounded bg-white/10 animate-pulse" /> : <p className="mt-1 font-display text-[24px] font-black leading-none text-[var(--theme-text)]">{stats.length}</p>}
+            <p className="text-[12px] font-sans text-[var(--theme-text)] opacity-60">Friends referred</p>
+            {isLoading && stats.length === 0 ? <div className="mt-2 h-6 w-16 rounded bg-white/10 animate-pulse" /> : <p className="mt-1 font-display text-[21px] font-black leading-none text-[var(--theme-text)]">{stats.length}</p>}
           </div>
           <div className="text-right">
-            <p className="text-[14px] font-sans  text-[var(--theme-text)] opacity-50">Referral income</p>
-            {isLoading && stats.length === 0 ? <div className="ml-auto mt-2 h-7 w-28 rounded bg-white/10 animate-pulse" /> : <p className="mt-1 font-display text-[24px] font-black leading-none text-[var(--theme-primary)]">{formatCurrency(totalEarned)}</p>}
+            <p className="text-[12px] font-sans text-[var(--theme-text)] opacity-60">Referral income</p>
+            {isLoading && stats.length === 0 ? <div className="ml-auto mt-2 h-6 w-28 rounded bg-white/10 animate-pulse" /> : <p className="mt-1 font-display text-[19px] font-black leading-none text-[var(--theme-primary)]">{formatCurrency(totalEarned)}</p>}
           </div>
         </div>
        
@@ -67,7 +67,7 @@ function LevelTabs({
   metrics: ReturnType<typeof getLevelMetrics>;
 }) {
   return (
-    <div className="grid grid-cols-4 border-b mt-6 border-white/10">
+    <div className="liquid-glass-panel grid grid-cols-4 rounded-2xl border border-white/10 p-1 backdrop-blur-[20px]">
       {metrics.map((metric) => {
         const selected = activeLevel === metric.level;
         return (
@@ -76,7 +76,7 @@ function LevelTabs({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(metric.level)}
-            className={`relative -mb-px border-b-2 px-1 py-3 text-center text-[12px] tracking-wide transition-colors sm:text-[13px] ${selected ? "border-[var(--theme-primary)] font-black text-[var(--theme-primary)]" : "border-transparent font-semibold text-[var(--theme-text)] opacity-60 hover:opacity-100"}`}
+            className={`relative rounded-xl px-1 py-2.5 text-center text-[11px] tracking-wide transition-colors sm:text-[12px] ${selected ? "bg-[var(--theme-primary)]/15 font-black text-[var(--theme-primary)] shadow-inner" : "font-semibold text-[var(--theme-text)] opacity-60 hover:opacity-100"}`}
           >
             <span className="block font-sans">Level {metric.level}</span>
           </button>
@@ -90,8 +90,8 @@ function MemberRow({ stat }: { stat: ReferralStat }) {
   const { formatCurrency } = useCurrency();
   const name = stat.username?.trim() || "Username";
   return (
-    <article className="flex items-center gap-3 py-3.5">
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--theme-primary)]/10 font-display text-[13px] font-black text-[var(--theme-primary)]">
+    <article className="flex items-center gap-3 py-3">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-[var(--theme-primary)]/10 font-display text-[13px] font-black text-[var(--theme-primary)]">
         {stat.milestoneTierImageUrl ? <img src={optimizedImageUrl(stat.milestoneTierImageUrl, 160)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" /> : memberInitials(stat)}
       </span>
       <div className="min-w-0 flex-1">
@@ -107,7 +107,7 @@ function MemberRow({ stat }: { stat: ReferralStat }) {
 
 function EmptyState({ level }: { level: number }) {
   return (
-    <div className="flex min-h-[220px] flex-col items-center justify-center px-6 text-center">
+    <div className="flex min-h-[150px] flex-col items-center justify-center px-6 text-center">
       <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]"><Users className="h-5 w-5" /></span>
       <p className="mt-3 text-[13px] font-sans font-bold">No one at Level {level} yet</p>
       <p className="mt-1 max-w-[230px] text-[11px] leading-relaxed text-[var(--theme-text)] opacity-50">As your invitations join, they’ll appear here with their activity and contribution.</p>
@@ -116,7 +116,7 @@ function EmptyState({ level }: { level: number }) {
 }
 
 function ListSkeleton() {
-  return <div className="space-y-1">{[0, 1, 2].map((index) => <div key={index} className="flex items-center gap-3 py-3.5"><div className="h-11 w-11 rounded-full bg-white/10 animate-pulse" /><div className="flex-1 space-y-2"><div className="h-3 w-32 rounded bg-white/10 animate-pulse" /><div className="h-2.5 w-24 rounded bg-white/5 animate-pulse" /></div><div className="h-4 w-20 rounded bg-white/10 animate-pulse" /></div>)}</div>;
+  return <div className="divide-y divide-white/10">{[0, 1, 2].map((index) => <div key={index} className="flex items-center gap-3 py-3"><div className="h-10 w-10 rounded-full bg-white/10 animate-pulse" /><div className="flex-1 space-y-2"><div className="h-3 w-32 rounded bg-white/10 animate-pulse" /><div className="h-2.5 w-24 rounded bg-white/5 animate-pulse" /></div><div className="h-4 w-20 rounded bg-white/10 animate-pulse" /></div>)}</div>;
 }
 
 export default function InviteTeamView({ stats, isLoading, activeLevel, onActiveLevelChange, activeLevelStats, siteConfig, pendingReferralRewards, isClaiming, onClaimRewards }: Props) {
@@ -127,10 +127,10 @@ export default function InviteTeamView({ stats, isLoading, activeLevel, onActive
   const activeMetric = metrics.find((metric) => metric.level === activeLevel);
 
   return (
-    <div className="flex w-full min-h-0 flex-col gap-5 bg-transparent p-1 text-[var(--theme-text)]">
+    <div className="flex w-full min-h-0 flex-col gap-3 text-[var(--theme-text)]">
       <TeamHero stats={stats} isLoading={isLoading} siteConfig={siteConfig} />
 
-      <section aria-label="Referral income ready to collect" className="flex flex-col gap-3 rounded-2xl border border-[var(--theme-primary)]/20 bg-[var(--theme-card-bg)]/60 p-3 sm:flex-row sm:items-center">
+      <section aria-label="Referral income ready to collect" className="liquid-glass-panel flex flex-col gap-3 rounded-[22px] border border-[var(--theme-primary)]/25 p-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-semibold text-[var(--theme-text)] opacity-60">Ready to collect</p>
           <p className="mt-0.5 truncate font-display text-[18px] font-black tabular-nums text-[var(--theme-primary)]">{formatCurrency(pendingReferralRewards)}</p>
@@ -150,7 +150,7 @@ export default function InviteTeamView({ stats, isLoading, activeLevel, onActive
       <section aria-label="Referral levels" className="space-y-2">
         <div className="flex items-center justify-between gap-3 px-1">
           <div>
-            <h2 className="mt-12 font-display text-[18px] font-black leading-tight">Commission levels</h2>
+            <h2 className="font-display text-[17px] font-black leading-tight">Commission levels</h2>
           </div>
           <div className="shrink-0 text-right">
             <p className="font-display text-[16px] font-black leading-none text-[var(--theme-primary)]">{activeMetric?.pct ?? 0}%</p>
@@ -160,7 +160,7 @@ export default function InviteTeamView({ stats, isLoading, activeLevel, onActive
         <LevelTabs activeLevel={activeLevel} onChange={onActiveLevelChange} metrics={metrics} />
       </section>
 
-      <section>
+      <section className="liquid-glass-panel divide-y divide-white/10 rounded-[22px] border border-white/10 px-3 backdrop-blur-[20px] backdrop-saturate-[180%]">
         {isLoading ? <ListSkeleton /> : activeLevelStats.length === 0 ? <EmptyState level={activeLevel} /> : (
           <AnimatePresence mode="wait">
             <motion.div key={`members-${activeLevel}`} initial={getInitial(reduced)} animate={{ opacity: 1, y: 0 }} exit={getExit(reduced)} transition={spring}>

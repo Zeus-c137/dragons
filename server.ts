@@ -2175,7 +2175,7 @@ app.get("/api/admin/transactions", async (req, res) => {
   }
 });
 
-// Admin API: Manually approve / reject or complete pending transaction state
+// Admin API: approve / reject pending transaction state, including automatic payments
 app.post("/api/admin/transactions/update-status", async (req, res) => {
   const { transId, status } = req.body;
   if (!transId || !status) {
