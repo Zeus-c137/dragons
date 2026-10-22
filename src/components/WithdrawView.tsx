@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { useGatedInterval } from "../hooks/useGatedInterval";
 import { UserProfile, SubscribedNode } from "../types";
 import {
-  PhoneCall,
-  Coins,
   Copy,
   AlertTriangle,
   CheckCircle2,
@@ -16,6 +14,8 @@ import { useCurrency } from "../currency";
 import { formatUgandaPhoneInput, isValidUgandaPhone } from "../utils/ugandaPhone";
 import PaymentMethodSelect from "./PaymentMethodSelect";
 import { Button } from "./ui/button";
+import phoneInputIcon from "@/src/assets/svg/input-phone.svg";
+import amountInputIcon from "@/src/assets/svg/input-corn-coins.svg";
 
 interface WithdrawViewProps {
   userProfile: UserProfile;
@@ -277,7 +277,7 @@ export default function WithdrawView({
               {withdrawOperator === "USDT" ? "USDT wallet address" : "Withdrawal phone number"}
             </label>
             <div className="relative">
-              {withdrawOperator !== "USDT" && <PhoneCall className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[var(--theme-primary)]" aria-hidden="true" />}
+              {withdrawOperator !== "USDT" && <img src={phoneInputIcon} alt="" className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 object-contain" aria-hidden="true" />}
               <input
                 id="withdraw-destination"
                 name={withdrawOperator === "USDT" ? "usdtAddress" : "withdrawalPhone"}
@@ -305,7 +305,7 @@ export default function WithdrawView({
           <div className="space-y-1.5">
             <label htmlFor="withdrawal-amount" className="text-[13px] font-sans font-medium opacity-60">Amount (UGX)</label>
             <div className="relative">
-              <Coins className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[var(--theme-primary)]" aria-hidden="true" />
+              <img src={amountInputIcon} alt="" className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 object-contain" aria-hidden="true" />
               <input
                 id="withdrawal-amount"
                 name="amount"
@@ -351,7 +351,7 @@ export default function WithdrawView({
 
 
 
-          <div className="mt-4">
+          <div className="mt-4 space-y-3">
             <Button
               variant="primary"
               size="lg"

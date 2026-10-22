@@ -578,9 +578,13 @@ body {
 }
 
 .feed-action-button.is-waiting {
-  border-color: color-mix(in srgb, var(--theme-card-border) 75%, transparent);
-  background: color-mix(in srgb, var(--theme-card-border) 35%, transparent);
-  opacity: 0.78;
+  border-color: color-mix(in srgb, var(--theme-primary-shadow) 72%, var(--theme-primary));
+  background-color: var(--theme-primary);
+  filter: grayscale(0.68) saturate(0.58);
+  opacity: 0.68;
+  box-shadow:
+    0 2px 0 color-mix(in srgb, var(--theme-primary-shadow) 78%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
 }
 
 @media (min-width: 480px) {
@@ -672,6 +676,8 @@ body {
   .feed-corn-fill,
   .feed-next-kernel { transition: none; }
   .feed-cycle-progress.is-ready .feed-corn-rail::after,
+  .streak-tile-pulse,
+  .genesis-feed-tile-pulse,
   .feed-celebration-card.is-shaking { animation: none; }
 }
 
@@ -1318,6 +1324,14 @@ input:-webkit-autofill::first-line { font-size: 14px; }
   animation: streak-tile-pulse 1.4s ease-in-out infinite;
   will-change: transform;
 }
+@keyframes genesis-feed-tile-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-primary) 20%, transparent); }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-primary) 28%, transparent); }
+}
+.genesis-feed-tile-pulse {
+  animation: genesis-feed-tile-pulse 1.4s ease-in-out infinite;
+  will-change: box-shadow;
+}
 
 @keyframes dragon-egg-float {
   0%, 100% { transform: translateY(0); }
@@ -1353,6 +1367,10 @@ input:-webkit-autofill::first-line { font-size: 14px; }
 .dragon-egg-art:not(.dragon-chicken-art) > img {
   width: 66%;
   height: 66%;
+}
+.dragon-egg-art.catalog-product-art > img {
+  width: 54%;
+  height: 54%;
 }
 @keyframes dragon-chicken-idle {
   0%, 100% { transform: translateY(0) rotate(-0.8deg) scale(1); }

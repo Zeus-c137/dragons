@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Check, Coins, Copy, Info, Loader2, Share2, User2Icon, Users, X } from "lucide-react";
+import { ArrowLeft, Check, Coins, Copy, Info, Loader2, Share2, Users, X } from "lucide-react";
 import { useCurrency } from "@/src/currency";
 import { playCheckinSound, primeCheckinSound } from "@/src/utils/checkinSound";
 import {
@@ -21,6 +21,7 @@ import type { ReferralStat, SiteConfig, UserProfile } from "@/src/types";
 import { toast } from "sonner";
 import inviteUserArt from "@/src/assets/3d/3dicons-boy-iso-premium.png";
 import inviteLinkArt from "@/src/assets/3d/3dicons-link-iso-premium.png";
+import inviteNavIcon from "@/src/assets/svg/invite.svg";
 
 type Props = {
   userProfile: UserProfile;
@@ -112,9 +113,9 @@ function OverviewView({
         <button
           type="button"
           onClick={onViewTeam}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-sm bg-[var(--theme-primary)] px-4 py-2.5 text-[12px] font-sans font-black text-[var(--theme-on-primary)] shadow-lg shadow-black/10 ring-1 ring-white/30 transition-transform active:scale-[0.98]"
+          className="user-glossy-button inline-flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-[12px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98]"
         >
-          <User2Icon className="h-4 w-4" aria-hidden="true" />
+          <img src={inviteNavIcon} alt="" aria-hidden="true" className="h-6 w-6 object-contain" />
           My invites
         </button>
       </div>
@@ -151,7 +152,7 @@ function OverviewView({
           onClick={onClaimRewards}
           disabled={pendingReferralRewards <= 0 || isClaiming}
           aria-busy={isClaiming}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[var(--theme-primary)] px-5 py-3 text-[14px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+          className="user-glossy-button inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-5 py-3 text-[14px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
         >
           {isClaiming ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
           {isClaiming ? "Claiming…" : "Claim referral income"}
@@ -203,7 +204,7 @@ function CodeView({ inviteLink, copiedLink, onCopyLink, onShare, onHowItWorks }:
           type="button"
           onClick={onShare}
           disabled={!inviteLink}
-          className="w-full rounded-md  px-5 py-3.5 text-[16px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:opacity-50"
+          className="user-glossy-button w-full rounded-md px-5 py-3.5 text-[16px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:opacity-50"
         >
           <span className="inline-flex items-center justify-center gap-2">
             <Share2 className="h-4 w-4" aria-hidden="true" />

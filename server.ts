@@ -52,6 +52,7 @@ import {
   getAvailableGiftCodeCount,
   redeemGiftCode,
   dailyCheckin,
+  openGenesisEgg,
   adminGetCatalogItems,
   getVipTaskboard,
   claimTierReward,
@@ -2787,13 +2788,31 @@ app.post("/api/user/redeem_gift_code", async (req, res) => {
   }
 });
 
+app.post("/api/user/genesis/open", async (req, res) => {
+  try {
+    const authenticatedPhone = await getAuthenticatedUserPhone(req);
+    const requestedPhone = String(req.body?.phone || "");
+    if (!authenticatedPhone || (requestedPhone && requestedPhone !== authenticatedPhone)) {
+      return res.status(401).json({ error: "Please sign in again before opening this month's egg." });
+    }
+    const result = await openGenesisEgg(authenticatedPhone);
+    res.json({ success: true, month: result.month });
+  } catch (error: any) {
+    res.status(Number(error?.statusCode) || 400).json({ error: error.message || "The egg could not be opened." });
+  }
+});
+
 app.post("/api/user/checkin", async (req, res) => {
   try {
-    const { phone } = req.body;
-    const result = await dailyCheckin(phone);
+    const authenticatedPhone = await getAuthenticatedUserPhone(req);
+    const requestedPhone = String(req.body?.phone || "");
+    if (!authenticatedPhone || (requestedPhone && requestedPhone !== authenticatedPhone)) {
+      return res.status(401).json({ error: "Please sign in again before feeding your chick." });
+    }
+    const result = await dailyCheckin(authenticatedPhone);
     res.json(result);
   } catch (e: any) {
-    res.status(400).json({ error: e.message });
+    res.status(Number(e?.statusCode) || 400).json({ error: e.message });
   }
 });
 

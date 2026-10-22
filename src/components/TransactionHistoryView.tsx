@@ -3,6 +3,7 @@ import { Loader2, CirclePlus, Wallet, ShoppingBag, TrendingUp, CalendarCheck, Ba
 import { useCurrency } from "../currency";
 import { asMetadataRecord, canonicalTypeOf, getTransactionDisplayMeta, isPositiveTransaction, getWithdrawalDisplayAmounts, isSuccessfulStatus } from "@/src/utils/transactionMeta";
 import { fixGitHubImageUrl } from "@/src/utils/imageUtils";
+import { getMonthlyGenesisArt } from "@/src/utils/monthlyGenesisArt";
 
 interface Props {
   phone: string;
@@ -275,20 +276,26 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
             const tierImage = firstRenderableImage(txMetadata.tierImageUrl, configuredTier?.imageUrl);
             const milestoneImage = meta.canon === "vip_task" ? tierImage : "";
             const returnsImage = meta.canon === "daily_yield" ? productImage : "";
-            const mappedImage = milestoneImage || returnsImage;
+            const checkinTimestamp = new Date(tx.timestamp || tx.createdAt || Date.now());
+            const checkinImage = meta.canon === "daily_checkin_bonus" && Number.isFinite(checkinTimestamp.getTime())
+              ? getMonthlyGenesisArt(checkinTimestamp).egg
+              : "";
+            const mappedImage = milestoneImage || returnsImage || checkinImage;
 
             const displayLabel = meta.canon === "daily_yield"
               ? `${productName || "Product"} Returns`
               : meta.canon === "vip_task"
                 ? `${tierName || "Milestone"} Bonus`
-                : meta.label;
+                : meta.canon === "daily_checkin_bonus"
+                  ? "Daily streak"
+                  : meta.label;
             const TransactionIcon = meta.icon;
 
             return (
               <div key={tx.id} className={`rounded-[20px] border-0 p-4 flex items-center gap-3.5 bg-transparent ${meta.card}`}>
                 <div className={`${mappedImage ? "w-12 h-12 rounded-2xl bg-white/5 p-1" : "w-12 h-12 rounded-2xl bg-[var(--theme-card-bg)]/60"} flex items-center justify-center shrink-0 overflow-hidden`}>
                   {mappedImage
-                    ? <img src={mappedImage} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover rounded-xl" />
+                    ? <img src={mappedImage} alt="" loading="lazy" decoding="async" className={`w-full h-full rounded-xl ${meta.canon === "daily_checkin_bonus" ? "object-contain" : "object-cover"}`} />
                     : <TransactionIcon className={`w-5 h-5 ${isPositive ? "text-[var(--theme-primary)]" : "text-[var(--theme-text)] opacity-70"}`} strokeWidth={1.8} aria-hidden="true" />}
                 </div>
                 <div className="flex-1 min-w-0">

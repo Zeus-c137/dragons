@@ -22,6 +22,7 @@ import tractor from "@/src/assets/svg/tractor.svg";
 import clockSvg from "@/src/assets/svg/clock.svg";
 import corn from "@/src/assets/svg/corn.svg";
 import priceTag from "@/src/assets/svg/price-tag.svg";
+import { getMonthlyGenesisArt } from "../utils/monthlyGenesisArt";
 
 const GROW_SPRING = { type: "spring", duration: 0.5, bounce: 0.15 } as const;
 
@@ -50,6 +51,7 @@ export default function CollectionView({
   const [morphKey, setMorphKey] = useState<string | null>(null);
   const [swipeDir, setSwipeDir] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const chickMetricArt = getMonthlyGenesisArt(new Date(nowMs)).chick;
   const [feedingId, setFeedingId] = useState<string | null>(null);
   const [shakingItemIds, setShakingItemIds] = useState<string[]>([]);
   const [revealingItemId, setRevealingItemId] = useState<string | null>(null);
@@ -116,7 +118,7 @@ export default function CollectionView({
       }
       if (!prefersReducedMotion) celebrateFeed([sourceRect]);
       playCheckinSound();
-      toast.success(`Fed ${data.itemName}.`);
+      window.setTimeout(() => toast.success(`Fed ${data.itemName}.`), 3000);
     } catch (err: any) {
       toast.error(err.message || "Income could not be collected.");
     } finally {
@@ -297,19 +299,25 @@ export default function CollectionView({
               aria-label={farmFilter === "growing" ? "Show completed cycles" : "Show growing chickens"}
               title={farmFilter === "growing" ? "Show completed cycles" : "Show growing chickens"}
               aria-pressed={farmFilter === "completed"}
-              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors ${farmFilter === "completed" ? "border-[var(--theme-primary)]/40 bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]" : "border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/70 text-[var(--theme-text)]"}`}
+              className={`user-glossy-button inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[var(--theme-on-primary)] transition-all ${farmFilter === "completed" ? "brightness-90" : ""}`}
             >
               <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
           <div className="flex items-center justify-between gap-4 rounded-[22px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/75 p-4">
-            <div>
+            <div className="flex min-w-0 flex-col gap-1">
+              <p className="flex items-center gap-1.5 text-[11px] font-bold opacity-70">
+                <img src={chickMetricArt} alt="" aria-hidden="true" className="h-5 w-5 object-contain" />
+                {farmFilter === "growing" ? "Growing chickens" : "Completed cycles"}
+              </p>
               <p className="font-display text-[28px] font-black leading-none tabular-nums">{farmFilter === "growing" ? activeChickens.length : completedCount}</p>
-              <p className="mt-1 text-[11px] font-bold opacity-60">{farmFilter === "growing" ? "Growing chickens" : "Completed cycles"}</p>
             </div>
-            <div className="text-right">
+            <div className="flex min-w-0 flex-col items-end gap-1 text-right">
+              <p className="flex items-center justify-end gap-1.5 text-[11px] font-bold opacity-70">
+                <img src={corn} alt="" aria-hidden="true" className="h-5 w-5 object-contain" />
+                {farmFilter === "growing" ? "Income per day" : "Total earned"}
+              </p>
               <p className="font-display text-[18px] font-black leading-tight tabular-nums">{formatCurrency(farmFilter === "growing" ? activeDailyIncome : completedEarned)}</p>
-              <p className="text-[11px] font-bold opacity-60">{farmFilter === "growing" ? "Income per day" : "Total earned"}</p>
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -376,7 +384,7 @@ export default function CollectionView({
                       <button type="button" disabled={feedingId === node.id} aria-disabled={!ready} onClick={(event) => {
                         const card = event.currentTarget.closest<HTMLElement>("[data-feed-card-item]");
                         void feedChicken(node, card?.getBoundingClientRect() || event.currentTarget.getBoundingClientRect());
-                      }} aria-label={ready ? "Feed chick. Today's income is ready to collect." : "Feed chick. Tap to see when it can be fed again."} className={`feed-action-button inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-5 py-2.5 text-[13px] font-black text-[var(--theme-text)] transition-colors active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 ${ready ? "is-ready" : "is-waiting"}`}>
+                      }} aria-label={ready ? "Feed chick. Today's income is ready to collect." : "Feed chick. Tap to see when it can be fed again."} className={`user-glossy-button feed-action-button inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-5 py-2.5 text-[13px] font-black text-[var(--theme-on-primary)] transition-colors active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 ${ready ? "is-ready" : "is-waiting"}`}>
                         {feedingId === node.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <img src={corn} alt="" className="h-5 w-5 object-contain" />}
                         Feed chick
                       </button>

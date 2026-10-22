@@ -176,6 +176,7 @@ export interface UserProfile {
   usdtAddress?: string;
   lastCheckinDate?: string;
   checkinStreak?: number;
+  genesisOpenedMonth?: string;
   redeemedGiftCodes?: string[];
 }
 

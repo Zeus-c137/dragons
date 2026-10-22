@@ -7,7 +7,7 @@ import { normalizeRarity, rarityForItem } from "../utils/rarity";
 import { sanitizeSiteConfig } from "../utils/themeTokens";
 import { canonicalTypeOf, normalizeExternalReference } from "../utils/transactionMeta";
 import { dedupeCategories, normalizeVipActionUrl, normalizeVipTask } from "../utils/vip";
-import { getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmount, getRunTotalDays, isRunCycleFinished } from "../utils/runs";
+import { getPlatformDayKey, getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmount, getRunTotalDays, isRunCycleFinished } from "../utils/runs";
 import { isValidUgandaPhone, normalizeUgandaPhone } from "../utils/ugandaPhone";
 
 
@@ -368,6 +368,7 @@ export async function getUserProfile(id: string): Promise<UserProfile | null> {
           usdtAddress: u.usdtAddress || "",
           lastCheckinDate: u.lastCheckinDate || "",
           checkinStreak: u.checkinStreak,
+          genesisOpenedMonth: (u as any).genesisOpenedMonth || "",
           redeemedGiftCodes: readJsonStringArray(u.redeemedGiftCodes),
           createdAt: u.createdAt
         };
@@ -2712,8 +2713,11 @@ export async function dailyCheckin(phone: string) {
   // exactly like daily yields and the midnight cron — NOT UTC. A new day
   // opens at local midnight, not 24h after the previous claim.
   const today = getPlatformDateKey();
+  if (String(user.genesisOpenedMonth || "") !== today.slice(0, 7)) {
+    throw new Error("Open this month's egg before feeding it.");
+  }
   if (user.lastCheckinDate === today) {
-    throw new Error("You have already checked in today.");
+    throw new Error("You have already fed your chick today.");
   }
 
   const config = await getSiteConfig();
@@ -2731,8 +2735,11 @@ export async function dailyCheckin(phone: string) {
       .for("update");
     const currentUser = rows[0];
     if (!currentUser) throw new Error("User not found");
+    if (String((currentUser as any).genesisOpenedMonth || "") !== today.slice(0, 7)) {
+      throw new Error("Open this month's egg before feeding it.");
+    }
     if (currentUser.lastCheckinDate === today) {
-      throw new Error("You have already checked in today.");
+      throw new Error("You have already fed your chick today.");
     }
 
     // Recalculate under the row lock so simultaneous check-ins cannot double-credit.
@@ -2768,12 +2775,35 @@ export async function dailyCheckin(phone: string) {
   // Create notification alert
   await createNotification(
     phone,
-    "Daily Check-in Reward",
-    `You checked in successfully for Day ${currentStreak} and earned UGX ${bonus.toLocaleString()} credited to your balance!`,
+    "Chick fed",
+    `You fed your chick today and earned UGX ${bonus.toLocaleString()} credited to your balance.`,
     "checkin"
   );
 
-  return { amount: bonus, bonus, streak: currentStreak, reset: !streakKept && previousStreak > 1 };
+  return { amount: bonus, bonus, streak: currentStreak, platformDate: today, reset: !streakKept && previousStreak > 1 };
+}
+
+export async function openGenesisEgg(phone: string): Promise<{ month: string }> {
+  const drizzleDb = requireDatabase("open this month's egg");
+  const month = getPlatformDayKey().slice(0, 7);
+  try {
+    await drizzleDb.transaction(async (tx) => {
+      const rows = await tx.select().from(schema.users)
+        .where(eq(schema.users.id, phone))
+        .limit(1)
+        .for("update");
+      const user = rows[0];
+      if (!user) throw new Error("User not found");
+      if (String((user as any).genesisOpenedMonth || "") !== month) {
+        await tx.update(schema.users)
+          .set({ genesisOpenedMonth: month } as any)
+          .where(eq(schema.users.id, phone));
+      }
+    });
+    return { month };
+  } catch (error) {
+    throw databaseFailure("open this month's egg", error);
+  }
 }
 
 export async function getVipTaskboard(phone: string) {

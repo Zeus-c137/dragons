@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <linearGradient id="coin" x1="4" y1="4" x2="20" y2="21" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE889"/>
+      <stop offset=".52" stop-color="#F7B938"/>
+      <stop offset="1" stop-color="#D77B19"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="4" y1="10" x2="10" y2="20" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9EE36A"/>
+      <stop offset="1" stop-color="#388B49"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="13.6" cy="18.1" rx="7" ry="2.8" fill="#B76A17" stroke="#8E4C13" stroke-width=".8"/>
+  <path d="M6.6 15.6v2.4c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-2.4" fill="url(#coin)" stroke="#9D5B14" stroke-width=".8"/>
+  <ellipse cx="13.6" cy="15.6" rx="7" ry="2.8" fill="url(#coin)" stroke="#9D5B14" stroke-width=".8"/>
+  <ellipse cx="13.6" cy="15.6" rx="4.8" ry="1.5" stroke="#FFF3B4" stroke-width=".8" opacity=".9"/>
+  <path d="M4.1 5.8c4.3 1.1 6.3 4.2 5.8 8.9-3.7-.3-6.3-2.6-6.8-6.2-.1-1 .2-1.9 1-2.7Z" fill="url(#leaf)" stroke="#286C39" stroke-width=".7"/>
+  <path d="M4.5 6.5 8.8 13" stroke="#D6F3A0" stroke-width=".8" stroke-linecap="round"/>
+  <path d="M8.1 6.6c2.1-.6 3.6.1 4.3 2.1-1.9 1-3.5.6-4.7-1.1" fill="#FFD44F" stroke="#B8781D" stroke-width=".7" stroke-linejoin="round"/>
+</svg>

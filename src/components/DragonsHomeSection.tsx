@@ -9,8 +9,10 @@ import type { Collectible, SiteConfig, SubscribedNode, SubscriptionItem, UserPro
 import { readApiJson } from "../utils/api";
 import { formatClock, getNextFeedingMessage, getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmount, getRunTotalDays, msUntilPlatformMidnight } from "../utils/runs";
 import { isDragonEggProduct } from "../utils/dragons";
+import { getMonthlyGenesisArt } from "../utils/monthlyGenesisArt";
 import { usePwaInstall } from "../hooks/usePwaInstall";
 import { celebrateFeed } from "../utils/feedCelebration";
+import GenesisEggCard from "./GenesisEggCard";
 
 import egg from "@/src/assets/svg/celestial.png";
 import clockSvg from "@/src/assets/svg/clock.svg";
@@ -28,7 +30,7 @@ import withdrawIcon from "@/src/assets/svg/withdraw.svg";
 import { playCheckinSound, primeCheckinSound } from "../utils/checkinSound";
 
 type CoinFlight = { id: number; startX: number; startY: number; dx: number; dy: number; delay: number };
-const CLAIM_SUCCESS_TOAST_DELAY_MS = 1800;
+const CLAIM_SUCCESS_TOAST_DELAY_MS = 3000;
 type Props = {
   isActive: boolean;
   profile: UserProfile;
@@ -138,7 +140,7 @@ export default function DragonsHomeSection({
   };
 
   const toastAfterClaimAnimation = (message: string) => {
-    window.setTimeout(() => toast.success(message), prefersReducedMotion ? 0 : CLAIM_SUCCESS_TOAST_DELAY_MS);
+    window.setTimeout(() => toast.success(message), CLAIM_SUCCESS_TOAST_DELAY_MS);
   };
 
   const matureChickenAfterFeed = (node: SubscribedNode, nextDaysFed: number) => {
@@ -270,6 +272,12 @@ export default function DragonsHomeSection({
       return String(node.status).toLowerCase() === "active" && (endMs === null || nowMs < endMs);
     })
     .reduce((sum, node) => sum + Math.max(0, Number(node.dailyYield) || 0), 0);
+  const feedAllNodes = activeNodes.filter((node) => {
+    if (!node.eggImageUrl || !node.dragonImageUrl || !isNodeInCycle(node)) return false;
+    const minimum = getRunMinimumClaimAmount(node);
+    return minimum > 0 && getRunClaimableReturns(node, new Date(nowMs)).amount >= minimum;
+  });
+  const monthlyChickMetricArt = getMonthlyGenesisArt(new Date(nowMs)).chick;
   const handleOpenEgg = async () => {
     if (!confirmingEgg || openingEggId) return;
     const egg = confirmingEgg;
@@ -352,11 +360,7 @@ export default function DragonsHomeSection({
 
   const handleFeedAll = async (sourceRect: DOMRect) => {
     if (isFeedingAll || claimingNodeId) return;
-    const ready = activeNodes.filter((node) => {
-      if (!node.eggImageUrl || !node.dragonImageUrl) return false;
-      return getRunClaimableReturns(node, new Date()).amount >= getRunMinimumClaimAmount(node)
-        && getRunMinimumClaimAmount(node) > 0;
-    });
+    const ready = feedAllNodes;
     if (!ready.length) {
       toast.error("Your chickens have all been fed today. Come back tomorrow.");
       return;
@@ -477,7 +481,7 @@ export default function DragonsHomeSection({
       </div>
 
       <header className="space-y-1 justify-center text-left flex flex-col px-1">
-        <div className="relative flex min-h-8 items-left justify-start px-10">
+        <div className="relative flex min-h-8 items-center justify-start px-0">
           <p className="text-[10px] font-sans font-black uppercase tracking-[0.18em] text-[var(--theme-primary)]">
             {profile.username?.trim() ? `${profile.username.trim()}’s chicken farm` : "Chicken farm"}
           </p>
@@ -506,28 +510,35 @@ export default function DragonsHomeSection({
               transition={{ duration: prefersReducedMotion ? 0.01 : 0.48, ease: [0.22, 1, 0.36, 1] }}
               className="liquid-glass-panel home-farm-menu max-h-[calc(100dvh-1rem)] w-full max-w-sm overflow-y-auto overscroll-contain rounded-[24px] border border-[var(--theme-accent)]/30 p-3 text-[var(--theme-text)] shadow-2xl sm:max-h-[min(84dvh,40rem)] sm:max-w-md sm:rounded-[28px] sm:p-4"
             >
-              <div className="relative mb-3 overflow-hidden rounded-2xl border border-[var(--theme-primary)]/25 bg-[var(--theme-primary)]/10 px-3 py-2.5">
-                <div className="pointer-events-none absolute -right-5 -top-8 h-24 w-24 rounded-full bg-[var(--theme-accent)]/15 blur-2xl" />
-                <div className="relative flex items-center gap-2.5">
-                  <img src={barnMenuIcon} alt="" aria-hidden="true" className="h-10 w-10 shrink-0 object-contain drop-shadow-md" />
+              <div className="mb-3 px-1 py-1">
+                <div className="flex items-center gap-2.5">
+                  <img src={accountDetailsIcon} alt="" aria-hidden="true" className="h-10 w-10 shrink-0 object-contain drop-shadow-md" />
                   <div className="min-w-0 flex-1">
-   
-                    <h2 id="home-settings-title" className="font-display text-lg font-black leading-tight">Farm menu</h2>
-                    <p className="mt-0.5 text-[11px] font-semibold opacity-60">Choose an adventure</p>
+                    <h2 id="home-settings-title" className="truncate font-display text-lg font-black leading-tight">
+                      {profile.username?.trim() ? `${profile.username.trim()}’s farm` : "My farm"}
+                    </h2>
+                    {communityChannels.length > 0 && (
+                      <div className="mt-1.5 flex items-center gap-2" aria-label="Community links">
+                        {communityChannels.map((channel) => (
+                          <a key={channel.label} href={channel.href} target="_blank" rel="noopener noreferrer" aria-label={channel.label} title={channel.label} className="grid h-7 w-7 place-items-center rounded-full transition-transform hover:scale-110 active:scale-95">
+                            <img src={channel.icon} alt="" aria-hidden="true" className="h-6 w-6 object-contain" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                <button
-                  ref={closeSettingsButtonRef}
-                  type="button"
-                 
-                  aria-label="Close menu"
-                  onClick={() => {
-                    setSettingsMenuOpen(false);
-                    settingsButtonRef.current?.focus();
-                  }}
-                  className="grid h-9 w-9 place-items-center rounded-xl text-[var(--theme-text)]"
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </button>
+                  <button
+                    ref={closeSettingsButtonRef}
+                    type="button"
+                    aria-label="Close menu"
+                    onClick={() => {
+                      setSettingsMenuOpen(false);
+                      settingsButtonRef.current?.focus();
+                    }}
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[var(--theme-text)] hover:bg-[var(--theme-bg)]/60"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
                 </div>
               </div>
               <nav aria-label="Home menu">
@@ -697,41 +708,53 @@ export default function DragonsHomeSection({
         ) : null}
       </AnimatePresence>
 
-      <section aria-label="Chicken flock progress and daily income" className="grid min-h-[130px] grid-cols-2 gap-4 rounded-[24px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/65 p-4">
+      <section aria-label="Chicken flock progress and daily income" className="grid min-h-[98px] grid-cols-2 gap-3 rounded-[22px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/65 p-3">
         <div className="min-w-0">
-          <p className="text-[14px] text-[var(--theme-text)] opacity-65">Eggs hatched</p>
-          <p aria-label={`${hatchedCount} chickens raised from ${eggs.length} eggs`} className="mt-2 flex items-baseline gap-1.5 font-display leading-none tabular-nums text-[var(--theme-text)]">
-            <span className="text-[32px] font-black sm:text-[36px]">{hatchedCount}</span>
-            <span className="text-[15px] font-bold opacity-45 sm:text-[17px]">/ {eggs.length}</span>
+          <p className="flex items-center gap-1.5 text-[13px] text-[var(--theme-text)] opacity-70">
+            <img src={monthlyChickMetricArt} alt="" aria-hidden="true" className="h-5 w-5 object-contain" />
+            Eggs hatched
+          </p>
+          <p aria-label={`${hatchedCount} chickens raised from ${eggs.length} eggs`} className="mt-1 flex items-baseline gap-1.5 font-display leading-none tabular-nums text-[var(--theme-text)]">
+            <span className="text-[30px] font-black sm:text-[34px]">{hatchedCount}</span>
+            <span className="text-[18px] font-normal opacity-55 sm:text-[19px]">/ {eggs.length}</span>
           </p>
         </div>
-        <div className="min-w-0 text-right px-1">
-          <p className="text-[14px] text-[var(--theme-text)] opacity-65">Daily income</p>
-          <p className="mt-2 inline-flex max-w-full items-baseline justify-end gap-1.5 truncate leading-none tabular-nums">
+        <div className="min-w-0 text-right">
+          <p className="flex items-center justify-end gap-1.5 text-[13px] text-[var(--theme-text)] opacity-70">
+            <img src={corn} alt="" aria-hidden="true" className="h-5 w-5 object-contain" />
+            Daily income
+          </p>
+          <p className="mt-1 inline-flex max-w-full items-baseline justify-end gap-1.5 truncate leading-none tabular-nums">
             <span className="font-sans text-[11px] font-bold tracking-wide text-[var(--theme-text)] opacity-55">UGX</span>
-            <span className="truncate font-display text-[28px] font-black text-[var(--theme-primary)] sm:text-[32px]">
+            <span className="truncate font-display text-[25px] font-black text-[var(--theme-primary)] sm:text-[29px]">
               {formatWholeUgx(dailyIncome)}
             </span>
           </p>
         </div>
       </section>
 
+      <GenesisEggCard
+        isActive={isActive}
+        profile={profile}
+        siteConfig={siteConfig}
+        onProfileUpdate={onProfileUpdate}
+      />
+
       {activeNodes.some((node) => node.eggImageUrl && node.dragonImageUrl && isNodeInCycle(node)) && (
         <div className="flex justify-end">
           <button
             type="button"
             onClick={(event) => void handleFeedAll(event.currentTarget.getBoundingClientRect())}
-            disabled={isFeedingAll || !!claimingNodeId}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--theme-accent)]/45 bg-[var(--theme-accent)]/12 px-5 py-2.5 text-sm font-black text-[var(--theme-text)] transition-transform active:scale-[0.98] disabled:opacity-60"
+            aria-label={feedAllNodes.length ? "Feed all ready chickens" : "All chickens have been fed today"}
+            disabled={feedAllNodes.length === 0 || isFeedingAll || !!claimingNodeId}
+            className="user-glossy-button inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--theme-accent)]/45 px-5 py-2.5 text-sm font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:grayscale disabled:opacity-55"
           >
-            {isFeedingAll ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : (
-              <span className="inline-flex items-center -space-x-1" aria-hidden="true">
-                {[0, 1, 2].map((cornIndex) => (
-                  <img key={cornIndex} src={corn} alt="" className="h-5 w-5 object-contain" />
-                ))}
-              </span>
-            )}
-            Feed all
+            <span className="inline-flex items-center -space-x-1" aria-hidden="true">
+              {[0, 1, 2].map((cornIndex) => (
+                <img key={cornIndex} src={corn} alt="" className="h-5 w-5 object-contain" />
+              ))}
+            </span>
+            {isFeedingAll ? "Feeding all..." : "Feed all"}
           </button>
         </div>
       )}
@@ -775,9 +798,9 @@ export default function DragonsHomeSection({
                   className={`feed-celebration-card overflow-hidden rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/75 ${shakingItemIds.includes(egg.id) ? "is-shaking" : ""}`}
                   style={{ "--feed-stagger": `${Math.min(index, 5) * 30}ms` } as React.CSSProperties}
                 >
-                  <div className={`relative flex aspect-[1.85] items-center justify-center overflow-hidden p-3 ${dragonOwned ? "bg-[var(--theme-primary)]/8" : "bg-[var(--theme-primary)]/6"}`}>
+                  <div className={`relative flex aspect-[2.3] items-center justify-center overflow-hidden p-2 ${dragonOwned ? "bg-[var(--theme-primary)]/8" : "bg-[var(--theme-primary)]/6"}`}>
                     <span
-                      className={`dragon-egg-art${dragonOwned ? " dragon-chicken-art" : !isHatching ? " dragon-egg-float" : ""}`}
+                      className={`dragon-egg-art catalog-product-art${dragonOwned ? " dragon-chicken-art" : !isHatching ? " dragon-egg-float" : ""}`}
                       style={isHatching ? undefined : { animationDelay: `${(index % 5) * -0.65}s` }}
                     >
                       <img
@@ -797,6 +820,15 @@ export default function DragonsHomeSection({
                     <span className="absolute right-3 top-3 rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[11px] font-black text-[var(--theme-primary)] shadow-sm">
                       {dailyIncomePercent}% daily
                     </span>
+                    {!dragonOwned && (
+                      <span
+                        aria-label={`${totalDays} day${totalDays === 1 ? "" : "s"} duration`}
+                        className="absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[10px] font-sans font-bold tabular-nums text-[var(--theme-primary)] shadow-sm"
+                      >
+                        <Timer className="h-3.5 w-3.5" aria-hidden="true" />
+                        {totalDays} {totalDays === 1 ? "day" : "days"}
+                      </span>
+                    )}
                     {hatchCount > 0 && !dragonOwned ? (
                       <span className="absolute left-3 top-11 rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[var(--theme-text)]">
                         Hatched ×{hatchCount}
@@ -808,10 +840,10 @@ export default function DragonsHomeSection({
                     ) : null}
 
                   </div>
-                  <div className="space-y-2.5 p-4">
+                  <div className="space-y-2 p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <h3 className="truncate font-display text-[18px] font-black text-[var(--theme-text)] sm:text-[20px]">{egg.name}</h3>
+                        <h3 className="truncate font-display text-[17px] font-black text-[var(--theme-text)] sm:text-[19px]">{egg.name}</h3>
                       </div>
                       {dragonOwned ? (
                         <p className="inline-flex shrink-0 items-center gap-1 font-display text-[17px] font-black tabular-nums text-[var(--theme-text)]">
@@ -836,23 +868,12 @@ export default function DragonsHomeSection({
                           <span className="font-display text-[17px] font-black tabular-nums text-[var(--theme-primary)]">{formatCurrency(ownedNode.dailyYield)}</span>
                         </div>
                         <div className={`feed-cycle-progress space-y-2 ${isFeedReady ? "is-ready" : ""}`} aria-label={`Cycle progress: day ${currentCycleDay} of ${totalDays}`}>
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              {minimumClaimAmount > 0 ? (
-                                <div className={`feed-availability ${isFeedReady ? "is-ready" : "is-waiting"}`} aria-live="polite">
-                                  <img src={corn} alt="" aria-hidden="true" />
-                                  <span>{isFeedReady ? "Ready to feed" : `Next feed in ${formatClock(msUntilPlatformMidnight(nowMs))}`}</span>
-                                </div>
-                              ) : null}
+                          {minimumClaimAmount > 0 ? (
+                            <div className={`feed-availability ${isFeedReady ? "is-ready" : "is-waiting"}`} aria-live="polite">
+                              <img src={corn} alt="" aria-hidden="true" />
+                              <span>{isFeedReady ? "Ready to feed" : `Next feed in ${formatClock(msUntilPlatformMidnight(nowMs))}`}</span>
                             </div>
-                            <span
-                              aria-label={`Cycle day ${currentCycleDay} of ${totalDays}`}
-                              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-[10px] font-sans font-bold tabular-nums text-[var(--theme-primary)]"
-                            >
-                              <img src={clockSvg} alt="" aria-hidden="true" className="h-3.5 w-3.5" />
-                              Day {currentCycleDay}/{totalDays}
-                            </span>
-                          </div>
+                          ) : null}
                           <div
                             role="progressbar"
                             aria-label="Chicken cycle progress"
@@ -874,6 +895,15 @@ export default function DragonsHomeSection({
                               style={{ left: `${Math.min(96, Math.max(4, cycleProgress))}%` }}
                             />
                           </div>
+                          <div className="flex justify-end">
+                            <span
+                              aria-label={`Cycle day ${currentCycleDay} of ${totalDays}`}
+                              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-[10px] font-sans font-bold tabular-nums text-[var(--theme-primary)]"
+                            >
+                              <img src={clockSvg} alt="" aria-hidden="true" className="h-3.5 w-3.5" />
+                              Day {currentCycleDay}/{totalDays}
+                            </span>
+                          </div>
                         </div>
                         <button
                           type="button"
@@ -886,10 +916,10 @@ export default function DragonsHomeSection({
                           aria-label={isFeedReady
                             ? "Feed chick. Today's income is ready to collect."
                             : "Feed chick. Tap to see when it can be fed again."}
-                          className={`feed-action-button inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-5 py-2.5 text-[13px] font-black text-[var(--theme-text)] transition-colors active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 ${isFeedReady ? "is-ready" : "is-waiting"}`}
+                          className={`user-glossy-button feed-action-button inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-5 py-2.5 text-[13px] font-black text-[var(--theme-on-primary)] transition-colors active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 ${isFeedReady ? "is-ready" : "is-waiting"}`}
                         >
-                          {claimingNodeId === ownedNode.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <img src={corn} alt="" className="h-5 w-5 object-contain" />}
-                          Feed chick
+                          <img src={corn} alt="" className="h-5 w-5 object-contain" />
+                          {claimingNodeId === ownedNode.id ? "Feeding..." : "Feed chick"}
                         </button>
                       </>
                     ) : (
@@ -897,16 +927,6 @@ export default function DragonsHomeSection({
                         <div className="flex items-center justify-between text-[14px] sm:text-[13px]">
                           <span className="text-[var(--theme-text)] opacity-65">Income per day</span>
                           <span className="font-display font-black tabular-nums text-[var(--theme-text)]">{formatCurrency(egg.dailyYield)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[13px]">
-                          <span className="text-[var(--theme-text)] opacity-65">Duration</span>
-                          <span
-                            aria-label={`${totalDays} day${totalDays === 1 ? "" : "s"} duration`}
-                            className="inline-flex items-center gap-1 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-[10px] font-sans font-bold tabular-nums text-[var(--theme-primary)]"
-                          >
-                            <Timer className="h-3.5 w-3.5" aria-hidden="true" />
-                            {totalDays} {totalDays === 1 ? "day" : "days"}
-                          </span>
                         </div>
                         <div className="space-y-2">
                           <button

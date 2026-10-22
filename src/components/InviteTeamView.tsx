@@ -140,7 +140,7 @@ export default function InviteTeamView({ stats, isLoading, activeLevel, onActive
           onClick={onClaimRewards}
           disabled={pendingReferralRewards <= 0 || isClaiming}
           aria-busy={isClaiming}
-          className="inline-flex min-h-10 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--theme-primary)] px-3.5 text-[12px] font-bold text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"
+          className="user-glossy-button inline-flex min-h-10 w-full shrink-0 items-center justify-center gap-2 rounded-xl px-3.5 text-[12px] font-bold text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"
         >
           {isClaiming && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
           Collect referral income

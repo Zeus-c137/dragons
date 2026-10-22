@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { useGatedInterval } from "../hooks/useGatedInterval";
 import { SubscriptionItem, UserProfile } from "../types";
 import {
-  PhoneCall,
-  Coins,
   CheckCircle,
   Cpu,
   Copy,
@@ -19,6 +17,8 @@ import { useCurrency } from "../currency";
 import { formatUgandaPhoneInput, isValidUgandaPhone, normalizeUgandaPhone } from "../utils/ugandaPhone";
 import PaymentMethodSelect from "./PaymentMethodSelect";
 import { Button } from "./ui/button";
+import phoneInputIcon from "@/src/assets/svg/input-phone.svg";
+import amountInputIcon from "@/src/assets/svg/input-corn-coins.svg";
 
 interface DepositViewProps {
   userProfile: UserProfile;
@@ -403,7 +403,7 @@ export default function DepositView({
                   <div className="space-y-2">
                     <label htmlFor="deposit-mobile-number" className="text-[16px] font-sans font-medium opacity-60">Phone number</label>
                     <div className="relative">
-                      <PhoneCall className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[var(--theme-primary)]" aria-hidden="true" />
+                      <img src={phoneInputIcon} alt="" className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 object-contain" aria-hidden="true" />
                       <input
                         id="deposit-mobile-number"
                         name="mobileNumber"
@@ -426,7 +426,7 @@ export default function DepositView({
                   <div className="space-y-2">
                     <label htmlFor="deposit-amount" className="text-[16px] font-sans font-medium opacity-60">Amount (UGX)</label>
                     <div className="relative">
-                      <Coins className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[var(--theme-primary)]" aria-hidden="true" />
+                      <img src={amountInputIcon} alt="" className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 object-contain" aria-hidden="true" />
                       <input
                         id="deposit-amount"
                         name="amount"
@@ -446,7 +446,7 @@ export default function DepositView({
                   </div>
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-4 space-y-3">
                   <Button
                     variant="primary"
                     size="md"
@@ -549,7 +549,7 @@ export default function DepositView({
                   <div className="space-y-2">
                     <label htmlFor="manual-sender-number" className="text-[13px] font-sans font-medium opacity-60">Your sender number</label>
                     <div className="relative">
-                      <PhoneCall className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[var(--theme-primary)]" aria-hidden="true" />
+                      <img src={phoneInputIcon} alt="" className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 object-contain" aria-hidden="true" />
                       <input
                         id="manual-sender-number"
                         name="senderPhone"
@@ -571,7 +571,7 @@ export default function DepositView({
                   <div className="space-y-2">
                     <label htmlFor="manual-deposit-amount" className="text-[13px] font-sans font-medium opacity-60">Amount sent (UGX)</label>
                     <div className="relative">
-                      <Coins className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[var(--theme-primary)]" aria-hidden="true" />
+                      <img src={amountInputIcon} alt="" className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 object-contain" aria-hidden="true" />
                       <input
                         id="manual-deposit-amount"
                         name="amount"
@@ -605,7 +605,7 @@ export default function DepositView({
                   </div>
                 </div>
 
-                <div className="mt-auto space-y-3 pt-6">
+                <div className="mt-auto space-y-4 pt-6">
                   <Button
                     variant="primary"
                     size="lg"
@@ -666,7 +666,7 @@ export default function DepositView({
                   <div className="space-y-2">
                     <label htmlFor="usdt-deposit-amount" className="text-[13px] font-sans font-medium opacity-60">Amount sent (USD)</label>
                     <div className="relative">
-                      <Coins className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[var(--theme-primary)]" aria-hidden="true" />
+                      <img src={amountInputIcon} alt="" className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 object-contain" aria-hidden="true" />
                       <input
                         id="usdt-deposit-amount"
                         name="amountUsd"
@@ -698,7 +698,7 @@ export default function DepositView({
                   </div>
                 </div>
 
-                <div className="mt-auto space-y-3 pt-6">
+                <div className="mt-auto space-y-4 pt-6">
                   <Button
                     variant="primary"
                     size="lg"
