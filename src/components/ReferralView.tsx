@@ -273,7 +273,7 @@ function HowItWorksSheet({ metrics, onClose }: HowItWorksSheetProps) {
         initial={reducedMotion ? { opacity: 0 } : { opacity: 0, transform: "translateY(24px)" }}
         animate={{ opacity: 1, transform: "translateY(0px)" }}
         exit={reducedMotion ? { opacity: 0, transition: { duration: 0.01 } } : { opacity: 0, transform: "translateY(12px)", transition: { duration: 0.16, ease: "easeOut" } }}
-        transition={reducedMotion ? { duration: 0.01 } : { duration: 0.26, ease: [0.32, 0.72, 0, 1] }}
+        transition={reducedMotion ? { duration: 0.01 } : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
         className="liquid-glass-panel relative z-[10] flex h-[85vh] h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[15px] border border-[var(--theme-card-border)] text-[var(--theme-text)] shadow-2xl sm:rounded-[26px]"
       >
         <div className="flex shrink-0 items-start justify-between gap-3 px-4 pb-3 pt-4 sm:gap-4 sm:px-5 sm:pt-5">
@@ -364,7 +364,14 @@ export default function ReferralView({ userProfile, siteConfig, onProfileChange,
   const activeLevelStats = getActiveLevelStats(stats, activeLevel);
   const brandName = liveSiteConfig?.brandName || siteConfig?.brandName || "us";
   const reduced = useReducedMotion();
-  const viewMotion = getViewMotion(reduced);
+  const viewMotion = reduced
+    ? getViewMotion(true)
+    : {
+        initial: { opacity: 0, y: 5 },
+        animate: { opacity: 1, y: 0 },
+        exit: { opacity: 0, y: -3 },
+        transition: { type: "spring" as const, stiffness: 560, damping: 38, mass: 0.65 },
+      };
   const closeHowItWorks = useCallback(() => setShowHowItWorks(false), []);
   const handleClaimRewards = useCallback(async () => {
     if (isClaiming || Number(userProfile.pendingReferralRewards) <= 0) return;

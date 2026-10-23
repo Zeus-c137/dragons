@@ -37,11 +37,15 @@ import withdrawNavIcon from "@/src/assets/svg/withdraw.svg";
 import cornIcon from "@/src/assets/svg/corn.svg";
 import inviteNavIcon from "@/src/assets/svg/invite.svg";
 import tractorNavIcon from "@/src/assets/svg/tractor.svg";
-import { motion, AnimatePresence } from "motion/react";
+import { animate, motion, AnimatePresence, useMotionValue } from "motion/react";
 
 import { ThemeProvider } from "./context/ThemeContext";
 import { useGatedInterval, useAbortSignal } from "./hooks/useGatedInterval";
+import { useReducedMotion } from "./hooks/useReducedMotion";
 import { fetchJsonWithSignal } from "./utils/abortableFetch";
+
+const MAIN_NAV_KEYS = ["dashboard", "collection", "deposit", "withdraw", "referral"] as const;
+type MainNavKey = (typeof MAIN_NAV_KEYS)[number];
 
 type AnimatedWithdrawableBalanceProps = {
   amount: number;
@@ -147,6 +151,7 @@ function writeBootShell(config: any) {
 }
 
 export default function App() {
+  const reduceNavMotion = useReducedMotion();
   const { formatCurrency } = useCurrency();
   const [isAdminRoute, setIsAdminRoute] = useState(
     window.location.pathname.startsWith("/admin/access") || window.location.hash.startsWith("#/admin/access")
@@ -216,6 +221,19 @@ export default function App() {
     };
   }, [isAdminRoute]);
   const [activeTab, setActiveTab] = useState<"dashboard" | "catalog" | "income" | "collection" | "history" | "referral" | "chat" | "account" | "guide" | "deposit" | "withdraw" | "alerts" | "vip" | "streaks">("dashboard");
+  const [navPreview, setNavPreview] = useState<MainNavKey | null>(null);
+  const [navPressed, setNavPressed] = useState(false);
+  const [navLabelsHidden, setNavLabelsHidden] = useState(false);
+  const mainNavRef = useRef<HTMLElement | null>(null);
+  const navGestureRef = useRef<{ pointerId: number; startX: number; index: number; didMove: boolean } | null>(null);
+  const suppressNavClickRef = useRef(false);
+  const navBubbleX = useMotionValue(0);
+  const navBubbleWidth = useMotionValue(0);
+  const navBubbleWidthAnimRef = useRef<{ stop: () => void } | null>(null);
+  const navBubbleAnimationRef = useRef<{ stop: () => void } | null>(null);
+  const prevNavLabelsHiddenRef = useRef(navLabelsHidden);
+  const navModeShiftUntilRef = useRef(0);
+  const lastMainScrollTopRef = useRef(0);
   const [withdrawableCountUpId, setWithdrawableCountUpId] = useState(0);
   const [historyFilterRequest, setHistoryFilterRequest] = useState<string | null>(null);
   const [journeyStage, setJourneyStage] = useState<string | null>(null);
@@ -230,6 +248,153 @@ export default function App() {
     () => siteConfig ?? (bootShell ? { themePreset: bootShell.themePreset, themeMode: bootShell.themeMode } : null),
     [siteConfig, bootShell]
   );
+
+  const navigateMainNav = (key: MainNavKey) => {
+    if (key === "collection") setCollectionReturn("dashboard");
+    if (key === "referral") setReferralView("overview");
+    setActiveTab(key);
+  };
+
+  const applyNavBubbleWidth = (next: number) => {
+    if (!Number.isFinite(next) || next <= 0 || Math.abs(next - navBubbleWidth.get()) < 0.5) return;
+    if (reduceNavMotion || performance.now() < navModeShiftUntilRef.current) {
+      navBubbleWidth.set(next);
+      return;
+    }
+    navBubbleWidthAnimRef.current?.stop();
+    navBubbleWidthAnimRef.current = animate(navBubbleWidth, next, {
+      type: "spring",
+      stiffness: 460,
+      damping: 36,
+      mass: 0.62,
+    });
+  };
+
+  const handleMainScroll = (event: React.UIEvent<HTMLElement>) => {
+    const scroller = event.target;
+    if (!(scroller instanceof HTMLElement) || scroller === event.currentTarget) return;
+    const nextTop = Math.max(0, scroller.scrollTop);
+    const previousTop = lastMainScrollTopRef.current;
+    if (nextTop <= 4) setNavLabelsHidden(false);
+    else if (nextTop > previousTop + 3) setNavLabelsHidden(true);
+    else if (nextTop < previousTop - 3) setNavLabelsHidden(false);
+    lastMainScrollTopRef.current = nextTop;
+  };
+
+  const navIndexAtX = (clientX: number) => {
+    const buttons = Array.from(mainNavRef.current?.querySelectorAll<HTMLButtonElement>("[data-main-nav-item]") || []);
+    const found = buttons.findIndex((button) => clientX <= button.getBoundingClientRect().right);
+    return Math.max(0, Math.min(MAIN_NAV_KEYS.length - 1, found < 0 ? MAIN_NAV_KEYS.length - 1 : found));
+  };
+
+  const handleNavPointerDown = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const target = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-main-nav-item]") : null;
+    const index = target ? Number(target.dataset.navIndex) : -1;
+    if (index < 0 || index >= MAIN_NAV_KEYS.length) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    navBubbleAnimationRef.current?.stop();
+    const navRect = event.currentTarget.getBoundingClientRect();
+    const bubbleWidth = mainNavRef.current?.querySelector<HTMLButtonElement>("[data-main-nav-item]")?.getBoundingClientRect().width || 0;
+    navBubbleX.set(Math.max(0, Math.min(navRect.width - bubbleWidth, event.clientX - navRect.left - bubbleWidth / 2)));
+    navGestureRef.current = { pointerId: event.pointerId, startX: event.clientX, index, didMove: false };
+    setNavPreview(MAIN_NAV_KEYS[index]);
+    setNavPressed(true);
+  };
+
+  const handleNavPointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    const gesture = navGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (!gesture.didMove && Math.abs(event.clientX - gesture.startX) < 7) return;
+    gesture.didMove = true;
+    const index = navIndexAtX(event.clientX);
+    gesture.index = index;
+    const navRect = event.currentTarget.getBoundingClientRect();
+    const bubbleWidth = mainNavRef.current?.querySelector<HTMLButtonElement>("[data-main-nav-item]")?.getBoundingClientRect().width || 0;
+    navBubbleX.set(Math.max(0, Math.min(navRect.width - bubbleWidth, event.clientX - navRect.left - bubbleWidth / 2)));
+    setNavPreview(MAIN_NAV_KEYS[index]);
+  };
+
+  const finishNavGesture = (event: React.PointerEvent<HTMLElement>, commit: boolean) => {
+    const gesture = navGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (commit) {
+      suppressNavClickRef.current = true;
+      window.setTimeout(() => { suppressNavClickRef.current = false; }, 350);
+      navigateMainNav(MAIN_NAV_KEYS[gesture.index]);
+    }
+    navGestureRef.current = null;
+    setNavPreview(null);
+    setNavPressed(false);
+  };
+
+  useEffect(() => {
+    setNavLabelsHidden(false);
+    lastMainScrollTopRef.current = 0;
+  }, [activeTab]);
+
+  const activeMainNavKey = navPreview ?? MAIN_NAV_KEYS.find((key) => key === activeTab) ?? null;
+
+  useEffect(() => {
+    const nav = mainNavRef.current;
+    if (!nav) return;
+    const firstButton = nav.querySelector<HTMLButtonElement>("[data-main-nav-item]");
+    const activeButton = activeMainNavKey
+      ? nav.querySelector<HTMLButtonElement>(`[data-nav-index="${MAIN_NAV_KEYS.indexOf(activeMainNavKey)}"]`)
+      : null;
+    if (firstButton) applyNavBubbleWidth(firstButton.getBoundingClientRect().width);
+    if (!activeButton || navPressed) return;
+    const modeShift = prevNavLabelsHiddenRef.current !== navLabelsHidden;
+    prevNavLabelsHiddenRef.current = navLabelsHidden;
+    if (modeShift) {
+      navModeShiftUntilRef.current = performance.now() + 320;
+      navBubbleAnimationRef.current?.stop();
+      navBubbleWidthAnimRef.current?.stop();
+      if (!reduceNavMotion) {
+        const activeIndex = MAIN_NAV_KEYS.indexOf(activeMainNavKey);
+        const stopAt = navModeShiftUntilRef.current;
+        const trackTransition = () => {
+          if (!nav.isConnected || performance.now() >= stopAt) return;
+          const trackedButton = nav.querySelector<HTMLButtonElement>(`[data-nav-index="${activeIndex}"]`);
+          if (trackedButton) navBubbleX.set(trackedButton.getBoundingClientRect().left - nav.getBoundingClientRect().left);
+          const scaledButton = nav.querySelector<HTMLButtonElement>("[data-main-nav-item]");
+          if (scaledButton) navBubbleWidth.set(scaledButton.getBoundingClientRect().width);
+          requestAnimationFrame(trackTransition);
+        };
+        requestAnimationFrame(trackTransition);
+      }
+      return;
+    }
+    const nextX = activeButton.getBoundingClientRect().left - nav.getBoundingClientRect().left;
+    navBubbleAnimationRef.current?.stop();
+    if (reduceNavMotion) {
+      navBubbleX.set(nextX);
+    } else {
+      navBubbleAnimationRef.current = animate(navBubbleX, nextX, {
+        type: "spring",
+        stiffness: 560,
+        damping: 38,
+        mass: 0.62,
+      });
+    }
+  }, [activeMainNavKey, navPressed, navBubbleX, navLabelsHidden, reduceNavMotion, Boolean(userProfile)]);
+
+  useEffect(() => {
+    const nav = mainNavRef.current;
+    if (!nav) return;
+    const measure = () => {
+      const button = nav.querySelector<HTMLButtonElement>("[data-main-nav-item]");
+      if (button) applyNavBubbleWidth(button.getBoundingClientRect().width);
+    };
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(nav);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [Boolean(userProfile)]);
 
   // Refresh the cached shell whenever live config lands.
   useEffect(() => {
@@ -719,7 +884,7 @@ export default function App() {
         </header>
 
         {/* Main interactive tabs content view block */}
-        <main className="flex-1 relative min-h-0 flex flex-col isolate overflow-hidden"
+        <main onScrollCapture={handleMainScroll} className="flex-1 relative min-h-0 flex flex-col isolate overflow-hidden"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <AnimatePresence mode="wait" initial={false}>
             {(activeTab === "dashboard" || (activeTab === "alerts" && previousTab === "dashboard")) && (
@@ -733,6 +898,7 @@ export default function App() {
               >
                 <DashboardView
                   isHomeActive={activeTab === "dashboard"}
+                  navCompact={navLabelsHidden}
                   profile={userProfile}
                   activeNodes={activeNodes}
                   items={items}
@@ -1007,69 +1173,101 @@ export default function App() {
         </AnimatePresence>
 
         {/* Primary destinations: the farm, collections, wallet actions, and friends */}
-          <nav aria-label="Main navigation" className="user-app-bottom-nav grid grid-cols-5 items-end shrink-0 z-40 select-none">
+          <motion.nav
+            ref={mainNavRef}
+            aria-label="Main navigation"
+            className={`user-app-bottom-nav grid grid-cols-5 items-end shrink-0 z-40 select-none touch-pan-y ${navLabelsHidden ? "is-compact" : ""}`}
+            animate={{ scale: navPressed && !reduceNavMotion ? 1.018 : 1 }}
+            transition={reduceNavMotion ? { duration: 0.01 } : { type: "spring", stiffness: 560, damping: 36, mass: 0.65 }}
+            onPointerDown={handleNavPointerDown}
+            onPointerMove={handleNavPointerMove}
+            onPointerUp={(event) => finishNavGesture(event, true)}
+            onPointerCancel={(event) => finishNavGesture(event, false)}
+          >
+            <motion.span
+              aria-hidden="true"
+              className="user-app-nav-bubble pointer-events-none absolute inset-y-1 left-0 z-0 rounded-full"
+              style={{ x: navBubbleX, width: navBubbleWidth, opacity: activeMainNavKey ? 1 : 0 }}
+              animate={{ scale: navPressed && !reduceNavMotion ? 1.045 : 1 }}
+              transition={reduceNavMotion ? { duration: 0.01 } : { type: "spring", stiffness: 560, damping: 36, mass: 0.6 }}
+            />
             <button
               type="button"
-              onClick={() => setActiveTab("dashboard")}
+              data-main-nav-item
+              data-nav-index="0"
+              aria-label="The Farm"
+              onClick={(event) => { if (suppressNavClickRef.current) { event.preventDefault(); event.stopPropagation(); suppressNavClickRef.current = false; return; } navigateMainNav("dashboard"); }}
               aria-current={activeTab === "dashboard" ? "page" : undefined}
-              className={`user-app-nav-item flex flex-col items-center gap-0 py-1 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "dashboard" ? "is-active" : ""}`}
+              className={`user-app-nav-item relative isolate flex flex-col items-center gap-0 py-1 px-1 rounded-2xl border-0 transition-colors active:scale-[0.97] ${activeMainNavKey === "dashboard" ? "is-active" : ""}`}
             >
-              <span className="grid place-items-center w-11 h-11">
+              <motion.span animate={{ y: 0, scale: navLabelsHidden ? (reduceNavMotion ? 1 : 0.94) : 1 }} transition={{ duration: reduceNavMotion ? 0.01 : 0.2, ease: [0.16, 1, 0.3, 1] }} className="relative z-10 grid place-items-center w-11 h-11 origin-center">
                 <img src={homeNavIcon} alt="" aria-hidden="true" className="h-11 w-11 object-contain" />
-              </span>
-              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">The Farm</span>
+              </motion.span>
+              <motion.span aria-hidden="true" animate={{ opacity: navLabelsHidden ? 0 : 0.78, height: navLabelsHidden && !reduceNavMotion ? 0 : "auto", y: navLabelsHidden && !reduceNavMotion ? 4 : 0, scale: navLabelsHidden && !reduceNavMotion ? 0.92 : 1 }} transition={{ duration: reduceNavMotion ? 0.01 : 0.18, ease: [0.16, 1, 0.3, 1] }} className="user-app-nav-label overflow-hidden whitespace-nowrap relative z-10 text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">The Farm</motion.span>
               
             </button>
             <button
               type="button"
-              onClick={() => { setCollectionReturn("dashboard"); setActiveTab("collection"); }}
+              data-main-nav-item
+              data-nav-index="1"
+              aria-label="My chicks"
+              onClick={(event) => { if (suppressNavClickRef.current) { event.preventDefault(); event.stopPropagation(); suppressNavClickRef.current = false; return; } navigateMainNav("collection"); }}
               aria-current={activeTab === "collection" ? "page" : undefined}
-              className={`user-app-nav-item flex flex-col items-center gap-0 py-1 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "collection" ? "is-active" : ""}`}
+              className={`user-app-nav-item relative isolate flex flex-col items-center gap-0 py-1 px-1 rounded-2xl border-0 transition-colors active:scale-[0.97] ${activeMainNavKey === "collection" ? "is-active" : ""}`}
             >
-              <span className="grid place-items-center w-11 h-11">
+              <motion.span animate={{ y: 0, scale: navLabelsHidden ? (reduceNavMotion ? 1 : 0.94) : 1 }} transition={{ duration: reduceNavMotion ? 0.01 : 0.2, ease: [0.16, 1, 0.3, 1] }} className="relative z-10 grid place-items-center w-11 h-11 origin-center">
                 <img src={tractorNavIcon} alt="" aria-hidden="true" className="h-11 w-11 object-contain" />
-              </span>
-              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">My chicks</span>
+              </motion.span>
+              <motion.span aria-hidden="true" animate={{ opacity: navLabelsHidden ? 0 : 0.78, height: navLabelsHidden && !reduceNavMotion ? 0 : "auto", y: navLabelsHidden && !reduceNavMotion ? 4 : 0, scale: navLabelsHidden && !reduceNavMotion ? 0.92 : 1 }} transition={{ duration: reduceNavMotion ? 0.01 : 0.18, ease: [0.16, 1, 0.3, 1] }} className="user-app-nav-label overflow-hidden whitespace-nowrap relative z-10 text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">My chicks</motion.span>
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab("deposit")}
+              data-main-nav-item
+              data-nav-index="2"
+              aria-label="Top up"
+              onClick={(event) => { if (suppressNavClickRef.current) { event.preventDefault(); event.stopPropagation(); suppressNavClickRef.current = false; return; } navigateMainNav("deposit"); }}
               aria-current={activeTab === "deposit" ? "page" : undefined}
-              className={`user-app-nav-item flex flex-col items-center gap-0 py-1 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "deposit" ? "is-active" : ""}`}
+              className={`user-app-nav-item relative isolate flex flex-col items-center gap-0 py-1 px-1 rounded-2xl border-0 transition-colors active:scale-[0.97] ${activeMainNavKey === "deposit" ? "is-active" : ""}`}
             >
-              <span className="grid h-11 w-11 place-items-center">
+              <motion.span animate={{ y: 0, scale: navLabelsHidden ? (reduceNavMotion ? 1 : 0.94) : 1 }} transition={{ duration: reduceNavMotion ? 0.01 : 0.2, ease: [0.16, 1, 0.3, 1] }} className="relative z-10 grid h-11 w-11 place-items-center origin-center">
                 <img src={depositNavIcon} alt="" aria-hidden="true" className="h-11 w-11 object-contain" />
-              </span>
-              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Top up</span>
+              </motion.span>
+              <motion.span aria-hidden="true" animate={{ opacity: navLabelsHidden ? 0 : 0.78, height: navLabelsHidden && !reduceNavMotion ? 0 : "auto", y: navLabelsHidden && !reduceNavMotion ? 4 : 0, scale: navLabelsHidden && !reduceNavMotion ? 0.92 : 1 }} transition={{ duration: reduceNavMotion ? 0.01 : 0.18, ease: [0.16, 1, 0.3, 1] }} className="user-app-nav-label overflow-hidden whitespace-nowrap relative z-10 text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Top up</motion.span>
            
             </button>
 
             <button
               type="button"
-              onClick={() => setActiveTab("withdraw")}
+              data-main-nav-item
+              data-nav-index="3"
+              aria-label="Withdraw"
+              onClick={(event) => { if (suppressNavClickRef.current) { event.preventDefault(); event.stopPropagation(); suppressNavClickRef.current = false; return; } navigateMainNav("withdraw"); }}
               aria-current={activeTab === "withdraw" ? "page" : undefined}
-              className={`user-app-nav-item flex flex-col items-center gap-0 py-1 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "withdraw" ? "is-active" : ""}`}
+              className={`user-app-nav-item relative isolate flex flex-col items-center gap-0 py-1 px-1 rounded-2xl border-0 transition-colors active:scale-[0.97] ${activeMainNavKey === "withdraw" ? "is-active" : ""}`}
             >
-              <span className="grid h-11 w-11 place-items-center">
+              <motion.span animate={{ y: 0, scale: navLabelsHidden ? (reduceNavMotion ? 1 : 0.94) : 1 }} transition={{ duration: reduceNavMotion ? 0.01 : 0.2, ease: [0.16, 1, 0.3, 1] }} className="relative z-10 grid h-11 w-11 place-items-center origin-center">
                 <img src={withdrawNavIcon} alt="" aria-hidden="true" className="h-11 w-11 object-contain" />
-              </span>
-              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Withdraw</span>
+              </motion.span>
+              <motion.span aria-hidden="true" animate={{ opacity: navLabelsHidden ? 0 : 0.78, height: navLabelsHidden && !reduceNavMotion ? 0 : "auto", y: navLabelsHidden && !reduceNavMotion ? 4 : 0, scale: navLabelsHidden && !reduceNavMotion ? 0.92 : 1 }} transition={{ duration: reduceNavMotion ? 0.01 : 0.18, ease: [0.16, 1, 0.3, 1] }} className="user-app-nav-label overflow-hidden whitespace-nowrap relative z-10 text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Withdraw</motion.span>
               
             </button>
 
             <button
               type="button"
-              onClick={() => { setReferralView("overview"); setActiveTab("referral"); }}
+              data-main-nav-item
+              data-nav-index="4"
+              aria-label="Friends"
+              onClick={(event) => { if (suppressNavClickRef.current) { event.preventDefault(); event.stopPropagation(); suppressNavClickRef.current = false; return; } navigateMainNav("referral"); }}
               aria-current={activeTab === "referral" ? "page" : undefined}
-              className={`user-app-nav-item flex flex-col items-center gap-0 py-1 px-1 rounded-xl border-0 transition-colors active:scale-[0.97] ${activeTab === "referral" ? "is-active" : ""}`}
+              className={`user-app-nav-item relative isolate flex flex-col items-center gap-0 py-1 px-1 rounded-2xl border-0 transition-colors active:scale-[0.97] ${activeMainNavKey === "referral" ? "is-active" : ""}`}
             >
-              <span className="grid place-items-center w-11 h-11">
+              <motion.span animate={{ y: 0, scale: navLabelsHidden ? (reduceNavMotion ? 1 : 0.94) : 1 }} transition={{ duration: reduceNavMotion ? 0.01 : 0.2, ease: [0.16, 1, 0.3, 1] }} className="relative z-10 grid place-items-center w-11 h-11 origin-center">
                 <img src={inviteNavIcon} alt="" aria-hidden="true" className="h-11 w-11 object-contain" />
-              </span>
-              <span className="text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Friends</span>
+              </motion.span>
+              <motion.span aria-hidden="true" animate={{ opacity: navLabelsHidden ? 0 : 0.78, height: navLabelsHidden && !reduceNavMotion ? 0 : "auto", y: navLabelsHidden && !reduceNavMotion ? 4 : 0, scale: navLabelsHidden && !reduceNavMotion ? 0.92 : 1 }} transition={{ duration: reduceNavMotion ? 0.01 : 0.18, ease: [0.16, 1, 0.3, 1] }} className="user-app-nav-label overflow-hidden whitespace-nowrap relative z-10 text-[9px] sm:text-[10px] font-sans font-black uppercase tracking-wide leading-none">Friends</motion.span>
             
             </button>
-          </nav>
+          </motion.nav>
 
 
 

@@ -33,6 +33,7 @@ type CoinFlight = { id: number; startX: number; startY: number; dx: number; dy: 
 const CLAIM_SUCCESS_TOAST_DELAY_MS = 3000;
 type Props = {
   isActive: boolean;
+  navCompact?: boolean;
   profile: UserProfile;
   activeNodes: SubscribedNode[];
   items: SubscriptionItem[];
@@ -54,6 +55,7 @@ function formatWholeUgx(amount: number): string {
 
 export default function DragonsHomeSection({
   isActive,
+  navCompact = false,
   profile,
   activeNodes,
   items,
@@ -467,15 +469,11 @@ export default function DragonsHomeSection({
           aria-haspopup="dialog"
           aria-expanded={settingsMenuOpen}
           onClick={() => setSettingsMenuOpen(true)}
-          className="absolute right-0 top-0 inline-flex h-10 items-center gap-1.5 rounded-2xl border border-white/20 bg-[var(--theme-card-bg)]/70 px-2 text-[var(--theme-text)] shadow-lg backdrop-blur-xl transition-colors hover:bg-[var(--theme-card-bg)]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]"
+          className={`user-glossy-button absolute right-0 top-0 inline-flex h-11 items-center rounded-2xl text-[var(--theme-on-primary)] transition-[padding,gap] duration-200 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)] ${navCompact ? "gap-0 px-1.5" : "gap-2 px-2.5"}`}
         >
-          <span className="whitespace-nowrap text-[11px] font-bold">Farm menu</span>
+          <motion.span aria-hidden="true" animate={{ opacity: navCompact ? 0 : 1, width: navCompact && !prefersReducedMotion ? 0 : "auto" }} transition={{ duration: prefersReducedMotion ? 0.01 : 0.2, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden whitespace-nowrap text-[11px] font-black">Farm menu</motion.span>
           <span className="relative grid h-8 w-8 shrink-0 place-items-center">
             <img src={barnMenuIcon} alt="" aria-hidden="true" className="h-8 w-8 object-contain" />
-            <span className="absolute -right-1 -top-0.5 flex h-3 w-3" aria-hidden="true">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--theme-primary)] opacity-70 motion-reduce:animate-none" />
-              <span className="relative inline-flex h-3 w-3 rounded-full border-2 border-[var(--theme-card-bg)] bg-[var(--theme-primary)]" />
-            </span>
           </span>
         </button>
       </div>
@@ -937,7 +935,7 @@ export default function DragonsHomeSection({
                             disabled={!!soldOut || openingEggId === egg.id}
                             className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-[var(--theme-primary)]/20 bg-[var(--theme-primary)]/10 px-4 py-3 text-[14px] font-sans font-black text-[var(--theme-primary)] transition-transform duration-200 hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            <Egg className="h-4 w-4" aria-hidden="true" /> Open egg <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                            Hatch egg <ArrowRight className="h-4 w-4" aria-hidden="true" />
                           </button>
                           {completedNode ? (
                             <button

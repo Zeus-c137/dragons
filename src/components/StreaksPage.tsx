@@ -277,7 +277,7 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
           )}
            <div className="min-w-0 flex-1 mx-12">
             <p className="text-[12px] font-black tracking-[0.14em] text-[var(--theme-text)]  leading-none">
-              Your daily streak {isCurrentMonth ? "this month" : monthName}
+              Daily checkin {isCurrentMonth ? "this month" : monthName}
             </p>
             <div className="flex items-baseline gap-2.5 mt-2">
               <p className="inline-flex items-center gap-1 text-[13px] font-sans font-black text-[var(--theme-primary)]">

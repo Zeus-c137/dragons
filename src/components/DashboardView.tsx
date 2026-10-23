@@ -4,6 +4,7 @@ import DragonsHomeSection from "./DragonsHomeSection";
 
 interface DashboardViewProps {
   isHomeActive: boolean;
+  navCompact?: boolean;
   profile: UserProfile;
   activeNodes: SubscribedNode[];
   items: SubscriptionItem[];
@@ -22,7 +23,7 @@ interface DashboardViewProps {
 export default function DashboardView(props: DashboardViewProps) {
   const { isHomeActive, ...dragonProps } = props;
   return (
-    <div className="w-full pb-16">
+    <div className="w-full pb-28">
       <DragonsHomeSection {...dragonProps} isActive={isHomeActive} />
     </div>
   );
