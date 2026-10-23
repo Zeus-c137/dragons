@@ -341,7 +341,6 @@ export default function CollectionView({
                     </span>
                     <div className="absolute left-3 top-3 flex flex-col items-start gap-1">
                       <span className="rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[11px] font-bold text-[var(--theme-text)]">{product?.category || "Chicken"}</span>
-                      <span className="rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[11px] font-black text-[var(--theme-primary)] shadow-sm">{dailyIncome > 0 ? Math.round((dailyIncome / Math.max(1, Number(node.amount))) * 100) : 0}% daily</span>
                     </div>
                   </div>
                   <div className="space-y-2.5 p-4">
