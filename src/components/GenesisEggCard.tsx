@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrency } from "../currency";
 import { useGatedInterval } from "../hooks/useGatedInterval";
@@ -34,6 +33,8 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
   const [isShaking, setIsShaking] = useState(false);
   const feedStripRef = useRef<HTMLDivElement | null>(null);
   const targetFeedTileRef = useRef<HTMLButtonElement | null>(null);
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
 
   useGatedInterval(() => setNowMs(Date.now()), 1000, {
     enabled: isActive,
@@ -118,6 +119,18 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
     if (isOpening || isOpened) return;
     primeCheckinSound();
     setIsOpening(true);
+    setIsHatching(true);
+    onProfileUpdate({ ...profile, genesisOpenedMonth: monthKey });
+    const hatchStartedAt = Date.now();
+    const hatchDuration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 850;
+    let hatchAnimationFinished = false;
+    const revealHatch = () => {
+      hatchAnimationFinished = true;
+      setIsHatching(false);
+      setRevealChick(true);
+      window.setTimeout(() => setRevealChick(false), 900);
+    };
+    const hatchAnimationTimer = window.setTimeout(revealHatch, hatchDuration);
     try {
       const response = await fetch("/api/user/genesis/open", {
         method: "POST",
@@ -127,15 +140,18 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
       });
       const data = await readApiJson<{ success: boolean; month: string }>(response);
       if (!data.success || !/^\d{4}-\d{2}$/.test(data.month)) throw new Error("This month's egg could not be opened. Please try again.");
-      onProfileUpdate({ ...profile, genesisOpenedMonth: data.month });
+      onProfileUpdate({ ...profileRef.current, genesisOpenedMonth: data.month });
+      const remainingAnimation = Math.max(0, hatchDuration - (Date.now() - hatchStartedAt));
+      if (remainingAnimation && !hatchAnimationFinished) await new Promise((resolve) => window.setTimeout(resolve, remainingAnimation));
+      window.clearTimeout(hatchAnimationTimer);
+      if (!hatchAnimationFinished) revealHatch();
       playCheckinSound();
-      setIsHatching(true);
-      await new Promise((resolve) => window.setTimeout(resolve, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1450));
-      setIsHatching(false);
-      setRevealChick(true);
-      window.setTimeout(() => setRevealChick(false), 900);
       toast.success("Your monthly egg hatched! Your chick is ready to feed.");
     } catch (error) {
+      window.clearTimeout(hatchAnimationTimer);
+      onProfileUpdate({ ...profileRef.current, genesisOpenedMonth: profile.genesisOpenedMonth });
+      setIsHatching(false);
+      setRevealChick(false);
       toast.error(error instanceof Error ? error.message : "This month's egg could not be opened.");
     } finally {
       setIsOpening(false);
@@ -147,6 +163,25 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
     if (!isOpened || hasCheckedInToday || isFeeding) return;
     primeCheckinSound();
     setIsFeeding(true);
+    const optimisticAmount = Math.max(0, Number(todayReward) || 0);
+    const optimisticProfile: UserProfile = {
+      ...profile,
+      points: (Number(profile.points) || 0) + optimisticAmount,
+      withdrawableBalance: (Number(profile.withdrawableBalance) || 0) + optimisticAmount,
+      lastCheckinDate: todayKey,
+      checkinStreak: nextStreak,
+    };
+    profileRef.current = optimisticProfile;
+    onProfileUpdate(optimisticProfile);
+    setClaimedDays((previous) => new Set(previous).add(todayKey));
+    setIsShaking(true);
+    window.setTimeout(() => setIsShaking(false), 900);
+    playCheckinSound();
+    celebrateFeed([source.getBoundingClientRect()]);
+    if (fedDays < stageThreshold && fedDays + 1 >= stageThreshold) {
+      setRevealHen(true);
+      window.setTimeout(() => setRevealHen(false), 900);
+    }
     try {
       const response = await fetch("/api/user/checkin", {
         method: "POST",
@@ -158,30 +193,39 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
       const amount = Math.max(0, Number(data.amount ?? data.bonus) || 0);
       const streak = Math.max(0, Number(data.streak) || 0);
       const creditedDay = data.platformDate || todayKey;
+      const latest = profileRef.current;
       const updatedProfile: UserProfile = {
-        ...profile,
-        points: (Number(profile.points) || 0) + amount,
-        withdrawableBalance: (Number(profile.withdrawableBalance) || 0) + amount,
+        ...latest,
+        points: (Number(latest.points) || 0) + amount - optimisticAmount,
+        withdrawableBalance: (Number(latest.withdrawableBalance) || 0) + amount - optimisticAmount,
         lastCheckinDate: creditedDay,
         checkinStreak: streak,
       };
-      const wasMature = fedDays >= stageThreshold;
+      profileRef.current = updatedProfile;
       onProfileUpdate(updatedProfile);
       setClaimedDays((previous) => new Set(previous).add(creditedDay));
-      setIsShaking(true);
-      window.setTimeout(() => setIsShaking(false), 900);
-      playCheckinSound();
-      celebrateFeed([source.getBoundingClientRect()]);
-      if (!wasMature && fedDays + 1 >= stageThreshold) {
-        setRevealHen(true);
-        window.setTimeout(() => setRevealHen(false), 900);
-      }
       const showSuccess = () => toast.success("Chick fed", {
         description: `${formatCurrency(amount)} added to your withdrawable balance.`,
         duration: 4500,
       });
       window.setTimeout(showSuccess, FEED_SUCCESS_TOAST_DELAY_MS);
     } catch (error) {
+      const latest = profileRef.current;
+      const rollbackProfile: UserProfile = {
+        ...latest,
+        points: Math.max(0, (Number(latest.points) || 0) - optimisticAmount),
+        withdrawableBalance: Math.max(0, (Number(latest.withdrawableBalance) || 0) - optimisticAmount),
+        lastCheckinDate: profile.lastCheckinDate,
+        checkinStreak: profile.checkinStreak,
+      };
+      profileRef.current = rollbackProfile;
+      onProfileUpdate(rollbackProfile);
+      setClaimedDays((previous) => {
+        const next = new Set(previous);
+        next.delete(todayKey);
+        return next;
+      });
+      if (fedDays < stageThreshold && fedDays + 1 >= stageThreshold) setRevealHen(false);
       toast.error(error instanceof Error ? error.message : "The chick could not be fed. Please try again.");
     } finally {
       setIsFeeding(false);
@@ -225,36 +269,37 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
       className={`feed-celebration-card liquid-glass-panel overflow-hidden rounded-[20px] border border-white/20 text-[var(--theme-text)] ${isShaking ? "is-shaking" : ""}`}
     >
       <div className="space-y-2.5 p-3">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             aria-label={!isOpened ? "Tap to hatch this month's egg" : hasCheckedInToday ? "View when your next feed is available" : "Tap to feed today's chick"}
             onClick={(event) => handleCycleTap(event.currentTarget)}
             disabled={isOpening || isHatching || isFeeding}
-            className="liquid-glass-panel relative grid h-[68px] w-[68px] shrink-0 place-items-center rounded-[20px] border border-white/20 transition-transform active:scale-95 disabled:cursor-wait"
+            aria-busy={isOpening || isHatching || isFeeding}
+            className="liquid-glass-panel relative grid h-16 w-16 shrink-0 place-items-center rounded-[18px] border border-white/20 transition-transform active:scale-95 disabled:cursor-default"
           >
-            <span className={`dragon-egg-art${currentStage === "egg" ? " dragon-egg-float" : " dragon-chicken-art"} h-14 w-14`}>
+            <span className={`dragon-egg-art${currentStage === "egg" ? " dragon-egg-float" : " dragon-chicken-art"} h-[54px] w-[54px]`}>
               <img
                 src={currentStage === "egg" ? monthArt.egg : currentStage === "hen" ? monthArt.hen : monthArt.chick}
                 alt={currentStage === "egg" ? "Monthly egg" : currentStage === "hen" ? "Monthly hen" : "Monthly chick"}
                 className={`object-contain${isHatching ? " dragon-egg-hatching" : currentStage === "egg" && !isOpened ? " dragon-egg-idle-spin" : revealChick || revealHen ? " dragon-hatch-reveal" : ""}`}
               />
             </span>
-            {isOpening && <span className="absolute -right-1 -top-1 grid h-6 w-6 place-items-center rounded-full bg-[var(--theme-primary)] text-[var(--theme-on-primary)] shadow"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /></span>}
           </button>
 
           <button
             type="button"
             onClick={(event) => handleCycleTap(event.currentTarget)}
             disabled={isOpening || isHatching || isFeeding}
-            className="flex min-h-[68px] min-w-0 flex-1 items-center justify-start gap-2 rounded-[18px] border border-white/15 bg-white/[0.045] px-3 text-left transition-colors hover:bg-white/[0.08] active:scale-[0.99] disabled:cursor-wait"
+            aria-busy={isOpening || isHatching || isFeeding}
+            className="flex min-h-16 min-w-0 flex-1 items-center justify-end gap-2 rounded-[18px] border border-white/10 bg-white/[0.035] px-4 text-right transition-colors hover:bg-white/[0.075] active:scale-[0.99] disabled:cursor-default"
           >
-            <span className="flex min-w-0 flex-col items-start gap-0.5">
-              <span className="block max-w-full truncate text-[9px] font-black uppercase tracking-wide opacity-65">
-                {isOpening || isHatching ? "Hatching egg..." : isFeeding ? "Feeding chick..." : hasCheckedInToday ? `Come back in ${formatClock(msUntilPlatformMidnight(nowMs))}` : !isOpened ? "Tap to hatch" : "Today's feed"}
+            <span className="flex min-w-0 flex-col items-end gap-1">
+              <span className="block max-w-full truncate text-[13px] font-bold leading-tight text-[var(--theme-text)]">
+                {isHatching ? "Hatching egg" : isOpening ? "Saving your chick" : hasCheckedInToday ? `Come back in ${formatClock(msUntilPlatformMidnight(nowMs))}` : !isOpened ? "Tap egg to hatch" : "Tap to feed"}
               </span>
-              <span className="flex items-center gap-1 font-display text-[14px] font-black tabular-nums text-[var(--theme-primary)]">
-                <img src={corn} alt="" aria-hidden="true" className="h-5 w-5 object-contain" />
+              <span className="flex items-center justify-end gap-1.5 font-display text-[15px] font-bold tabular-nums text-[var(--theme-primary)]">
+                <img src={corn} alt="" aria-hidden="true" className="h-[22px] w-[22px] object-contain" />
                 {formatCurrency(todayReward)}
               </span>
             </span>
@@ -274,7 +319,7 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
           >
             {feedDays.map(({ key, day, weekday, isToday, isTarget }) => {
               const fed = claimedDays.has(key) || (isToday && hasCheckedInToday);
-              const canFeed = isToday && isOpened && !fed && !isHatching && !isFeeding;
+              const canFeed = isToday && isOpened && !fed && !isOpening && !isHatching && !isFeeding;
               const future = key > todayKey;
               const tileClass = `relative flex h-[52px] w-11 shrink-0 snap-center flex-col items-center justify-center gap-1 rounded-[13px] border text-[10px] font-black tabular-nums transition-colors ${canFeed ? "genesis-feed-tile-pulse border-[var(--theme-primary)]/70 bg-[var(--theme-primary)]/15 text-[var(--theme-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--theme-primary)_22%,transparent)] hover:bg-[var(--theme-primary)]/25 active:scale-95" : isTarget ? "border-[var(--theme-primary)]/50 bg-[var(--theme-primary)]/10 text-[var(--theme-text)]" : fed ? "border-white/15 bg-white/[0.075] text-[var(--theme-primary)]" : "border-white/[0.08] bg-black/[0.035] text-[var(--theme-text)] opacity-55"}`;
               return (

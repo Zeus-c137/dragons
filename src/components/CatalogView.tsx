@@ -563,7 +563,7 @@ export default function CatalogView({
               initial={{ scale: 0.94, y: 15, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.94, y: 15, opacity: 0 }}
-              transition={{ type: "spring", damping: 26, stiffness: 360 }}
+              transition={{ type: "spring", damping: 30, stiffness: 520, mass: 0.72 }}
               className="liquid-glass-panel liquid-glass-money-panel relative w-full max-w-[440px] max-h-[90vh] border border-[var(--theme-card-border)] rounded-[24px] shadow-2xl text-[var(--theme-text)] text-center flex flex-col overflow-hidden"
             >
               {modalPhase === "success" && activated ? (

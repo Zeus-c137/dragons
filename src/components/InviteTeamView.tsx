@@ -122,7 +122,7 @@ function ListSkeleton() {
 export default function InviteTeamView({ stats, isLoading, activeLevel, onActiveLevelChange, activeLevelStats, siteConfig, pendingReferralRewards, isClaiming, onClaimRewards }: Props) {
   const { formatCurrency } = useCurrency();
   const reduced = useReducedMotion();
-  const spring = getSpring(reduced);
+  const spring = reduced ? getSpring(true) : { type: "spring" as const, stiffness: 520, damping: 36, mass: 0.7 };
   const metrics = getLevelMetrics(stats, siteConfig);
   const activeMetric = metrics.find((metric) => metric.level === activeLevel);
 
