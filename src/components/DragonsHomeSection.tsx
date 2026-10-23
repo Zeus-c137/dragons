@@ -781,9 +781,6 @@ export default function DragonsHomeSection({
                 ? (isMatureDragon ? ownedNode.dragonImageUrl : ownedNode.youngDragonImageUrl || ownedNode.dragonImageUrl)
                 : "";
               const currentCycleDay = Math.min(totalDays, daysFed + 1);
-              const dailyIncomePercent = Number(egg.amount) > 0
-                ? Math.max(0, Math.round((Number(egg.dailyYield) / Number(egg.amount)) * 100))
-                : 0;
               const cycleProgress = ownedNode && totalDays > 0
                 ? Math.min(100, Math.max(0, (daysFed / totalDays) * 100))
                 : 0;
@@ -815,9 +812,6 @@ export default function DragonsHomeSection({
                     <div className="absolute left-3 top-3 flex flex-col items-start gap-1">
                     <span className="rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[14px] font-bold text-[var(--theme-text)]">
                       {egg.category}
-                    </span>
-                    <span className="rounded-full bg-[var(--theme-bg)]/90 px-2.5 py-1 text-[11px] font-black text-[var(--theme-primary)] shadow-sm">
-                      {dailyIncomePercent}% daily
                     </span>
                     {!dragonOwned && (
                       <span
