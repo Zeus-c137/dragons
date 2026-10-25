@@ -1,4 +1,4 @@
-# Cash Dragons Design Context
+#KashChickens  Design Context
 
 ## Users
 Mobile-first players in East Africa who check hatches, earnings, and deposits.

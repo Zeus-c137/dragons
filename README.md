@@ -1,4 +1,4 @@
-# Cash Dragons
+# KashChick
 
 Mobile-first egg-hatching platform. Users recharge their account, activate product runs, earn daily yields, collect referral commissions, complete milestones and check-in streaks, then withdraw via mobile money or USDT. Includes a full admin dashboard for users, transactions, catalog, gift codes, announcements, milestones, and site configuration.
 

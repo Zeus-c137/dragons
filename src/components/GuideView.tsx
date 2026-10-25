@@ -82,7 +82,7 @@ export const GUIDE_SECTIONS: { title: string; body: string[] }[] = [
     title: "App installation",
     body: [
       "Tap Profile, then Install App on your phone.",
-      "Cash Dragons checks for updates in the background.",
+      "The app checks for updates in the background.",
       "Ready updates install when you leave the app.",
     ],
   },
