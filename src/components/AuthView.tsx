@@ -83,7 +83,7 @@ function PrimaryButton({
   return (
     <button
       {...props}
-      className={`w-full py-4 px-6 rounded-2xl bg-[var(--theme-primary)] text-[var(--theme-on-primary)] font-sans font-bold text-[15px] flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_4px_0_0_var(--theme-primary-shadow)] active:shadow-none active:translate-y-[3px] ${className || ""}`}
+      className={`user-glossy-button w-full py-4 px-6 rounded-2xl text-[var(--theme-on-primary)] font-sans font-bold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed ${className || ""}`}
     >
       {children}
     </button>
@@ -411,7 +411,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                 <button
                   type="button"
                   onClick={() => goTo("login")}
-                  className="inline-flex min-h-9 items-center justify-center rounded-xl border border-[var(--theme-primary)]/35 bg-[var(--theme-card-bg)]/45 px-2.5 text-[12px] font-sans font-bold text-[var(--theme-primary)] transition-colors hover:bg-[var(--theme-primary)]/8 sm:px-3 sm:text-[13px]"
+                  className="user-glossy-button user-glossy-button--small inline-flex min-h-9 items-center justify-center rounded-xl px-2.5 text-[12px] font-sans font-bold text-[var(--theme-on-primary)] sm:px-3 sm:text-[13px]"
                 >
                   Log in
                 </button>
@@ -419,7 +419,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   type="button"
                   onClick={() => goTo("register")}
                   disabled={isLoading}
-                  className="inline-flex min-h-9 items-center justify-center rounded-xl bg-[var(--theme-primary)] px-2.5 text-[12px] font-sans font-bold text-[var(--theme-on-primary)] transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:px-3 sm:text-[13px]"
+                  className="user-glossy-button user-glossy-button--small inline-flex min-h-9 items-center justify-center rounded-xl px-2.5 text-[12px] font-sans font-bold text-[var(--theme-on-primary)] disabled:cursor-not-allowed disabled:opacity-60 sm:px-3 sm:text-[13px]"
                 >
                   Register
                 </button>
@@ -487,11 +487,10 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   Hatch eggs.<br />Grow together.
                 </h1>
                 <div className="mt-5 max-w-[39rem] space-y-3 font-sans text-[15px] leading-[1.65] text-[var(--theme-text-muted)] sm:text-[16px]">
-                  <p>We focus on responsible poultry farming, strong farmer partnerships, and high food safety standards to provide affordable, quality chicken for Ugandan families.</p>
-                  <p>Additionally, the company operates over five breeding farms that produce over 2 million fertile
-                    eggs per month and 2 hatcheries that hatch over 1 million day-old chicks per month</p>
+                  <p>This virtual simulation focuses on responsible poultry farming, hatching eggs, caring for chicks till they are ready for market. Hatch with friends through your invite code and cash out. Terms and conditions apply.</p>
+                  
                 </div>
-              </section>
+              </section>  
 
               <section aria-label="Farm community and coverage" className="auth-welcome-metrics order-3 lg:col-start-2 lg:row-start-2 lg:pl-10 xl:pl-14">
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
