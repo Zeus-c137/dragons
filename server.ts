@@ -288,8 +288,8 @@ app.get("/readyz", (_req, res) => {
 // Keep the authenticated product catalog out of public SEO pages and sitemap.
 const SEO_PUBLIC_PATHS = ["/welcome", "/faq"];
 
-const SEO_KEYWORDS = "KashChick, hatch eggs, collect dragons, daily rewards, referral bonuses, mobile money deposits and withdrawals";
-const SEO_DESCRIPTION = "Hatch eggs, raise chickens, and collect daily income. Invite friends, track rewards, and manage eligible deposits and withdrawals.";
+const SEO_KEYWORDS = "This virtual simulation focuses on responsible poultry farming, hatching eggs, caring for chicks till they are ready for market. Hatch with friends through your invite code and cash out. Terms and conditions apply.";
+const SEO_DESCRIPTION = "This virtual simulation focuses on responsible poultry farming, hatching eggs, caring for chicks till they are ready for market. Hatch with friends through your invite code and cash out. Terms and conditions apply.";
 const SEO_SHARE_IMAGE = "/seo-share-image";
 
 function seoTitle(brand: string): string {

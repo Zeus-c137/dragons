@@ -78,7 +78,7 @@ function App() {
 
   return <div className="proto-page dark" key={`${current.id}-${replay}`}>
     <div className="phone-shell">
-      <header className="app-top"><div className="brand-mark">R</div><div className="brand-copy"><b>CashDragons</b><span>DAILY RUNS</span></div><button className="balance-pill" onClick={() => setNotice(products[0])}><Coins size={14} /> 125,000</button></header>
+      <header className="app-top"><div className="brand-mark">R</div><div className="brand-copy"><b></b><span>DAILY RUNS</span></div><button className="balance-pill" onClick={() => setNotice(products[0])}><Coins size={14} /> 125,000</button></header>
       <main className={`catalog-main layout-${current.id}`}>
         <div className="eyebrow">YOUR NEXT RUN</div>
         <div className="title-row"><div><h1>Explore runs</h1><p>Choose a run to start earning daily.</p></div><button className="icon-btn" aria-label="Sort runs" onClick={() => setCategory(category === "All runs" ? "Starter" : "All runs")}><ArrowDownUp size={17} /></button></div>

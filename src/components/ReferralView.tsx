@@ -255,7 +255,7 @@ function HowItWorksSheet({ metrics, onClose }: HowItWorksSheetProps) {
     },
     {
       title: "Your friend must hatch an egg",
-      description: "A referral is verified when your friend hatches one egg. Visit Dragons page to get started."
+      description: "A referral is verified when your friend hatches one egg. Visit The Farm page to get started."
     },
     {
       title: "Tap on 'Claim referral income'",
