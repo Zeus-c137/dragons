@@ -4,8 +4,6 @@ import { getLevelMetrics } from "@/src/utils/referral";
 import type { ReferralStat, SiteConfig } from "@/src/types";
 import { Loader2, Users } from "lucide-react";
 import { optimizedImageUrl } from "@/src/utils/imageUtils";
-import { getInitial, getExit, getSpring } from "@/src/utils/motion";
-import { useReducedMotion } from "@/src/hooks/useReducedMotion";
 
 type Props = {
   stats: ReferralStat[];
@@ -121,8 +119,6 @@ function ListSkeleton() {
 
 export default function InviteTeamView({ stats, isLoading, activeLevel, onActiveLevelChange, activeLevelStats, siteConfig, pendingReferralRewards, isClaiming, onClaimRewards }: Props) {
   const { formatCurrency } = useCurrency();
-  const reduced = useReducedMotion();
-  const spring = reduced ? getSpring(true) : { type: "spring" as const, stiffness: 520, damping: 36, mass: 0.7 };
   const metrics = getLevelMetrics(stats, siteConfig);
   const activeMetric = metrics.find((metric) => metric.level === activeLevel);
 
@@ -162,8 +158,8 @@ export default function InviteTeamView({ stats, isLoading, activeLevel, onActive
 
       <section className="liquid-glass-panel divide-y divide-white/10 rounded-[22px] border border-white/10 px-3 backdrop-blur-[20px] backdrop-saturate-[180%]">
         {isLoading ? <ListSkeleton /> : activeLevelStats.length === 0 ? <EmptyState level={activeLevel} /> : (
-          <AnimatePresence mode="wait">
-            <motion.div key={`members-${activeLevel}`} initial={getInitial(reduced)} animate={{ opacity: 1, y: 0 }} exit={getExit(reduced)} transition={spring}>
+          <AnimatePresence mode="sync">
+            <motion.div key={`members-${activeLevel}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.1, ease: [0.16, 1, 0.3, 1] }}>
               {activeLevelStats.map((stat, index) => <MemberRow key={`${stat.id || stat.phone || index}-${index}`} stat={stat} />)}
             </motion.div>
           </AnimatePresence>

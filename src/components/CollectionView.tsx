@@ -285,7 +285,7 @@ export default function CollectionView({
   }, [expandedId, activeIndex]);
 
   return (
-    <div className="space-y-5 select-none bg-transparent text-[var(--theme-text)] p-1 relative">
+    <div className="space-y-5 select-none bg-transparent text-[var(--theme-text)] p-1 pb-32 relative">
      
 
     
@@ -335,11 +335,17 @@ export default function CollectionView({
               const product = products.find((entry) => entry.id === node.itemId);
               return (
                 <article key={node.id} data-feed-card-item={node.itemId} className={`feed-celebration-card overflow-hidden rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/75 ${shakingItemIds.includes(node.itemId) ? "is-shaking" : ""}`}>
-                  <div className="relative flex aspect-[1.85] items-center justify-center overflow-hidden bg-[var(--theme-primary)]/8 p-3">
-                    <span className="dragon-chicken-art dragon-chicken-art-contained" style={{ animationDelay: `${(index % 5) * -0.55}s` }}>
+                  <div
+                    className="relative isolate flex aspect-[1.85] items-center justify-center overflow-hidden bg-cover bg-center p-3"
+                    style={{
+                      backgroundImage: `url("https://i.pinimg.com/736x/98/51/02/98510286e9c4a9111bfda2129c80d7a3.jpg")`,
+                    }}
+                  >
+                    <div aria-hidden="true" className="absolute inset-0 bg-[var(--theme-bg)]/45" />
+                    <span className="dragon-chicken-art dragon-chicken-art-contained relative z-10" style={{ animationDelay: `${(index % 5) * -0.55}s` }}>
                       <img src={artwork} alt={`${node.itemName} ${mature ? "hen" : "chick"}`} loading="lazy" className={`h-full w-full object-contain${revealingItemId === node.itemId ? " dragon-hatch-reveal" : ""}`} />
                     </span>
-                    <div className="absolute left-3 top-3 flex flex-col items-start gap-1">
+                    <div className="absolute left-3 top-3 z-10 flex flex-col items-start gap-1">
                       <span className="rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[11px] font-bold text-[var(--theme-text)]">{product?.category || "Chicken"}</span>
                     </div>
                   </div>
@@ -353,27 +359,22 @@ export default function CollectionView({
                     </div>
                     <div className="flex items-center justify-between text-[14px]">
                       <span className="inline-flex items-center gap-1.5 opacity-70"><Clock className="h-3.5 w-3.5" aria-hidden="true" /> Income per day</span>
-                      <span className="font-display text-[17px] font-black tabular-nums">{formatCurrency(dailyIncome)}</span>
+                      <span className="inline-flex items-center gap-1 font-display text-[17px] font-semibold tabular-nums">
+                        <img src={corn} alt="" aria-hidden="true" className="h-4 w-4 object-contain" />
+                        {formatCurrency(dailyIncome)}
+                      </span>
                     </div>
                     <div className={`feed-cycle-progress space-y-2 ${ready ? "is-ready" : ""}`} aria-label={`Cycle progress: day ${cycleDay} of ${totalDays}`}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          {!cycleFinished && dailyIncome > 0 ? (
-                            <div className={`feed-availability ${ready ? "is-ready" : "is-waiting"}`} aria-live="polite">
-                              <img src={corn} alt="" aria-hidden="true" />
-                              <span>{ready ? "Ready to feed" : `Next feed in ${formatClock(msUntilPlatformMidnight(nowMs))}`}</span>
-                            </div>
-                          ) : null}
+                      <div className="flex items-center gap-2">
+                        <div role="progressbar" aria-label="Chicken cycle progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} className="feed-corn-rail min-w-0 flex-1">
+                          <div className="feed-corn-fill" style={{ width: `${progress}%` }}>
+                            {Array.from({ length: 10 }, (_, kernelIndex) => <img key={kernelIndex} src={corn} alt="" aria-hidden="true" />)}
+                          </div>
+                          <img src={corn} alt="" aria-hidden="true" className={`feed-next-kernel ${ready ? "is-ready" : ""}`} style={{ left: `${Math.min(96, Math.max(4, progress))}%` }} />
                         </div>
-                        <span aria-label={`Cycle day ${cycleDay} of ${totalDays}`} className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-[10px] font-sans font-bold tabular-nums text-[var(--theme-primary)]">
+                        <span aria-label={`Cycle day ${cycleDay} of ${totalDays}`} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--theme-primary)]/55 px-2 py-0.5 text-[10px] font-sans font-semibold leading-none tabular-nums text-[var(--theme-primary)]">
                           <img src={clockSvg} alt="" aria-hidden="true" className="h-3.5 w-3.5" /> Day {cycleDay}/{totalDays}
                         </span>
-                      </div>
-                      <div role="progressbar" aria-label="Chicken cycle progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} className="feed-corn-rail">
-                        <div className="feed-corn-fill" style={{ width: `${progress}%` }}>
-                          {Array.from({ length: 10 }, (_, kernelIndex) => <img key={kernelIndex} src={corn} alt="" aria-hidden="true" />)}
-                        </div>
-                        <img src={corn} alt="" aria-hidden="true" className={`feed-next-kernel ${ready ? "is-ready" : ""}`} style={{ left: `${Math.min(96, Math.max(4, progress))}%` }} />
                       </div>
                     </div>
                     {cycleFinished ? (
@@ -382,13 +383,34 @@ export default function CollectionView({
                         Collect hen
                       </button>
                     ) : (
-                      <button type="button" disabled={feedingId === node.id} aria-disabled={!ready} onClick={(event) => {
-                        const card = event.currentTarget.closest<HTMLElement>("[data-feed-card-item]");
-                        void feedChicken(node, card?.getBoundingClientRect() || event.currentTarget.getBoundingClientRect());
-                      }} aria-label={ready ? "Feed chick. Today's income is ready to collect." : "Feed chick. Tap to see when it can be fed again."} className={`user-glossy-button feed-action-button inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-5 py-2.5 text-[13px] font-black text-[var(--theme-on-primary)] transition-colors active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 ${ready ? "is-ready" : "is-waiting"}`}>
-                        {feedingId === node.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <img src={corn} alt="" className="h-5 w-5 object-contain" />}
-                        Feed chick
-                      </button>
+                      <div className="flex justify-center">
+                        <button
+                          type="button"
+                          disabled={feedingId === node.id}
+                          aria-disabled={!ready}
+                          onClick={(event) => {
+                            const card = event.currentTarget.closest<HTMLElement>("[data-feed-card-item]");
+                            void feedChicken(node, card?.getBoundingClientRect() || event.currentTarget.getBoundingClientRect());
+                          }}
+                          aria-label={ready
+                            ? `Feed chick. Daily income ${formatCurrency(node.dailyYield)} is ready to collect.`
+                            : dailyIncome > 0
+                              ? `Feed chick. Next feed in ${formatClock(msUntilPlatformMidnight(nowMs))}.`
+                              : "Feed chick. This chicken is not configured to earn income."}
+                          className={`user-glossy-button user-glossy-button--small feed-action-button inline-flex w-44 shrink-0 items-center justify-center gap-1.5 rounded-[14px] text-[var(--theme-on-primary)] active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 ${ready ? "is-ready" : "is-waiting"}`}
+                        >
+                          {feedingId === node.id
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                            : <img src={corn} alt="" aria-hidden="true" className="h-4 w-4 object-contain" />}
+                          {feedingId === node.id ? (
+                            <span className="font-display text-[13px] font-semibold">...</span>
+                          ) : (
+                            <span className="font-display text-[13px] font-semibold tabular-nums">
+                              {dailyIncome <= 0 ? "—" : ready ? formatCurrency(dailyIncome) : formatClock(msUntilPlatformMidnight(nowMs))}
+                            </span>
+                          )}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </article>

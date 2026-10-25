@@ -21,6 +21,12 @@ interface Props {
 const SUCCESSFUL_STATUSES = new Set(["SUCCESSFUL", "COMPLETED"]);
 const FEED_SUCCESS_TOAST_DELAY_MS = 3000;
 
+function formatRewardAmount(amount: number): string {
+  const numericAmount = Number(amount);
+  if (!Number.isFinite(numericAmount)) return "0";
+  return numericAmount.toLocaleString("en-UG", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 export default function GenesisEggCard({ isActive, profile, siteConfig, onProfileUpdate }: Props) {
   const { formatCurrency } = useCurrency();
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -58,6 +64,8 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
   const baseBonus = Math.max(0, Number(siteConfig?.checkinBaseBonus) || 0);
   const increment = Math.max(0, Number(siteConfig?.checkinIncrement) || 0);
   const todayReward = baseBonus + Math.max(0, nextStreak - 1) * increment;
+  const isRewardUnavailable = hasCheckedInToday;
+  const nextFeedCountdown = formatClock(msUntilPlatformMidnight(nowMs));
   const stageThreshold = Math.ceil(monthDays / 2);
   const fedDays = [...claimedDays].filter((key) => key.startsWith(`${monthKey}-`)).length;
   const isMature = fedDays >= stageThreshold;
@@ -266,7 +274,7 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
   return (
     <article
       aria-label="Monthly free egg"
-      className={`feed-celebration-card liquid-glass-panel overflow-hidden rounded-[20px] border border-white/20 text-[var(--theme-text)] ${isShaking ? "is-shaking" : ""}`}
+      className={`feed-celebration-card liquid-glass-panel overflow-hidden rounded-[20px] border-0 text-[var(--theme-text)] ${isShaking ? "is-shaking" : ""}`}
     >
       <div className="space-y-2.5 p-3">
         <div className="flex items-center gap-3">
@@ -276,7 +284,7 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
             onClick={(event) => handleCycleTap(event.currentTarget)}
             disabled={isOpening || isHatching || isFeeding}
             aria-busy={isOpening || isHatching || isFeeding}
-            className="liquid-glass-panel relative grid h-16 w-16 shrink-0 place-items-center rounded-[18px] border border-white/20 transition-transform active:scale-95 disabled:cursor-default"
+            className="liquid-glass-panel relative grid h-16 w-16 shrink-0 place-items-center rounded-[18px] border-0 transition-transform active:scale-95 disabled:cursor-default"
           >
             <span className={`dragon-egg-art${currentStage === "egg" ? " dragon-egg-float" : " dragon-chicken-art"} h-[54px] w-[54px]`}>
               <img
@@ -289,27 +297,27 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
 
           <button
             type="button"
+            aria-label={isRewardUnavailable
+              ? `Today's feed is complete. Next feed in ${nextFeedCountdown}.`
+              : `${!isOpened ? "Hatch and feed reward" : "Feed today's chick for"} ${formatRewardAmount(todayReward)}`}
             onClick={(event) => handleCycleTap(event.currentTarget)}
-            disabled={isOpening || isHatching || isFeeding}
+            disabled={isOpening || isHatching || isFeeding || isRewardUnavailable}
             aria-busy={isOpening || isHatching || isFeeding}
-            className="flex min-h-16 min-w-0 flex-1 items-center justify-end gap-2 rounded-[18px] border border-white/10 bg-white/[0.035] px-4 text-right transition-colors hover:bg-white/[0.075] active:scale-[0.99] disabled:cursor-default"
+            className="user-glossy-button user-glossy-button--small ml-auto inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[14px] text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
           >
-            <span className="flex min-w-0 flex-col items-end gap-1">
-              <span className="block max-w-full truncate text-[13px] font-bold leading-tight text-[var(--theme-text)]">
-                {isHatching ? "Hatching egg" : isOpening ? "Saving your chick" : hasCheckedInToday ? `Come back in ${formatClock(msUntilPlatformMidnight(nowMs))}` : !isOpened ? "Tap egg to hatch" : "Tap to feed"}
-              </span>
-              <span className="flex items-center justify-end gap-1.5 font-display text-[15px] font-bold tabular-nums text-[var(--theme-primary)]">
-                <img src={corn} alt="" aria-hidden="true" className="h-[22px] w-[22px] object-contain" />
-                {formatCurrency(todayReward)}
-              </span>
-            </span>
+            <img src={corn} alt="" aria-hidden="true" className="h-4 w-4 object-contain" />
+            <span className="font-display text-[13px] font-black tabular-nums">{formatRewardAmount(todayReward)}</span>
           </button>
         </div>
 
         <section aria-label="Thirty-day feed history" className="space-y-1">
-          <div className="flex items-center justify-between px-0.5 text-[9px] font-black uppercase tracking-wide opacity-55">
+          <div className="flex items-center justify-between px-0.5 text-[14px] font-black tracking-wide opacity-74">
             <span>{new Intl.DateTimeFormat("en", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m, 1)))}</span>
-            <span>{hasCheckedInToday ? "Next feed" : "Today"}</span>
+            {hasCheckedInToday ? (
+              <span aria-label={`Next feed in ${nextFeedCountdown}`}>
+                 <span className="tabular-nums">{nextFeedCountdown}</span>
+              </span>
+            ) : <span>Today</span>}
           </div>
           <div
             ref={feedStripRef}

@@ -9,6 +9,7 @@ import { playCheckinSound } from "../utils/checkinSound";
 import { formatClock, getTodayKey, getPlatformDayKey, getPlatformDayParts, getPlatformYesterdayKey, msUntilPlatformMidnight } from "../utils/runs";
 import type { TransactionRow, UserProfile } from "../types";
 import dollar3d from "@/src/assets/3d/3dicons-dollar-iso-premium.png";
+import corn from "@/src/assets/svg/corn.svg";
 
 interface Props {
   phone: string;
@@ -55,8 +56,8 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
   const todayKey = getTodayKey();
   const checkedInToday = userProfile.lastCheckinDate === todayKey;
   const streak = Math.max(0, Number(userProfile.checkinStreak) || 0);
-  const base = siteConfig?.checkinBaseBonus ?? 0;
-  const inc = siteConfig?.checkinIncrement ?? 0;
+  const base = Math.max(0, Number(siteConfig?.checkinBaseBonus) || 0);
+  const inc = Math.max(0, Number(siteConfig?.checkinIncrement) || 0);
 
   // Ledger truth from daily_checkin_bonus transactions.
   useEffect(() => {
@@ -134,7 +135,8 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
   const tomorrowMs = todayMs + 86400000;
   const nextIn = msUntilPlatformMidnight(nowMs);
   const todayStreak = checkedInToday ? streak : userProfile.lastCheckinDate === getPlatformYesterdayKey() ? streak + 1 : 1;
-  const todayAmount = base + (todayStreak - 1) * inc;
+  const todayAmount = Math.max(0, base + (todayStreak - 1) * inc);
+  const formattedTodayAmount = todayAmount.toLocaleString("en-UG", { maximumFractionDigits: 2 });
 
   const handleCheckin = async (e?: React.MouseEvent<HTMLElement>) => {
     if (e) e.stopPropagation();
@@ -292,17 +294,31 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
         </div>
 
         {/*   the viewed month */}
-        <div className="px-1 py-1 mt-3 flex items-end justify-between gap-3">
-
+        <div className="mt-3 flex items-center justify-between gap-3 px-1 py-1">
+          <div className="flex min-w-0 flex-col items-start gap-1.5">
+            <p className="text-[11px] font-sans font-bold tabular-nums text-[var(--theme-primary)]">
+              Day {todayStreak} reward
+            </p>
+            <button
+              type="button"
+              onClick={(event) => void handleCheckin(event)}
+              disabled={checkedInToday || claimBusy}
+              aria-label={checkedInToday
+                ? `Day ${todayStreak} reward collected`
+                : claimBusy
+                  ? "Collecting today's streak reward"
+                  : `Check in and collect ${formattedTodayAmount}`}
+              className="user-glossy-button inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--theme-primary-shadow)]/40 px-4 py-2 font-display text-[15px] font-black tabular-nums text-[var(--theme-on-primary)] active:scale-[0.98] disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
+            >
+              <img src={corn} alt="" aria-hidden="true" className="h-5 w-5 object-contain" />
+              {claimBusy ? "Collecting..." : formattedTodayAmount}
+            </button>
+          </div>
           {checkedInToday ? (
-            <p className="text-right text-[11px] font-sans font-bold tabular-nums text-[var(--theme-primary)] shrink-0">
+            <p className="shrink-0 text-right text-[11px] font-sans font-bold tabular-nums text-[var(--theme-primary)]">
               Come back in<br />{formatClock(nextIn)}
             </p>
-          ) : (
-            <p className="text-right text-[12px] font-sans font-bold tabular-nums text-[var(--theme-primary)] shrink-0">
-              {`Day ${todayStreak} reward • ${formatCurrency(todayAmount)}`}
-            </p>
-          )}
+          ) : null}
         </div>
 
         {/* Month nav */}
