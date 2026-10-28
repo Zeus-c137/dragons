@@ -48,7 +48,7 @@ export const LevelBadge: React.FC<LevelBadgeProps> = ({
         <img src={imageUrl} alt={tier.name} className="w-full h-full object-contain" />
       ) : (
         <>
-          <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full text-[var(--theme-primary)]" aria-hidden>
+          <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full text-[var(--theme-accent)]" aria-hidden>
             <polygon
               points="50,6 88,28 88,72 50,94 12,72 12,28"
               fill="none"
@@ -57,7 +57,7 @@ export const LevelBadge: React.FC<LevelBadgeProps> = ({
               strokeLinejoin="round"
             />
           </svg>
-          <Glyph className="w-[42%] h-[42%] text-[var(--theme-primary)]" aria-hidden />
+          <Glyph className="w-[42%] h-[42%] text-[var(--theme-accent)]" aria-hidden />
         </>
       )}
     </span>

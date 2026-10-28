@@ -164,7 +164,7 @@ export default function CheckinSheet({
                 <X className="w-5 h-5" />
               </button>
               <div className="flex items-center gap-3">
-                <Flame className="w-11 h-11 text-[var(--theme-primary)] shrink-0" fill="currentColor" />
+                <Flame className="w-11 h-11 text-[var(--theme-accent)] shrink-0" fill="currentColor" />
                 <h3 className="font-display font-black text-xl tracking-tight text-[var(--theme-text)] leading-none">Streaks</h3>
               </div>
             </div>
@@ -175,7 +175,7 @@ export default function CheckinSheet({
                 <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--theme-text)] opacity-55 leading-none">
                   Accrued {isCurrentMonth ? "this month" : monthName}
                 </p>
-                <p className="text-[13px] font-sans font-black text-[var(--theme-primary)] mt-2">
+                <p className="text-[13px] font-sans font-black text-[var(--theme-accent)] mt-2">
                   {monthClaimed} day{monthClaimed === 1 ? "" : "s"}
                 </p>
                 {claimedLedger && (
@@ -183,7 +183,7 @@ export default function CheckinSheet({
                     {formatCurrency(monthSum)}
                   </p>
                 )}
-                <p className={`text-[12px] font-sans font-bold mt-2 tabular-nums ${checkedInToday ? "text-[var(--theme-text)] opacity-70" : "text-[var(--theme-primary)]"}`}>
+                <p className={`text-[12px] font-sans font-bold mt-2 tabular-nums ${checkedInToday ? "text-[var(--theme-text)] opacity-70" : "text-[var(--theme-accent)]"}`}>
                   {checkedInToday ? `Next check-in ${formatClock(nextIn)}` : `Day ${todayStreak} reward • ${formatCurrency(todayAmount)}`}
                 </p>
               </div>
@@ -231,7 +231,7 @@ export default function CheckinSheet({
                           }`}
                         >
                           {claiming && isToday ? (
-                            <Loader2 className="w-5 h-5 animate-spin text-[var(--theme-primary)]" />
+                            <Loader2 className="w-5 h-5 animate-spin text-[var(--theme-accent)]" />
                           ) : (
                             <img
                               src={dollar3d}

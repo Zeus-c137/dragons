@@ -40,9 +40,11 @@ import tractorNavIcon from "@/src/assets/svg/tractor.svg";
 import { animate, motion, AnimatePresence, useMotionValue } from "motion/react";
 
 import { ThemeProvider } from "./context/ThemeContext";
+import { fixGitHubImageUrl } from "./utils/imageUtils";
 import { useGatedInterval, useAbortSignal } from "./hooks/useGatedInterval";
 import { useReducedMotion } from "./hooks/useReducedMotion";
 import { fetchJsonWithSignal } from "./utils/abortableFetch";
+import { sortRuns } from "./utils/runs";
 
 const MAIN_NAV_KEYS = ["dashboard", "collection", "deposit", "withdraw", "referral"] as const;
 type MainNavKey = (typeof MAIN_NAV_KEYS)[number];
@@ -50,6 +52,24 @@ type MainNavKey = (typeof MAIN_NAV_KEYS)[number];
 function mainNavKeyForTab(tab: string): MainNavKey {
   if (tab === "collection" || tab === "deposit" || tab === "withdraw" || tab === "referral") return tab;
   return "dashboard";
+}
+
+/** Farm/my-chicks backdrop image that hides itself when the URL fails so no
+ *  broken-image glyph ever shows inside the app frame. */
+function FarmBackdropImage({ src }: { src: string }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+  if (failed) return null;
+  return (
+    <img
+      src={src}
+      alt=""
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 type AnimatedWithdrawableBalanceProps = {
@@ -342,6 +362,13 @@ export default function App() {
 
   const activeMainNavKey = navPreview ?? mainNavKeyForTab(activeTab === "alerts" ? previousTab : activeTab);
 
+  // The admin-set auth backdrop image also extends behind the farm home and my-chicks pages,
+  // dimmed toward the theme background so page content stays readable.
+  const userPageView = activeTab === "alerts" ? previousTab : activeTab;
+  const farmBackgroundUrl = userPageView === "dashboard" || userPageView === "collection"
+    ? fixGitHubImageUrl(String(siteConfig?.authBgImage || "").trim())
+    : "";
+
   useEffect(() => {
     const nav = mainNavRef.current;
     if (!nav) return;
@@ -585,7 +612,7 @@ export default function App() {
   const applyUserDataResults = useCallback((results: Record<string, unknown>) => {
     const setters: Record<string, (d: unknown) => void> = {
       items: (d) => setItems(d as SubscriptionItem[]),
-      subs: (d) => setActiveNodes(d as SubscribedNode[]),
+      subs: (d) => setActiveNodes(sortRuns(d as SubscribedNode[])),
       stats: (d) => setSystemStats(d as SystemStats),
       notifs: (d) => setUserNotifications(d as NotificationItem[]),
     };
@@ -680,7 +707,7 @@ export default function App() {
       };
       setUserProfile(updatedProfile);
     }
-    setActiveNodes((prev) => [newSub, ...prev]);
+    setActiveNodes((prev) => sortRuns([newSub, ...prev]));
     // Refresh system global counts
     fetch("/api/system/stats")
       .then((res) => res.json())
@@ -694,7 +721,7 @@ export default function App() {
 
   const handleGpuSuccess = (newSub: any, CostAmount: number) => {
     setPreselectedGpuRent(null);
-    setActiveNodes((prev) => [newSub, ...prev]);
+    setActiveNodes((prev) => sortRuns([newSub, ...prev]));
     // Refresh system stats
     handleManualStatsRefresh();
     // Redirect to Income tab
@@ -702,7 +729,7 @@ export default function App() {
   };
 
   // Callback on manual points claims harvesting succeed
-  const handleClaimSuccess = (_pointsEarned: number, newBalance: number, subId: string, lastClaimedDate: string, status: "active" | "expired", newWithdrawableBalance?: number, daysFed?: number) => {
+  const handleClaimSuccess = (_pointsEarned: number, newBalance: number, subId: string, lastClaimedDate: string, status: "active" | "expired", newWithdrawableBalance?: number, daysFed?: number, deferRefresh = false) => {
     setWithdrawableCountUpId((current) => current + 1);
     setUserProfile((current) => current ? {
       ...current,
@@ -724,7 +751,7 @@ export default function App() {
       )
     );
     // Refresh stats from server
-    handleManualStatsRefresh();
+    if (!deferRefresh) handleManualStatsRefresh();
   };
 
   // Refresh whole dashboard — consolidated to single fetchUserDataAndCatalog (already includes referrals+stats)
@@ -816,7 +843,7 @@ export default function App() {
                 <div className="relative z-10 space-y-2">
                   <h3 id="welcome-modal-title" className="font-display text-2xl font-black tracking-tight">WELCOME</h3>
                   <p className="mx-auto max-w-xs text-sm leading-relaxed opacity-75">
-                    A registration bonus of <span className="font-black text-[var(--theme-primary)]">UGX {welcomeBonusAmount.toLocaleString()}</span> has been added to your balance.
+                    A registration bonus of <span className="font-black text-[var(--theme-accent)]">UGX {welcomeBonusAmount.toLocaleString()}</span> has been added to your balance.
                   </p>
                 </div>
                 <button
@@ -833,14 +860,21 @@ export default function App() {
       </AnimatePresence>
 
       {/* Main application layout */}
-      <div 
+      <div
         className="user-app-frame relative w-full max-w-xl md:max-w-3xl h-full md:h-[94vh] min-h-0 bg-[var(--theme-bg)] flex flex-col overflow-hidden z-10 font-[var(--theme-font-family)]"
         style={{
           fontFamily: "var(--theme-font-family), 'Plus Jakarta Sans', sans-serif",
           fontSize: "var(--theme-font-base)",
         }}
       >
-        
+
+        {/* Admin-set auth backdrop extended to farm home + my-chicks, sitting bare under the content (cards are opaque) */}
+        {farmBackgroundUrl && (
+          <div aria-hidden="true" className="user-farm-backdrop">
+            <FarmBackdropImage src={farmBackgroundUrl} />
+          </div>
+        )}
+
         <header className="user-app-header z-40 shrink-0">
           <div className="user-app-brand">
             <button
@@ -873,7 +907,7 @@ export default function App() {
         </header>
 
         {/* Main interactive tabs content view block */}
-        <main onScrollCapture={handleMainScroll} className="flex-1 relative min-h-0 flex flex-col isolate overflow-hidden"
+        <main onScrollCapture={handleMainScroll} className="user-app-main flex-1 relative min-h-0 flex flex-col isolate overflow-hidden"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <AnimatePresence mode="wait" initial={false}>
             {(activeTab === "dashboard" || (activeTab === "alerts" && previousTab === "dashboard")) && (
@@ -883,7 +917,7 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="user-app-scroll w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 <DashboardView
                   isHomeActive={activeTab === "dashboard"}
@@ -893,7 +927,6 @@ export default function App() {
                   items={items}
                   siteConfig={siteConfig}
                   onSubscribeSuccess={handleSubscribeSuccess}
-                  onClaimSuccess={handleClaimSuccess}
                   onProfileUpdate={handleProfileChange}
                   onNavigateToCollection={() => { setCollectionReturn("dashboard"); setActiveTab("collection"); }}
                   onNavigateToHistory={() => { setHistoryFilterRequest("all"); setActiveTab("history"); }}
@@ -912,7 +945,7 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="user-app-scroll w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 <CatalogView
                   items={items}
@@ -937,7 +970,7 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="user-app-scroll w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 <IncomeView
                   profile={userProfile}
@@ -963,13 +996,14 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="user-app-scroll w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 <CollectionView
                   phone={userProfile.id}
                   activeNodes={activeNodes}
                   products={items}
                   onClaimSuccess={handleClaimSuccess}
+                  onRefresh={() => { void handleManualStatsRefresh(); }}
                   onBack={() => setActiveTab(collectionReturn)}
                   onClaimed={() => { void handleManualStatsRefresh(); }}
                 />
@@ -983,7 +1017,7 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="w-full flex-1 min-h-0 h-full overflow-x-hidden overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="user-app-scroll w-full flex-1 min-h-0 h-full overflow-x-hidden overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
               <TransactionHistoryView phone={userProfile.id} siteConfig={siteConfig} initialFilter={historyFilterRequest || "all"} onBack={() => setActiveTab("dashboard")} />
               </motion.div>
@@ -996,7 +1030,7 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="user-app-scroll w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 <DepositView
                   userProfile={userProfile}
@@ -1016,7 +1050,7 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="user-app-scroll w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 <WithdrawView
                   userProfile={userProfile}
@@ -1034,7 +1068,7 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="user-app-scroll w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 <ReferralView
                   userProfile={userProfile}
@@ -1052,7 +1086,7 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="w-full flex-1 flex flex-col min-h-0 h-full overflow-hidden"
+                className="user-app-tab-pad w-full flex-1 flex flex-col min-h-0 h-full overflow-hidden"
               >
                 <ChatView userProfile={userProfile} initialRoom={chatRoomDefault} canUpload={userProfile.phone === siteConfig?.adminPhone} brandName={siteConfig?.brandName} activeNodes={activeNodes} siteConfig={siteConfig} />
               </motion.div>
@@ -1065,7 +1099,7 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="w-full flex-1 min-h-0 h-full flex flex-col overflow-hidden"
+                className="user-app-tab-pad w-full flex-1 min-h-0 h-full flex flex-col overflow-hidden"
               >
                 <StreaksPage phone={userProfile.id} userProfile={userProfile} siteConfig={siteConfig} onClaimSuccess={handleProfileChange} onBack={() => setActiveTab(streaksReturn)} />
               </motion.div>
@@ -1077,7 +1111,7 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="w-full flex-1 min-h-0 h-full flex flex-col overflow-hidden"
+                className="user-app-tab-pad w-full flex-1 min-h-0 h-full flex flex-col overflow-hidden"
               >
                 <VipTasksPage phone={userProfile.id} siteConfig={siteConfig} userProfile={userProfile} onClaimSuccess={handleProfileChange} onBack={() => setActiveTab("dashboard")} focusStage={journeyStage} />
               </motion.div>
@@ -1090,7 +1124,7 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="user-app-scroll w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 <GuideView
                   siteConfig={siteConfig}
@@ -1106,7 +1140,7 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="user-app-scroll w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-1.5 sm:px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 <BindAccountView
                   userProfile={userProfile!}

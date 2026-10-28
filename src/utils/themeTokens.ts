@@ -45,10 +45,10 @@ function darkenColor(hex: string, percent: number = 20): string {
 }
 
 export const HUT12_LIGHT: ThemePresetDetails = {
-  primary: "#4F46A5",
-  primaryShadow: "#302A75",
-  accent: "#9A7836",
-  accentShadow: "#6F5526",
+  primary: "#F6C445",
+  primaryShadow: "#B08A18",
+  accent: "#4338CA",
+  accentShadow: "#312E81",
   secondary: "#7C75D4",
   secondaryShadow: "#514AA1",
   bg: "#F3F2FB",
@@ -60,10 +60,10 @@ export const HUT12_LIGHT: ThemePresetDetails = {
 };
 
 export const HUT12_DARK: ThemePresetDetails = {
-  primary: "#A8A4FF",
-  primaryShadow: "#6E69D3",
-  accent: "#E8C983",
-  accentShadow: "#A28243",
+  primary: "#F6C445",
+  primaryShadow: "#B08A18",
+  accent: "#8B86FF",
+  accentShadow: "#5D56D6",
   secondary: "#7771CB",
   secondaryShadow: "#4F498D",
   bg: "#100F21",
@@ -84,9 +84,9 @@ export const HUT12_PRESET_OPTIONS: ThemePresetOption[] = [
     id: "hut12-light",
     name: "Dragon Den",
     icon: "☀️",
-    description: "Soft lavender, deep indigo, and restrained antique-gold accents.",
-    primary: "#4F46A5",
-    accent: "#9A7836",
+    description: "Warm farm-gold primary with deep indigo accents on soft parchment.",
+    primary: "#F6C445",
+    accent: "#4338CA",
     secondary: "#7C75D4",
     cardStyle: "solid",
     radius: "rounded-2xl",
@@ -95,9 +95,9 @@ export const HUT12_PRESET_OPTIONS: ThemePresetOption[] = [
     id: "hut12-dark",
     name: "Moonlit Lair",
     icon: "🌙",
-    description: "A midnight indigo den with violet light and antique-gold highlights.",
-    primary: "#A8A4FF",
-    accent: "#E8C983",
+    description: "A midnight den with warm gold and indigo light.",
+    primary: "#F6C445",
+    accent: "#8B86FF",
     secondary: "#7771CB",
     cardStyle: "glass",
     radius: "rounded-2xl",
@@ -162,12 +162,28 @@ export function isHut12DarkPreset(preset: ThemePreset): boolean {
 export function sanitizeSiteConfig(config: Partial<SiteConfig>): Partial<SiteConfig> {
   return {
     ...config,
+    // Heal image fields that were saved with an accidentally double-appended
+    // URL ("https://a.png" + "https://a.png") — keep only the first URL, or
+    // Cloudinary hosts 404 and the consumer renders nothing.
+    authBgImage: repairConcatUrl(config.authBgImage),
+    logoUrl: repairConcatUrl(config.logoUrl),
+    authSlideImages: Array.isArray(config.authSlideImages)
+      ? config.authSlideImages.map((slide) => repairConcatUrl(slide))
+      : config.authSlideImages,
     themePreset: migratePreset(config.themePreset as string),
     cardStyle: migrateCardStyle(config.cardStyle as string),
     buttonStyle: migrateButtonStyle(config.buttonStyle as string),
     borderRadius: migrateBorderRadius(config.borderRadius as string),
     fontFamily: migrateFontFamily(config.fontFamily),
   };
+}
+
+/** Drop a duplicated tail a "URL+URL" write left behind; keep the first URL. */
+function repairConcatUrl(value: unknown): string {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return "";
+  const split = text.match(/^(https?:\/\/.*?)(?=https?:\/\/)/);
+  return (split ? split[1] : text).trim();
 }
 
 export { darkenColor };

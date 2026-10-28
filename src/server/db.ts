@@ -782,6 +782,10 @@ export async function subscribeToItem(phone: string, itemId: string): Promise<Su
     const currentUser = rows[0];
     if (!currentUser) throw new Error("User not found");
     if (hasDragonArtwork) {
+      // Repeated hatches are allowed — every hatch creates its own cycle, so
+      // concurrent active cycles of the same egg type are normal now. Only
+      // cycles that have already run out get swept to expired here (that is
+      // what surfaces them as completed nodes ready to "Collect hen").
       const existingEggRows = await tx.select().from(schema.subscribedNodes)
         .where(and(
           eq(schema.subscribedNodes.userId, phone),
@@ -791,9 +795,7 @@ export async function subscribeToItem(phone: string, itemId: string): Promise<Su
       for (const existing of existingEggRows) {
         if (String(existing.status).toLowerCase() !== "active") continue;
         const cycleEndMs = getRunEndMs(existing as SubscribedNode);
-        if (cycleEndMs === null || now.getTime() < cycleEndMs) {
-          throw new Error("This dragon is still earning. You can hatch it again after its cycle ends.");
-        }
+        if (cycleEndMs === null || now.getTime() < cycleEndMs) continue;
         await tx.update(schema.subscribedNodes)
           .set({ status: "expired" })
           .where(eq(schema.subscribedNodes.id, existing.id));
@@ -1008,7 +1010,9 @@ export async function getUserSubscriptions(phone: string): Promise<SubscribedNod
   const drizzleDb = getDb();
   if (drizzleDb) {
     try {
-      const rows = await drizzleDb.select().from(schema.subscribedNodes).where(eq(schema.subscribedNodes.userId, phone));
+      const rows = await drizzleDb.select().from(schema.subscribedNodes)
+        .where(eq(schema.subscribedNodes.userId, phone))
+        .orderBy(desc(schema.subscribedNodes.startDate), desc(schema.subscribedNodes.id));
       if (rows.length > 0) {
         return rows.map(r => ({
           id: r.id,
@@ -1124,18 +1128,13 @@ export async function markNodeExpiredAndMint(sub: any): Promise<Collectible | nu
       }
       return toPublicCollectible(existingRow);
     }
-    const countResult: any = await drizzleDb.execute(
-      sql`SELECT COALESCE(COUNT(*), 0) AS n FROM collectibles WHERE item_id = ${sub.itemId}`
-    );
-    const countRows = Array.isArray(countResult?.[0]) ? countResult[0] : [];
-    const serial = Number(countRows?.[0]?.n || 0) + 1;
     let rarity: CollectibleRarity = "common";
     try {
       rarity = rarityForNode(await getSubscriptionItems(), sub.itemId);
     } catch {
       // keep common
     }
-    const row = {
+    const baseRow = {
       id: collectibleIdFor(sub.id),
       userId: sub.userId,
       subscriptionId: sub.id,
@@ -1146,12 +1145,38 @@ export async function markNodeExpiredAndMint(sub: any): Promise<Collectible | nu
       duration: Number(sub.duration || 0),
       totalEarned: Number(sub.totalEarned || 0),
       completedAt: now,
-      serial,
       rarity,
       claimedAt: null,
     };
     try {
-      await drizzleDb.insert(schema.collectibles).values(row as any);
+      const row = await drizzleDb.transaction(async (tx) => {
+        // Re-check inside the transaction: another mint may have finished
+        // between the fast-path read and here.
+        const current = await tx.select().from(schema.collectibles)
+          .where(eq(schema.collectibles.subscriptionId, sub.id))
+          .limit(1);
+        if ((current as any[])[0]) return toPublicCollectible((current as any[])[0]);
+
+        // Serialise minting per item, then take the next serial. The counter
+        // row is locked until this transaction commits, so concurrent mints
+        // of the same egg cannot read the same value.
+        await tx.execute(sql`
+          INSERT IGNORE INTO collectible_counters (item_id, next_serial)
+          VALUES (${sub.itemId}, 0)
+        `);
+        const counterRows = await tx.select().from(schema.collectibleCounters)
+          .where(eq(schema.collectibleCounters.itemId, sub.itemId))
+          .for("update");
+        const serial = Number(counterRows[0]?.nextSerial || 0) + 1;
+        await tx.update(schema.collectibleCounters)
+          .set({ nextSerial: serial })
+          .where(eq(schema.collectibleCounters.itemId, sub.itemId));
+
+        const inserted = { ...baseRow, serial };
+        await tx.insert(schema.collectibles).values(inserted as any);
+        return toPublicCollectible(inserted);
+      });
+      return row;
     } catch (err: any) {
       // A concurrent mint won the race — return the winner.
       const again = await drizzleDb.select().from(schema.collectibles)
@@ -1159,9 +1184,7 @@ export async function markNodeExpiredAndMint(sub: any): Promise<Collectible | nu
         .limit(1);
       if ((again as any[])[0]) return toPublicCollectible((again as any[])[0]);
       throw err;
-    }
-    return toPublicCollectible(row);
-  } catch (err) {
+    }  } catch (err) {
     console.warn("[Collectibles] mint failed:", err);
     return null;
   }
@@ -1366,7 +1389,7 @@ export async function claimDailyReward(arg1: string, arg2: string): Promise<{
       : today > finalEarnDate;
     daysFed = Math.max(0, Math.floor(Number(sub.daysFed) || 0));
     if (isDragonRun) {
-      if (expired) throw new Error("This chicken has completed its cycle. Collect it before hatching again.");
+      if (expired) throw new Error("This cycle is finished. Keep the hen, then hatch a new egg.");
       if (!(dailyRate > 0)) throw new Error("This chicken is not configured to earn income.");
       const accrued = getRunClaimableReturns(claimNode, claimNow);
       const minimumClaimAmount = getRunMinimumClaimAmount(claimNode);
@@ -2620,7 +2643,76 @@ export async function adminCreateGiftCode(code: string, amount: number, maxRedem
 export async function adminGetGiftCodes() {
   const drizzleDb = getDb();
   if (!drizzleDb) return [];
-  return drizzleDb.select().from(schema.giftCodes).orderBy(desc(schema.giftCodes.createdAt));
+  const [codes, claims, users] = await Promise.all([
+    drizzleDb.select().from(schema.giftCodes).orderBy(desc(schema.giftCodes.createdAt)),
+    drizzleDb.select({
+      id: schema.giftCodeRedemptions.id,
+      giftCodeId: schema.giftCodeRedemptions.giftCodeId,
+      code: schema.giftCodeRedemptions.code,
+      userId: schema.giftCodeRedemptions.userId,
+      amount: schema.giftCodeRedemptions.amount,
+      redeemedAt: schema.giftCodeRedemptions.redeemedAt,
+      username: schema.users.username,
+      phone: schema.users.phone
+    })
+      .from(schema.giftCodeRedemptions)
+      .leftJoin(schema.users, eq(schema.giftCodeRedemptions.userId, schema.users.id))
+      .orderBy(desc(schema.giftCodeRedemptions.redeemedAt)),
+    drizzleDb.select({
+      id: schema.users.id,
+      username: schema.users.username,
+      phone: schema.users.phone,
+      redeemedGiftCodes: schema.users.redeemedGiftCodes
+    }).from(schema.users)
+  ]);
+
+  const giftByCode = new Map(codes.map((gift) => [String(gift.code).toUpperCase(), gift]));
+  const claimsByGiftCode = new Map<string, any[]>();
+  const seenClaims = new Set<string>();
+  const claimKey = (code: string, userId: string) => `${String(code).toUpperCase()}::${userId}`;
+
+  for (const claim of claims) {
+    seenClaims.add(claimKey(claim.code, claim.userId));
+    const list = claimsByGiftCode.get(claim.giftCodeId) || [];
+    list.push(claim);
+    claimsByGiftCode.set(claim.giftCodeId, list);
+  }
+
+  // Older redemptions predate the audit table (or a backfill may have been
+  // skipped). Merge them from the user's redeemed-code list so the admin never
+  // sees a stale 0 for a code that was actually claimed.
+  for (const user of users) {
+    const redeemedCodes = readJsonStringArray(user.redeemedGiftCodes)
+      .map((code) => String(code).trim().toUpperCase());
+    for (const code of redeemedCodes) {
+      const gift = giftByCode.get(code);
+      if (!gift) continue;
+      const key = claimKey(code, user.id);
+      if (seenClaims.has(key)) continue;
+      seenClaims.add(key);
+      const list = claimsByGiftCode.get(gift.id) || [];
+      list.push({
+        id: `legacy_${gift.id}_${user.id}`,
+        giftCodeId: gift.id,
+        code,
+        userId: user.id,
+        amount: gift.amount,
+        redeemedAt: "",
+        username: user.username,
+        phone: user.phone
+      });
+      claimsByGiftCode.set(gift.id, list);
+    }
+  }
+
+  return codes.map((gift) => {
+    const giftClaims = claimsByGiftCode.get(gift.id) || [];
+    return {
+      ...gift,
+      claims: giftClaims,
+      currentRedemptions: Math.max(Number(gift.currentRedemptions) || 0, giftClaims.length)
+    };
+  });
 }
 
 export async function adminDeleteGiftCode(code: string) {
@@ -2632,13 +2724,14 @@ export async function adminDeleteGiftCode(code: string) {
 
 
 /**
- * Count of gift codes the user can still act on: active, unexpired,
- * redemptions left, and not already redeemed by this phone. Drives the
- * profile gift-code pulse dot. Returns 0 when the DB is unreachable.
+ * Gift codes the user can still act on: active, unexpired, redemptions left,
+ * and not already redeemed by this user. The count drives the profile
+ * gift-code pulse dot; the amount powers the in-modal availability line.
+ * Returns an empty summary when the DB is unreachable.
  */
-export async function getAvailableGiftCodeCount(phone: string): Promise<number> {
+export async function getAvailableGiftCodeSummary(phone: string): Promise<{ count: number; amount: number }> {
   const drizzleDb = getDb();
-  if (!drizzleDb) return 0;
+  if (!drizzleDb) return { count: 0, amount: 0 };
   try {
     const cleanPhone = String(phone || "").trim();
     const rows = await drizzleDb.select().from(schema.giftCodes);
@@ -2649,42 +2742,80 @@ export async function getAvailableGiftCodeCount(phone: string): Promise<number> 
       // MariaDB hands JSON columns back as text — normalize before .map.
       if (userRows.length > 0) redeemed = readJsonStringArray(userRows[0].redeemedGiftCodes).map((c) => String(c).trim().toUpperCase());
     }
-    return rows.filter((g: any) => {
+    const available = rows.filter((g: any) => {
       if (String(g.status || "").toLowerCase() !== "active") return false;
       const expiry = new Date(g.expiryDate).getTime();
       if (Number.isFinite(expiry) && expiry <= now) return false;
       if (Number(g.currentRedemptions || 0) >= Number(g.maxRedemptions || 1)) return false;
       if (redeemed.includes(String(g.code || "").trim().toUpperCase())) return false;
       return true;
-    }).length;
+    });
+    return {
+      count: available.length,
+      amount: available.reduce((total: number, gift: any) => total + Math.max(0, Number(gift.amount) || 0), 0)
+    };
   } catch (err) {
-    console.warn("[Database] getAvailableGiftCodeCount error:", err);
-    return 0;
+    console.warn("[Database] getAvailableGiftCodeSummary error:", err);
+    return { count: 0, amount: 0 };
   }
 }
 
 export async function redeemGiftCode(phone: string, code: string) {
   const drizzleDb = getDb();
-  if (drizzleDb) {
-    const cleanCode = code.trim().toUpperCase();
-    const gifts = await drizzleDb.select().from(schema.giftCodes).where(eq(schema.giftCodes.code, cleanCode));
+  if (!drizzleDb) throw new Error("DB not connected");
+  const cleanCode = code.trim().toUpperCase();
+  if (!cleanCode) throw new Error("Enter a gift code.");
+  // Lock the gift row first, then the user row: concurrent taps on the same
+  // code serialize on the gift, so the max-redemption check cannot be raced.
+  return drizzleDb.transaction(async (tx) => {
+    const gifts = await tx.select().from(schema.giftCodes)
+      .where(eq(schema.giftCodes.code, cleanCode))
+      .limit(1)
+      .for("update");
     if (gifts.length === 0) throw new Error("Invalid or expired gift code.");
     const gift = gifts[0];
-    const userRows = await drizzleDb.select().from(schema.users).where(eq(schema.users.id, phone));
+    if (String(gift.status || "").toLowerCase() !== "active") {
+      throw new Error("This gift code is no longer active.");
+    }
+    const expiryMs = new Date(gift.expiryDate).getTime();
+    if (Number.isFinite(expiryMs) && expiryMs <= Date.now()) {
+      throw new Error("This gift code has expired.");
+    }
+    if (Number(gift.currentRedemptions || 0) >= Number(gift.maxRedemptions || 1)) {
+      throw new Error("This gift code has already been fully claimed.");
+    }
+
+    const userRows = await tx.select().from(schema.users)
+      .where(eq(schema.users.id, phone))
+      .for("update");
     if (userRows.length === 0) throw new Error("User not found");
     const user = userRows[0];
     const redeemed = readJsonStringArray(user.redeemedGiftCodes);
     if (redeemed.includes(cleanCode)) throw new Error("You have already redeemed this code.");
-    
+
+    const redeemedAt = new Date().toISOString();
     redeemed.push(cleanCode);
-    await drizzleDb.update(schema.users).set({
+    await tx.update(schema.users).set({
       points: sql`${schema.users.points} + ${gift.amount}`,
       withdrawableBalance: sql`${schema.users.withdrawableBalance} + ${gift.amount}`,
       redeemedGiftCodes: redeemed
     }).where(eq(schema.users.id, phone));
 
+    await tx.update(schema.giftCodes).set({
+      currentRedemptions: sql`${schema.giftCodes.currentRedemptions} + 1`
+    }).where(eq(schema.giftCodes.id, gift.id));
+
+    await tx.insert(schema.giftCodeRedemptions).values({
+      id: "gcr_" + crypto.randomBytes(8).toString("hex"),
+      giftCodeId: gift.id,
+      code: cleanCode,
+      userId: phone,
+      amount: gift.amount,
+      redeemedAt
+    });
+
     const newTxId = "tx_" + Date.now();
-    await drizzleDb.insert(schema.transactions).values({
+    await tx.insert(schema.transactions).values({
       id: newTxId,
       userId: phone,
       type: "gift_code",
@@ -2693,11 +2824,11 @@ export async function redeemGiftCode(phone: string, code: string) {
       currency: "UGX",
       paymentMethod: "GIFT_CODE",
       mode: "auto",
-      timestamp: new Date().toISOString()
+      metadata: { giftCode: cleanCode },
+      timestamp: redeemedAt
     });
     return { amount: gift.amount };
-  }
-  throw new Error("DB not connected");
+  });
 }
 
 
@@ -2710,10 +2841,10 @@ export async function dailyCheckin(phone: string) {
   // opens at local midnight, not 24h after the previous claim.
   const today = getPlatformDateKey();
   if (String(user.genesisOpenedMonth || "") !== today.slice(0, 7)) {
-    throw new Error("Open this month's egg before feeding it.");
+    throw new Error("Open this month's egg before claiming the daily bonus.");
   }
   if (user.lastCheckinDate === today) {
-    throw new Error("You have already fed your chick today.");
+    throw new Error("You have already claimed today's daily bonus.");
   }
 
   const config = await getSiteConfig();
@@ -2732,10 +2863,10 @@ export async function dailyCheckin(phone: string) {
     const currentUser = rows[0];
     if (!currentUser) throw new Error("User not found");
     if (String((currentUser as any).genesisOpenedMonth || "") !== today.slice(0, 7)) {
-      throw new Error("Open this month's egg before feeding it.");
+      throw new Error("Open this month's egg before claiming the daily bonus.");
     }
     if (currentUser.lastCheckinDate === today) {
-      throw new Error("You have already fed your chick today.");
+      throw new Error("You have already claimed today's daily bonus.");
     }
 
     // Recalculate under the row lock so simultaneous check-ins cannot double-credit.
@@ -2771,8 +2902,8 @@ export async function dailyCheckin(phone: string) {
   // Create notification alert
   await createNotification(
     phone,
-    "Chick fed",
-    `You fed your chick today and earned UGX ${bonus.toLocaleString()} credited to your balance.`,
+    "Daily bonus claimed",
+    `You claimed today's daily bonus of UGX ${bonus.toLocaleString()} credited to your balance.`,
     "checkin"
   );
 
@@ -3555,7 +3686,9 @@ export async function getSiteConfig(): Promise<SiteConfig> {
         for (const key of Object.keys(parsed)) {
           if (key !== "" && Number.isInteger(Number(key))) delete (parsed as any)[key];
         }
-        return parsed as SiteConfig;
+        // Sanitize on read too: heals stored concatenated image URLs
+        // ("https://a.png" + "https://a.png") without waiting for a re-save.
+        return sanitizeSiteConfig(parsed) as SiteConfig;
       }
     }
     return {};

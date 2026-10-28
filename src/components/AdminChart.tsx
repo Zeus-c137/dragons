@@ -117,7 +117,7 @@ export default function AdminChart({ transactionsList }: AdminChartProps) {
       <div className="grid grid-cols-2 divide-x divide-[var(--theme-card-border)] border-b border-[var(--theme-card-border)] bg-[var(--theme-bg)]/40 text-xs font-sans">
         <div className="p-4 space-y-0.5">
           <span className="text-[10px] uppercase tracking-wider text-[var(--theme-text)] opacity-60 font-semibold block">Total Deposits</span>
-          <span className="text-sm sm:text-base font-extrabold text-[var(--theme-primary)]">
+          <span className="text-sm sm:text-base font-extrabold text-[var(--theme-accent)]">
             {formatCurrency(totals.deposit)}
           </span>
         </div>

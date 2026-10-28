@@ -77,6 +77,8 @@ export interface SiteConfig {
   themeMode?: ThemeMode;
   authBgImage?: string;
   authSlideImages?: string[]; // Landing carousel art, one per slide (no fallback)
+  activeFarmersBase?: number; // Landing ticker baseline; real registered users are added
+  activeFarmersCeiling?: number; // Hard cap for the landing ticker (raised to the floor when lower)
   cardStyle?: CardStyle;
   buttonStyle?: ButtonStyle;
   borderRadius?: BorderRadiusStyle;

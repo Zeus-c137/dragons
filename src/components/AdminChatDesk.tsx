@@ -279,7 +279,7 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
               Conversations{unreadCount > 0 ? ` (${unreadCount} new)` : ""}
             </h3>
             {unreadCount > 0 && (
-              <button type="button" onClick={markAllSeen} className="text-[11px] font-bold text-[var(--theme-primary)] hover:underline cursor-pointer">
+              <button type="button" onClick={markAllSeen} className="text-[11px] font-bold text-[var(--theme-accent)] hover:underline cursor-pointer">
                 Mark all read
               </button>
             )}
@@ -314,7 +314,7 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
                     }}
                     className="w-full flex items-center gap-3 p-3 rounded-[var(--theme-radius)] hover:bg-[var(--theme-card-bg)] text-left outline-none transition-all group cursor-pointer"
                   >
-                    <div className="w-8 h-8 rounded-full bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 flex items-center justify-center text-[var(--theme-primary)] font-bold text-xs">
+                    <div className="w-8 h-8 rounded-full bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 flex items-center justify-center text-[var(--theme-accent)] font-bold text-xs">
                       {u.username ? u.username[0].toUpperCase() : <User className="w-3.5 h-3.5" />}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -331,7 +331,7 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
                 onClick={() => pickRoom("shared")}
                 className={`w-full flex items-center gap-3 p-3.5 rounded-[var(--theme-radius)] text-left outline-none transition-all cursor-pointer ${
                   selectedRoomId === "shared"
-                    ? "bg-[var(--theme-primary)] text-white shadow-md font-bold"
+                    ? "bg-[var(--theme-primary)] text-[var(--theme-on-primary)] shadow-md font-bold"
                     : "hover:bg-[var(--theme-card-bg)] text-[var(--theme-text)] opacity-90"
                 }`}
               >
@@ -376,7 +376,7 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
                         }`}
                       >
                         <div className="relative shrink-0">
-                          <div className="w-8 h-8 rounded-full bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 flex items-center justify-center text-[var(--theme-primary)] font-bold text-xs shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 flex items-center justify-center text-[var(--theme-accent)] font-bold text-xs shrink-0">
                             {(displayName || c.userPhone || "?").charAt(0).toUpperCase()}
                           </div>
                           {hasUnread && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[var(--theme-primary)] border-2 border-[var(--theme-bg)]" />}
@@ -424,7 +424,7 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
               </>
             ) : (
               <>
-                <div className="w-9 h-9 rounded-full bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 flex items-center justify-center text-[var(--theme-primary)] shrink-0 font-bold text-sm">
+                <div className="w-9 h-9 rounded-full bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 flex items-center justify-center text-[var(--theme-accent)] shrink-0 font-bold text-sm">
                   {activeUser?.username ? activeUser.username[0].toUpperCase() : "M"}
                 </div>
                 <div className="min-w-0">
@@ -451,7 +451,7 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
           {isLoadingMessages && messages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
-              <Loader2 className="w-6 h-6 animate-spin text-[var(--theme-primary)]" />
+              <Loader2 className="w-6 h-6 animate-spin text-[var(--theme-accent)]" />
             </div>
           ) : messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
@@ -488,7 +488,7 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
                             type="button"
                             title="Quote reply"
                             onClick={() => setReplyTo({ name: senderLabel, text: splitQuote(m.text).body || "[photo]" })}
-                            className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center gap-1 px-1.5 py-1 hover:text-[var(--theme-primary)] cursor-pointer"
+                            className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center gap-1 px-1.5 py-1 hover:text-[var(--theme-accent)] cursor-pointer"
                           >
                             <Reply className="w-3.5 h-3.5" />
                             <span className="text-[10px] font-extrabold uppercase tracking-wide">Reply</span>
@@ -547,7 +547,7 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
           {replyTo && (
             <div className="flex items-center justify-between bg-[var(--theme-card-bg)] px-3 py-2 rounded-[var(--theme-radius)] border border-[var(--theme-card-border)] text-xs">
               <div className="flex items-center gap-2 min-w-0">
-                <Reply className="w-3.5 h-3.5 text-[var(--theme-primary)] shrink-0" />
+                <Reply className="w-3.5 h-3.5 text-[var(--theme-accent)] shrink-0" />
                 <span className="truncate font-medium">
                   <span className="font-extrabold">{replyTo.name}</span>
                   <span className="opacity-60"> — {replyTo.text.slice(0, 80)}</span>
@@ -562,7 +562,7 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
           {base64Image && (
             <div className="px-3.5 py-1.5 bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 rounded-2xl flex items-center justify-between w-max max-w-full gap-4">
               <div className="flex items-center gap-2 min-w-0">
-                <ImageIcon className="w-3.5 h-3.5 text-[var(--theme-primary)] shrink-0" />
+                <ImageIcon className="w-3.5 h-3.5 text-[var(--theme-accent)] shrink-0" />
                 <span className="text-[12px] font-sans text-[var(--theme-text)] truncate">{imageName || "image_loaded.png"}</span>
               </div>
               <button
@@ -608,7 +608,7 @@ export default function AdminChatDesk({ usersList }: AdminChatDeskProps) {
             <button
               type="submit"
               disabled={(!inputText.trim() && !base64Image) || isSending}
-              className="p-3 bg-[var(--theme-primary)] hover:brightness-110 disabled:opacity-50 text-white rounded-[var(--theme-radius)] shrink-0 flex items-center justify-center transition-all outline-none shadow-md cursor-pointer"
+              className="p-3 bg-[var(--theme-primary)] hover:brightness-110 disabled:opacity-50 text-[var(--theme-on-primary)] rounded-[var(--theme-radius)] shrink-0 flex items-center justify-center transition-all outline-none shadow-md cursor-pointer"
             >
               {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </button>

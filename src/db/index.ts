@@ -172,6 +172,17 @@ export async function ensureDatabaseSchema(): Promise<void> {
       created_at VARCHAR(64) NOT NULL,
       INDEX idx_gift_codes_code (code)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE IF NOT EXISTS gift_code_redemptions (
+      id VARCHAR(64) NOT NULL PRIMARY KEY,
+      gift_code_id VARCHAR(64) NOT NULL,
+      code VARCHAR(64) NOT NULL,
+      user_id VARCHAR(32) NOT NULL,
+      amount DOUBLE NOT NULL,
+      redeemed_at VARCHAR(64) NOT NULL,
+      UNIQUE INDEX uq_gift_code_redemptions_code_user (code, user_id),
+      INDEX idx_gift_code_redemptions_gift_code_id (gift_code_id),
+      INDEX idx_gift_code_redemptions_user_id (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
     `CREATE TABLE IF NOT EXISTS site_config (
       id VARCHAR(32) NOT NULL PRIMARY KEY,
       config_json JSON NOT NULL
@@ -242,12 +253,62 @@ export async function ensureDatabaseSchema(): Promise<void> {
       INDEX idx_collectibles_user_id (user_id),
       INDEX idx_collectibles_item_id (item_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE IF NOT EXISTS collectible_counters (
+      item_id VARCHAR(64) NOT NULL PRIMARY KEY,
+      next_serial INT NOT NULL DEFAULT 0
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   ];
 
   const connection = poolInstance.promise();
   for (const statement of statements) {
     await connection.query(statement);
   }
+
+  // Backfill the claim audit table from users.redeemed_gift_codes so codes
+  // redeemed before this table existed still appear in the admin panel and
+  // their counters are healed from 0.
+  try {
+    await connection.query(`
+      INSERT IGNORE INTO gift_code_redemptions (id, gift_code_id, code, user_id, amount, redeemed_at)
+      SELECT
+        CONCAT('gcr_', SUBSTRING(SHA2(CONCAT(g.id, ':', u.id), 256), 1, 40)),
+        g.id,
+        g.code,
+        u.id,
+        g.amount,
+        COALESCE(
+          (SELECT MAX(t.timestamp) FROM transactions t
+            WHERE t.user_id = u.id AND t.type = 'gift_code' AND t.amount = g.amount),
+          u.created_at
+        )
+      FROM users u
+      JOIN gift_codes g ON JSON_CONTAINS(u.redeemed_gift_codes, JSON_QUOTE(g.code))
+    `);
+    await connection.query(`
+      UPDATE gift_codes AS g
+      JOIN (
+        SELECT gift_code_id, COUNT(*) AS claims
+        FROM gift_code_redemptions
+        GROUP BY gift_code_id
+      ) AS r ON r.gift_code_id = g.id
+      SET g.current_redemptions = GREATEST(g.current_redemptions, r.claims)
+    `);
+  } catch (error) {
+    console.warn("[Database] Gift code redemption backfill skipped:", error);
+  }
+
+  // Seed the serial counters from any collectibles minted before the counter
+  // existed, then keep them at least as high as the current maximum.
+  await connection.query(`
+    INSERT IGNORE INTO collectible_counters (item_id, next_serial)
+    SELECT item_id, MAX(serial) FROM collectibles GROUP BY item_id
+  `);
+  await connection.query(`
+    UPDATE collectible_counters AS counter
+    JOIN (SELECT item_id, MAX(serial) AS max_serial FROM collectibles GROUP BY item_id) AS minted
+      ON minted.item_id = counter.item_id
+    SET counter.next_serial = GREATEST(counter.next_serial, minted.max_serial)
+  `);
 
   for (const [table, column] of [
     ["users", "genesis_opened_month"],

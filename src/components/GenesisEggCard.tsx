@@ -154,7 +154,7 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
       window.clearTimeout(hatchAnimationTimer);
       if (!hatchAnimationFinished) revealHatch();
       playCheckinSound();
-      toast.success("Your monthly egg hatched! Your chick is ready to feed.");
+      toast.success("Your monthly egg hatched! Your daily bonus is ready.");
     } catch (error) {
       window.clearTimeout(hatchAnimationTimer);
       onProfileUpdate({ ...profileRef.current, genesisOpenedMonth: profile.genesisOpenedMonth });
@@ -212,7 +212,7 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
       profileRef.current = updatedProfile;
       onProfileUpdate(updatedProfile);
       setClaimedDays((previous) => new Set(previous).add(creditedDay));
-      const showSuccess = () => toast.success("Chick fed", {
+      const showSuccess = () => toast.success("Daily bonus claimed", {
         description: `${formatCurrency(amount)} added to your withdrawable balance.`,
         duration: 4500,
       });
@@ -234,7 +234,7 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
         return next;
       });
       if (fedDays < stageThreshold && fedDays + 1 >= stageThreshold) setRevealHen(false);
-      toast.error(error instanceof Error ? error.message : "The chick could not be fed. Please try again.");
+      toast.error(error instanceof Error ? error.message : "The daily bonus could not be claimed. Please try again.");
     } finally {
       setIsFeeding(false);
     }
@@ -247,8 +247,8 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
       return;
     }
     if (hasCheckedInToday) {
-      toast.info("You've fed your chick today", {
-        description: `Come back in ${formatClock(msUntilPlatformMidnight(nowMs))} for the next feed.`,
+      toast.info("You've claimed today's bonus", {
+        description: `Come back in ${formatClock(msUntilPlatformMidnight(nowMs))} for the next bonus.`,
       });
       return;
     }
@@ -257,11 +257,11 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
 
   const handleDayTap = (source: HTMLButtonElement, key: string) => {
     if (key < todayKey) {
-      toast.info("That feed day has passed", { description: "Only today's tile can be fed." });
+      toast.info("That bonus day has passed", { description: "Only today's tile can be claimed." });
       return;
     }
     if (key > todayKey) {
-      toast.info("That feed day is coming up", { description: "Come back on that date to feed." });
+      toast.info("That bonus day is coming up", { description: "Come back on that date to claim it." });
       return;
     }
     if (!isOpened) {
@@ -273,24 +273,24 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
 
   return (
     <article
-      aria-label="Monthly free egg"
-      className={`feed-celebration-card liquid-glass-panel overflow-hidden rounded-[20px] border-0 text-[var(--theme-text)] ${isShaking ? "is-shaking" : ""}`}
+      aria-label="Monthly free egg and daily bonus"
+      className={`feed-celebration-card overflow-hidden rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] text-[var(--theme-text)] ${isShaking ? "is-shaking" : ""}`}
     >
       <div className="space-y-2.5 p-3">
         <div className="flex items-center gap-3">
           <button
             type="button"
-            aria-label={!isOpened ? "Tap to hatch this month's egg" : hasCheckedInToday ? "View when your next feed is available" : "Tap to feed today's chick"}
+            aria-label={!isOpened ? "Tap to hatch this month's egg" : hasCheckedInToday ? "View when your next bonus is available" : "Tap to claim today's daily bonus"}
             onClick={(event) => handleCycleTap(event.currentTarget)}
             disabled={isOpening || isHatching || isFeeding}
             aria-busy={isOpening || isHatching || isFeeding}
-            className="liquid-glass-panel relative grid h-16 w-16 shrink-0 place-items-center rounded-[18px] border-0 transition-transform active:scale-95 disabled:cursor-default"
+            className="liquid-glass-panel relative grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-[20px] border border-white/25 bg-[var(--theme-primary)]/10 p-1.5 shadow-lg transition-transform active:scale-95 disabled:cursor-default"
           >
             <span className={`dragon-egg-art${currentStage === "egg" ? " dragon-egg-float" : " dragon-chicken-art"} h-[54px] w-[54px]`}>
               <img
                 src={currentStage === "egg" ? monthArt.egg : currentStage === "hen" ? monthArt.hen : monthArt.chick}
                 alt={currentStage === "egg" ? "Monthly egg" : currentStage === "hen" ? "Monthly hen" : "Monthly chick"}
-                className={`object-contain${isHatching ? " dragon-egg-hatching" : currentStage === "egg" && !isOpened ? " dragon-egg-idle-spin" : revealChick || revealHen ? " dragon-hatch-reveal" : ""}`}
+                className={`object-contain drop-shadow-[0_8px_12px_rgba(15,23,42,0.22)]${isHatching ? " dragon-egg-hatching" : currentStage === "egg" && !isOpened ? " dragon-egg-idle-spin" : revealChick || revealHen ? " dragon-hatch-reveal" : ""}`}
               />
             </span>
           </button>
@@ -298,8 +298,8 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
           <button
             type="button"
             aria-label={isRewardUnavailable
-              ? `Today's feed is complete. Next feed in ${nextFeedCountdown}.`
-              : `${!isOpened ? "Hatch and feed reward" : "Feed today's chick for"} ${formatRewardAmount(todayReward)}`}
+              ? `Today's bonus is claimed. Next bonus in ${nextFeedCountdown}.`
+              : `${!isOpened ? "Hatch and claim bonus" : "Claim today's bonus of"} ${formatRewardAmount(todayReward)}`}
             onClick={(event) => handleCycleTap(event.currentTarget)}
             disabled={isOpening || isHatching || isFeeding || isRewardUnavailable}
             aria-busy={isOpening || isHatching || isFeeding}
@@ -310,11 +310,14 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
           </button>
         </div>
 
-        <section aria-label="Thirty-day feed history" className="space-y-1">
+        <section aria-label="Thirty-day bonus history" className="space-y-1">
           <div className="flex items-center justify-between px-0.5 text-[14px] font-black tracking-wide opacity-74">
-            <span>{new Intl.DateTimeFormat("en", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m, 1)))}</span>
+            <span className="flex items-baseline gap-2">
+              <span>{new Intl.DateTimeFormat("en", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m, 1)))}</span>
+              <span className="text-[9px] font-sans uppercase tracking-[0.14em] opacity-45">Daily bonus</span>
+            </span>
             {hasCheckedInToday ? (
-              <span aria-label={`Next feed in ${nextFeedCountdown}`}>
+              <span aria-label={`Next bonus in ${nextFeedCountdown}`}>
                  <span className="tabular-nums">{nextFeedCountdown}</span>
               </span>
             ) : <span>Today</span>}
@@ -322,20 +325,20 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
           <div
             ref={feedStripRef}
             role="group"
-            aria-label="Thirty days of feeding history; scroll horizontally"
-            className="flex snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain pb-1"
+            aria-label="Thirty days of bonus history; scroll horizontally"
+            className="flex snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
           >
             {feedDays.map(({ key, day, weekday, isToday, isTarget }) => {
               const fed = claimedDays.has(key) || (isToday && hasCheckedInToday);
               const canFeed = isToday && isOpened && !fed && !isOpening && !isHatching && !isFeeding;
               const future = key > todayKey;
-              const tileClass = `relative flex h-[52px] w-11 shrink-0 snap-center flex-col items-center justify-center gap-1 rounded-[13px] border text-[10px] font-black tabular-nums transition-colors ${canFeed ? "genesis-feed-tile-pulse border-[var(--theme-primary)]/70 bg-[var(--theme-primary)]/15 text-[var(--theme-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--theme-primary)_22%,transparent)] hover:bg-[var(--theme-primary)]/25 active:scale-95" : isTarget ? "border-[var(--theme-primary)]/50 bg-[var(--theme-primary)]/10 text-[var(--theme-text)]" : fed ? "border-white/15 bg-white/[0.075] text-[var(--theme-primary)]" : "border-white/[0.08] bg-black/[0.035] text-[var(--theme-text)] opacity-55"}`;
+              const tileClass = `relative flex h-[52px] w-11 shrink-0 snap-center flex-col items-center justify-center gap-1 rounded-[13px] border text-[10px] font-black tabular-nums transition-colors ${canFeed ? "genesis-feed-tile-pulse border-[var(--theme-primary)]/70 bg-[var(--theme-primary)]/15 text-[var(--theme-accent)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--theme-primary)_22%,transparent)] hover:bg-[var(--theme-primary)]/25 active:scale-95" : isTarget ? "border-[var(--theme-primary)]/50 bg-[var(--theme-primary)]/10 text-[var(--theme-text)]" : fed ? "border-white/15 bg-white/[0.075] text-[var(--theme-accent)]" : "border-white/[0.08] bg-black/[0.035] text-[var(--theme-text)] opacity-55"}`;
               return (
                 <button
                   key={key}
                   ref={isTarget ? targetFeedTileRef : undefined}
                   type="button"
-                  aria-label={`${key}${fed ? ", fed" : canFeed ? ", available to feed" : future ? ", upcoming" : ", not fed"}`}
+                  aria-label={`${key}${fed ? ", claimed" : canFeed ? ", available to claim" : future ? ", upcoming" : ", not claimed"}`}
                   onClick={(event) => handleDayTap(event.currentTarget, key)}
                   disabled={future || isFeeding || isOpening || isHatching}
                   className={`${tileClass} disabled:cursor-default`}

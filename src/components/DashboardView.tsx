@@ -10,7 +10,6 @@ interface DashboardViewProps {
   items: SubscriptionItem[];
   siteConfig?: SiteConfig | null;
   onSubscribeSuccess: (node: SubscribedNode, amount: number) => void;
-  onClaimSuccess: (amount: number, balance: number, subId: string, lastClaimedDate: string, status: "active" | "expired", withdrawableBalance?: number, daysFed?: number) => void;
   onProfileUpdate: (profile: UserProfile) => void;
   onNavigateToCollection: () => void;
   onNavigateToHistory: () => void;

@@ -63,10 +63,10 @@ export const GUIDE_SECTIONS: { title: string; body: string[] }[] = [
     ],
   },
   {
-    title: "Daily check-in",
+    title: "Daily bonus",
     body: [
-      "Open the streak page and check in every day.",
-      "Each check-in pays a bonus into your balance.",
+      "Open the Daily bonus page and claim it every day.",
+      "Each claim pays a bonus into your balance.",
       "Longer streaks unlock bigger rewards.",
     ],
   },
@@ -105,7 +105,7 @@ function GuideSection({ title, body, open, onToggle }: { title: string; body: st
         className="w-full flex items-center justify-between gap-3 py-3 text-left cursor-pointer"
       >
         <span className="text-[13px] font-display font-black text-[var(--theme-text)] tracking-tight">{title}</span>
-        <ChevronDown className={`w-4 h-4 text-[var(--theme-primary)] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`w-4 h-4 text-[var(--theme-accent)] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       <AnimatePresence initial={false}>
         {open && (
@@ -119,7 +119,7 @@ function GuideSection({ title, body, open, onToggle }: { title: string; body: st
             <ul className="pb-3 space-y-1.5">
               {body.map((line, i) => (
                 <li key={i} className="text-[12px] font-sans text-[var(--theme-text)] opacity-80 leading-relaxed flex gap-2">
-                  <span className="text-[var(--theme-primary)] font-black shrink-0">•</span>
+                  <span className="text-[var(--theme-accent)] font-black shrink-0">•</span>
                   <span>{line}</span>
                 </li>
               ))}
@@ -144,7 +144,7 @@ export default function GuideView({ siteConfig, onBack }: GuideViewProps) {
   return (
     <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] border border-white/10 rounded-[24px] p-4 text-[var(--theme-text)] space-y-5 pb-16">
       <button onClick={onBack} className="flex items-center gap-2 text-xs font-extrabold opacity-70 hover:opacity-100 py-1.5 px-3 rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] shadow-sm cursor-pointer">
-        <ArrowLeft className="w-3.5 h-3.5 text-[var(--theme-primary)]" /> Profile
+        <ArrowLeft className="w-3.5 h-3.5 text-[var(--theme-accent)]" /> Profile
       </button>
 
       <div className="flex flex-col items-center text-center space-y-2 pt-1">

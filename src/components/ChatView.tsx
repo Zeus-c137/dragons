@@ -344,13 +344,13 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
               type="button"
               onClick={() => switchRoom("shared")}
               className={`flex-1 flex items-center justify-center gap-2 py-3.5 relative text-[11px] font-black uppercase tracking-wider transition-colors cursor-pointer ${
-                activeRoom === "shared" ? "text-[var(--theme-primary)]" : "text-[var(--theme-text)] opacity-60 hover:opacity-100"
+                activeRoom === "shared" ? "text-[var(--theme-accent)]" : "text-[var(--theme-text)] opacity-60 hover:opacity-100"
               }`}
             >
               <MessageSquare className="w-4 h-4" />
               <span>Threads</span>
               {unread.shared > 0 && (
-                <span className="min-w-5 h-5 px-1 rounded-full bg-[var(--theme-primary)] text-white text-[10px] font-black flex items-center justify-center">
+                <span className="min-w-5 h-5 px-1 rounded-full bg-[var(--theme-primary)] text-[var(--theme-on-primary)] text-[10px] font-black flex items-center justify-center">
                   {unread.shared > 99 ? "99+" : unread.shared}
                 </span>
               )}
@@ -361,7 +361,7 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
               type="button"
               onClick={() => switchRoom("ai")}
               className={`flex-1 flex items-center justify-center gap-2 py-3.5 relative text-[11px] font-black uppercase tracking-wider transition-colors cursor-pointer ${
-                activeRoom === "ai" ? "text-[var(--theme-primary)]" : "text-[var(--theme-text)] opacity-60 hover:opacity-100"
+                activeRoom === "ai" ? "text-[var(--theme-accent)]" : "text-[var(--theme-text)] opacity-60 hover:opacity-100"
               }`}
             >
               <span className={aiThinking ? "animate-shimmer" : undefined}>{brandName || "AI"} AI</span>
@@ -372,13 +372,13 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
               type="button"
               onClick={() => switchRoom("admin")}
               className={`flex-1 flex items-center justify-center gap-2 py-3.5 relative text-[11px] font-black uppercase tracking-wider transition-colors cursor-pointer ${
-                activeRoom === "admin" ? "text-[var(--theme-primary)]" : "text-[var(--theme-text)] opacity-60 hover:opacity-100"
+                activeRoom === "admin" ? "text-[var(--theme-accent)]" : "text-[var(--theme-text)] opacity-60 hover:opacity-100"
               }`}
             >
               <Shield className="w-4 h-4" />
               <span>Support Desk</span>
               {unread.admin > 0 && (
-                <span className="min-w-5 h-5 px-1 rounded-full bg-[var(--theme-primary)] text-white text-[10px] font-black flex items-center justify-center">
+                <span className="min-w-5 h-5 px-1 rounded-full bg-[var(--theme-primary)] text-[var(--theme-on-primary)] text-[10px] font-black flex items-center justify-center">
                   {unread.admin > 99 ? "99+" : unread.admin}
                 </span>
               )}
@@ -453,7 +453,7 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
                         >
                           {showHeader && (
                             <div className="flex items-center gap-1.5 text-[11px] font-sans font-bold opacity-80">
-                              <span className={`truncate max-w-[140px] ${isMe ? 'text-[var(--theme-primary)]' : isSupportAdmin ? 'text-[var(--theme-accent)]' : 'text-[var(--theme-primary)]'}`}>
+                              <span className={`truncate max-w-[140px] ${isMe ? 'text-[var(--theme-accent)]' : isSupportAdmin ? 'text-[var(--theme-accent)]' : 'text-[var(--theme-accent)]'}`}>
                                 {isMe ? "You" : isSupportAdmin ? "👾 Support" : m.senderName}
                               </span>
                               <span className="opacity-40 font-medium">•</span>
@@ -463,7 +463,7 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
                                   type="button"
                                   title={replyCounts.get(m.id) ? `${replyCounts.get(m.id)} ${replyCounts.get(m.id) === 1 ? "reply" : "replies"}` : "Reply"}
                                   onClick={() => setReplyTo({ name: isMe ? "You" : isSupportAdmin ? "👾 Support" : m.senderName, text: splitQuote(m.text).body || "[photo]" })}
-                                  className="ml-auto flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--theme-primary)]/12 border border-[var(--theme-primary)]/20 text-[var(--theme-primary)] opacity-90 hover:bg-[var(--theme-primary)]/20 hover:opacity-100 transition-all cursor-pointer"
+                                  className="ml-auto flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--theme-primary)]/12 border border-[var(--theme-primary)]/20 text-[var(--theme-accent)] opacity-90 hover:bg-[var(--theme-primary)]/20 hover:opacity-100 transition-all cursor-pointer"
                                 >
                                   <Reply className="w-3 h-3" />
                                   {(replyCounts.get(m.id) || 0) > 0 && <span className="text-[10px] font-black">{replyCounts.get(m.id)}</span>}
@@ -477,7 +477,7 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
                                 type="button"
                                 title={replyCounts.get(m.id) ? `${replyCounts.get(m.id)} ${replyCounts.get(m.id) === 1 ? "reply" : "replies"}` : "Reply"}
                                 onClick={() => setReplyTo({ name: isMe ? "You" : isSupportAdmin ? "👾 Support" : m.senderName, text: splitQuote(m.text).body || "[photo]" })}
-                                className="flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--theme-primary)]/12 border border-[var(--theme-primary)]/20 text-[var(--theme-primary)] opacity-90 hover:bg-[var(--theme-primary)]/20 transition-all cursor-pointer"
+                                className="flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--theme-primary)]/12 border border-[var(--theme-primary)]/20 text-[var(--theme-accent)] opacity-90 hover:bg-[var(--theme-primary)]/20 transition-all cursor-pointer"
                               >
                                 <Reply className="w-3 h-3" />
                                 {(replyCounts.get(m.id) || 0) > 0 && <span className="text-[10px] font-black">{replyCounts.get(m.id)}</span>}
@@ -550,7 +550,7 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
               >
                 <div className="flex items-center gap-2 min-w-0 text-[var(--theme-text)]">
                   <div className="w-7 h-7 rounded-full bg-[var(--theme-primary)]/12 border border-[var(--theme-primary)]/15 flex items-center justify-center shrink-0">
-                    <Reply className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
+                    <Reply className="w-3.5 h-3.5 text-[var(--theme-accent)]" />
                   </div>
                   <span className="truncate font-medium">
                     <span className="font-extrabold">{replyTo.name}</span>
@@ -567,7 +567,7 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
           {base64Image && (
             <div className="flex items-center justify-between bg-[var(--theme-bg)] p-2.5 rounded-[var(--theme-radius)] text-xs font-sans text-[var(--theme-text)] border border-[var(--theme-card-border)] animate-fadeIn">
               <div className="flex items-center gap-2">
-                <FileImage className="w-4 h-4 text-[var(--theme-primary)] block shrink-0" />
+                <FileImage className="w-4 h-4 text-[var(--theme-accent)] block shrink-0" />
                 <span className="truncate max-w-[150px] sm:max-w-xs font-medium">{imageName || "Screenshot attachment"}</span>
               </div>
               <button
@@ -615,7 +615,7 @@ export default function ChatView({ userProfile, initialRoom = "shared", canUploa
             <button
               type="submit"
               disabled={isSending || (!inputText.trim() && !base64Image)}
-              className="w-11 h-11 rounded-full bg-[var(--theme-primary)]/12 border border-[var(--theme-primary)]/20 text-[var(--theme-primary)] flex items-center justify-center hover:bg-[var(--theme-primary)]/20 transition-colors shrink-0 outline-none cursor-pointer disabled:opacity-50"
+              className="w-11 h-11 rounded-full bg-[var(--theme-primary)]/12 border border-[var(--theme-primary)]/20 text-[var(--theme-accent)] flex items-center justify-center hover:bg-[var(--theme-primary)]/20 transition-colors shrink-0 outline-none cursor-pointer disabled:opacity-50"
             >
               {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </button>

@@ -67,7 +67,7 @@ export default function PaymentMethodSelect({
       paymentImages?.airtel ? { src: paymentImages.airtel, name: "Airtel" } : null,
     ].filter((logo): logo is { src: string; name: string } => Boolean(logo));
     if (!logos.length) {
-      return <span className={`${size} grid place-items-center rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]`}><Smartphone className="h-4 w-4" aria-hidden="true" /></span>;
+      return <span className={`${size} grid place-items-center rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-accent)]`}><Smartphone className="h-4 w-4" aria-hidden="true" /></span>;
     }
     return (
       <span className="flex shrink-0 items-center -space-x-2">
@@ -142,7 +142,7 @@ export default function PaymentMethodSelect({
                     <span className="block truncate text-sm font-bold text-[var(--theme-text)]">{option.title}</span>
                     <span className="mt-0.5 block truncate text-xs text-[var(--theme-text)] opacity-55">{option.subtitle}</span>
                   </span>
-                  {selected ? <Check className="h-4 w-4 shrink-0 text-[var(--theme-primary)]" aria-hidden="true" /> : null}
+                  {selected ? <Check className="h-4 w-4 shrink-0 text-[var(--theme-accent)]" aria-hidden="true" /> : null}
                 </button>
               );
             })}

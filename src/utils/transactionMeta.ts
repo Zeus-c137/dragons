@@ -17,7 +17,7 @@ export const TRANSACTION_LABELS: Record<TransactionType, string> = {
   product_activation: "Product",
   daily_yield: "Income",
   registration_bonus: "Registration Bonus",
-  daily_checkin_bonus: "Daily check-in",
+  daily_checkin_bonus: "Daily bonus",
   gift_code: "Gift Code",
   referral_signup_bonus: "Referral income",
   referral_level_income: "Referral income",
