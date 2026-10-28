@@ -223,7 +223,7 @@ export default function AiChatView({ userProfile, activeNodes, siteConfig, onThi
         <button
           type="submit"
           disabled={isAskingAdvisor || !advisorInput.trim()}
-          className="px-5 py-3 rounded-full bg-[var(--theme-primary)]/12 border border-[var(--theme-primary)]/20 text-[var(--theme-primary)] hover:bg-[var(--theme-primary)]/20 font-black text-xs uppercase tracking-wider disabled:opacity-50 cursor-pointer shrink-0 transition-colors flex items-center gap-1.5"
+          className="px-5 py-3 rounded-full bg-[var(--theme-primary)]/12 border border-[var(--theme-primary)]/20 text-[var(--theme-accent)] hover:bg-[var(--theme-primary)]/20 font-black text-xs uppercase tracking-wider disabled:opacity-50 cursor-pointer shrink-0 transition-colors flex items-center gap-1.5"
         >
           <Send className="w-4 h-4" />
           Send

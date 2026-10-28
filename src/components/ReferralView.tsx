@@ -78,8 +78,8 @@ function OverviewView({
   return (
     <div className="space-y-4">
       <section aria-label="Invite friends" className="space-y-2">
-        <p className="max-w-[28rem] font-display text-[21px] leading-tight text-[var(--theme-primary)] sm:text-[23px]">
-          Share your {brandName} code, get up to <span className="text-[var(--theme-primary)]">{firstLevelRate}% on Level 1 invites.</span>
+        <p className="max-w-[28rem] font-display text-[21px] leading-tight text-[var(--theme-accent)] sm:text-[23px]">
+          Share your {brandName} code, get up to <span className="text-[var(--theme-accent)]">{firstLevelRate}% on Level 1 invites.</span>
         </p>
      
        
@@ -93,7 +93,7 @@ function OverviewView({
             onClick={onCopyLink}
             disabled={!inviteLink}
             aria-label={copiedLink ? "Referral link copied" : "Copy referral link"}
-            className="liquid-glass-panel inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-[var(--theme-primary)] transition-colors hover:bg-white/[0.16] disabled:opacity-45"
+            className="liquid-glass-panel inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-[var(--theme-accent)] transition-colors hover:bg-white/[0.16] disabled:opacity-45"
           >
             {copiedLink ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
           </button>
@@ -102,7 +102,7 @@ function OverviewView({
             onClick={onShare}
             disabled={!inviteLink}
             aria-label="Share referral link"
-            className="liquid-glass-panel inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-[var(--theme-primary)] transition-colors hover:bg-white/[0.16] disabled:opacity-45"
+            className="liquid-glass-panel inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-[var(--theme-accent)] transition-colors hover:bg-white/[0.16] disabled:opacity-45"
           >
             <Share2 className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -115,7 +115,7 @@ function OverviewView({
           onClick={onViewTeam}
           className="user-glossy-button inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-sans font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98]"
         >
-        <img src={inviteNavIcon} alt="" aria-hidden="true" className="h-5 w-5 object-contain" />
+        <img src={inviteNavIcon} alt="" aria-hidden="true" className="h-8 w-8 shrink-0 object-contain" />
           My invites
         </button>
       </div>
@@ -193,7 +193,7 @@ function CodeView({ inviteLink, copiedLink, onCopyLink, onShare, onHowItWorks }:
           type="button"
           onClick={onCopyLink}
           aria-label={copiedLink ? "Referral link copied" : "Copy referral link"}
-          className="liquid-glass-panel flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/20 text-[var(--theme-primary)] transition-colors hover:bg-white/[0.16]"
+          className="liquid-glass-panel flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/20 text-[var(--theme-accent)] transition-colors hover:bg-white/[0.16]"
         >
           {copiedLink ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
         </button>
@@ -278,7 +278,7 @@ function HowItWorksSheet({ metrics, onClose }: HowItWorksSheetProps) {
       >
         <div className="flex shrink-0 items-start justify-between gap-3 px-4 pb-3 pt-4 sm:gap-4 sm:px-5 sm:pt-5">
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--theme-primary)]">Referral guide</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--theme-accent)]">Referral guide</p>
             <h2 id="invite-how-title" className="mt-1 font-display text-[22px] font-black leading-tight tracking-tight sm:text-[22px]">What counts as a referral?</h2>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 opacity-70 transition-opacity hover:opacity-100">
@@ -311,7 +311,7 @@ function HowItWorksSheet({ metrics, onClose }: HowItWorksSheetProps) {
               {metrics.map((metric) => (
                 <div key={metric.level} className="flex items-center justify-between py-2.5">
                   <span className="text-[14px] ">Level {metric.level}</span>
-                  <span className="font-display text-[13px] font-black tabular-nums text-[var(--theme-primary)]">{metric.pct}%</span>
+                  <span className="font-display text-[13px] font-black tabular-nums text-[var(--theme-accent)]">{metric.pct}%</span>
                 </div>
               ))}
             </div>
@@ -453,7 +453,7 @@ export default function ReferralView({ userProfile, siteConfig, onProfileChange,
     <div className="min-h-full w-full space-y-3 rounded-[28px] px-3 py-3 pb-16 text-[var(--theme-on-primary)] sm:px-4">
       {view !== "overview" && (
         <button type="button" onClick={goBack} className="inline-flex items-center gap-2 rounded-full px-2 py-1.5 text-xs font-semibold text-[var(--theme-text)] opacity-65 transition-opacity hover:opacity-100">
-          <ArrowLeft className="h-3.5 w-3.5 text-[var(--theme-primary)]" />
+          <ArrowLeft className="h-3.5 w-3.5 text-[var(--theme-accent)]" />
           Invite
         </button>
       )}

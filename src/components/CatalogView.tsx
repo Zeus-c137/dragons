@@ -408,7 +408,7 @@ export default function CatalogView({
               <div className="min-w-0">
                 <h3 className="truncate font-display text-[18px] font-black tracking-tight text-[var(--theme-text)]">{item.name}</h3>
               </div>
-              <span className="shrink-0 rounded-full bg-[var(--theme-primary)]/15 px-2.5 py-1 text-[10px] font-black text-[var(--theme-primary)]">{dailyPct(item)}</span>
+              <span className="shrink-0 rounded-full bg-[var(--theme-primary)]/15 px-2.5 py-1 text-[10px] font-black text-[var(--theme-accent)]">{dailyPct(item)}</span>
             </div>
             {renderVerticalSpecs(item)}
             <div className="mt-3 flex justify-center">{renderStartButton(item)}</div>
@@ -430,7 +430,7 @@ export default function CatalogView({
           className="space-y-4 px-1"
         >
             {/* Rechargeable capital available for hatching eggs. */}
-            <div className="sticky top-0 z-20 -mx-1 px-1 pt-1 pb-2">
+            <div className="user-app-sticky-top sticky top-0 z-20 -mx-1 px-1 pt-1 pb-2">
               <div className="rounded-[24px] border border-white/10 bg-[var(--theme-card-bg)]/60 backdrop-blur-[20px] p-4 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-sans text-[var(--theme-text)] opacity-60">My capital</p>
@@ -465,7 +465,7 @@ export default function CatalogView({
                         aria-pressed={isSelected}
                         className={`relative py-2 text-[10px] font-sans font-black tracking-wider uppercase transition-colors cursor-pointer outline-none select-none border-b-2 ${
                           isSelected
-                            ? "border-[var(--theme-primary)] text-[var(--theme-primary)]"
+                            ? "border-[var(--theme-primary)] text-[var(--theme-accent)]"
                             : "border-transparent text-[var(--theme-text)] opacity-65 hover:opacity-100"
                         }`}
                       >
@@ -540,7 +540,7 @@ export default function CatalogView({
           </motion.div>
       </AnimatePresence>
       <div className="mt-4 rounded-[20px] border border-white/10 bg-[var(--theme-card-bg)]/40 p-3.5 gap-2.5">
-        <Calendar className="w-4 h-4 text-[var(--theme-primary)] shrink-0 mt-0.5" />
+        <Calendar className="w-4 h-4 text-[var(--theme-accent)] shrink-0 mt-0.5" />
         <p className="text-[12px] font-sans opacity-70 leading-relaxed">
           Starting a run requires you to deposit funds into your wallet first.
         </p>
@@ -587,7 +587,7 @@ export default function CatalogView({
                     </div>
                     <div className="flex items-center justify-between py-2.5">
                       <span className="text-[12px] font-sans text-[var(--theme-text)] opacity-60">Day 1 return to claim</span>
-                      <span className="font-display font-black text-[14px] text-[var(--theme-primary)] tabular-nums">{formatCurrency(activated.dayOne)}</span>
+                      <span className="font-display font-black text-[14px] text-[var(--theme-accent)] tabular-nums">{formatCurrency(activated.dayOne)}</span>
                     </div>
                   </div>
                   <div className="w-full rounded-2xl border border-dashed border-[var(--theme-primary)]/50 bg-[var(--theme-primary)]/10 px-4 py-3">
@@ -650,7 +650,7 @@ export default function CatalogView({
                       </div>
                       <div className="flex items-center justify-between py-2.5">
                         <span className="text-[12px] font-sans text-[var(--theme-text)] opacity-60">Daily income</span>
-                        <span className="font-display font-black text-[14px] text-[var(--theme-primary)] tabular-nums">{formatCurrency(confirmingItem.dailyYield)}</span>
+                        <span className="font-display font-black text-[14px] text-[var(--theme-accent)] tabular-nums">{formatCurrency(confirmingItem.dailyYield)}</span>
                       </div>
                     </div>
                     {modalPhase === "loading" ? (

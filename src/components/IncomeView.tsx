@@ -233,13 +233,13 @@ export default function IncomeView({
   return (
     <div className="space-y-5 select-none bg-transparent text-[var(--theme-text)] p-1 rounded-[var(--theme-radius)] relative">
       {/* Aggregate Stats — sticky so run list scrolls below */}
-      <div className="sticky top-0 z-20 -mx-1 px-1 pt-1 pb-2">
+      <div className="user-app-sticky-top sticky top-0 z-20 -mx-1 px-1 pt-1 pb-2">
         {onNavigateToCollection && (
           <div className="mb-2 flex justify-end">
             <button
               type="button"
               onClick={onNavigateToCollection}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/40 px-3.5 py-2 text-[12px] font-sans font-black text-[var(--theme-primary)] transition-all active:scale-95"
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/40 px-3.5 py-2 text-[12px] font-sans font-black text-[var(--theme-accent)] transition-all active:scale-95"
             >
               <img src={tractor} alt="" aria-hidden="true" className="h-4 w-4 object-contain" /> My Farm
             </button>
@@ -252,7 +252,7 @@ export default function IncomeView({
           </div>
           <div className="min-w-0">
             <p className="text-[11px] font-sans text-[var(--theme-text)] opacity-55">{showCompleted ? "Total Earnings" : "Collected"}</p>
-            <p className="font-display font-black text-[18px] text-[var(--theme-primary)] tracking-tight truncate mt-0.5">{formatCurrency(showCompleted ? completedTotalCollected : activeTotalCollected)}</p>
+            <p className="font-display font-black text-[18px] text-[var(--theme-accent)] tracking-tight truncate mt-0.5">{formatCurrency(showCompleted ? completedTotalCollected : activeTotalCollected)}</p>
           </div>
         </div>
       </div>
@@ -380,7 +380,7 @@ export default function IncomeView({
                           {itemName}
                         </h4>
                         <div className="flex shrink-0 flex-col items-end gap-1.5">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-[11px] font-semibold text-[var(--theme-primary)]">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-[11px] font-semibold text-[var(--theme-accent)]">
                             <Clock className="h-3.5 w-3.5" />
                             <span className="tabular-nums">{totalDays} days</span>
                           </span>
@@ -415,14 +415,14 @@ export default function IncomeView({
                       <CellsProgress pct={progressPercent} />
                     </div>
                     <div className="mt-1.5 flex justify-end">
-                      <span className="rounded-full bg-[var(--theme-primary)]/12 px-2.5 py-1 font-sans text-[11px] font-semibold tabular-nums text-[var(--theme-primary)]">
-                        Day {Math.min(totalDays, isChicken ? elapsedDays + 1 : elapsedDays)} of {totalDays}
+                      <span className="rounded-full bg-[var(--theme-primary)]/12 px-2.5 py-1 font-sans text-[11px] font-semibold tabular-nums text-[var(--theme-accent)]">
+                        Day {Math.min(totalDays, isChicken ? elapsedDays + 1 : elapsedDays)}/{totalDays}
                       </span>
                     </div>
                   </div>
 
                   {/* Earnings split */}
-                  <div className="mt-3 flex items-baseline justify-between gap-3 text-[var(--theme-primary)]">
+                  <div className="mt-3 flex items-baseline justify-between gap-3 text-[var(--theme-accent)]">
                     <p className="text-[12px] font-semibold tracking-tight">Collected</p>
                     <button
                       type="button"
@@ -437,22 +437,42 @@ export default function IncomeView({
                   </div>
 
                   {claimableReturns.amount > 0 && (
-                    <button
-                      type="button"
-                      disabled={claimingId === node.id}
-                      onClick={(event) => handleClaim(node.id, event.currentTarget.getBoundingClientRect())}
-                      className="user-glossy-button mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-[var(--theme-on-primary)] text-[13px] font-sans font-black cursor-pointer active:scale-[0.98] transition-all disabled:opacity-60"
-                    >
-                      {isChicken ? <img src={corn} alt="" aria-hidden="true" className="h-5 w-5 object-contain" /> : <Zap className="w-4 h-4" />}
-                      {isChicken ? (claimingId === node.id ? "Feeding..." : "Feed chick") : `Claim ${formatCurrency(claimableReturns.amount)}`}
-                      {claimableReturns.days > 1 ? ` · ${claimableReturns.days} days` : ""}
-                    </button>
+                    isChicken ? (
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToCollection?.()}
+                        className="user-glossy-button mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-[var(--theme-on-primary)] text-[13px] font-sans font-black cursor-pointer active:scale-[0.98] transition-all"
+                      >
+                        <img src={corn} alt="" aria-hidden="true" className="h-5 w-5 object-contain" />
+                        Feed in My Chicks
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={claimingId === node.id}
+                        onClick={(event) => handleClaim(node.id, event.currentTarget.getBoundingClientRect())}
+                        className="user-glossy-button mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-[var(--theme-on-primary)] text-[13px] font-sans font-black cursor-pointer active:scale-[0.98] transition-all disabled:opacity-60"
+                      >
+                        <Zap className="w-4 h-4" />
+                        {`Claim ${formatCurrency(claimableReturns.amount)}`}
+                        {claimableReturns.days > 1 ? ` · ${claimableReturns.days} days` : ""}
+                      </button>
+                    )
                   )}
 
                   {/* Finished-run ownership actions */}
                   {isDone && (
                     <div className="mt-2.5">
-                      {!collectible || !collectible.claimedAt ? (
+                      {isChicken ? (
+                        <button
+                          type="button"
+                          onClick={() => onNavigateToCollection?.()}
+                          className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full bg-[var(--theme-primary)] text-[var(--theme-on-primary)] text-[13px] font-sans font-black cursor-pointer active:scale-[0.98] transition-all"
+                        >
+                          <Award className="w-4 h-4" />
+                          {collectible?.claimedAt ? "Hen kept · view in My Chicks" : "Keep hen in My Chicks"}
+                        </button>
+                      ) : !collectible || !collectible.claimedAt ? (
                         <button
                           type="button"
                           disabled={claimingCollectibleId === node.id}
@@ -466,7 +486,7 @@ export default function IncomeView({
                         <button
                           type="button"
                           onClick={onNavigateToCollection}
-                          className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full border border-[var(--theme-primary)]/50 text-[var(--theme-primary)] text-[13px] font-sans font-black cursor-pointer active:scale-[0.98] transition-all"
+                          className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full border border-[var(--theme-primary)]/50 text-[var(--theme-accent)] text-[13px] font-sans font-black cursor-pointer active:scale-[0.98] transition-all"
                         >
                           <img src={tractor} alt="" aria-hidden="true" className="h-4 w-4 object-contain" /> In My Farm ✓
                         </button>
@@ -481,9 +501,9 @@ export default function IncomeView({
       </div>
 
       <div className="rounded-[20px] border border-white/10 bg-[var(--theme-card-bg)]/40 p-3.5 flex items-start gap-2.5">
-        <Calendar className="w-4 h-4 text-[var(--theme-primary)] shrink-0 mt-0.5" />
+        <Calendar className="w-4 h-4 text-[var(--theme-accent)] shrink-0 mt-0.5" />
         <p className="text-[12px] font-sans opacity-70 leading-relaxed">
-          Returns accumulate while a run is active and can be claimed here. Finished runs become collectibles; claim them to own them permanently.
+          Returns accumulate while a run is active and can be claimed here. Chicken feeding and keeping hens happen in My Chicks. Finished non-chicken runs become collectibles; claim them here.
         </p>
       </div>
 

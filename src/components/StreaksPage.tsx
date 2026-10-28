@@ -195,7 +195,7 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
         body: JSON.stringify({ phone }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Check-in failed.");
+      if (!res.ok) throw new Error(data.error || "Daily bonus claim failed.");
       claimRevisionRef.current += 1;
       const bonus = Math.max(0, Number(data.amount ?? data.bonus ?? optimisticBonus) || 0);
       const nextStreak = Number(data.streak ?? optimisticStreak);
@@ -212,7 +212,7 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
       if (bonus !== optimisticBonus) {
         setClaimedLedger((prev) => ({ ...prev, [key]: Math.max(0, (Number(prev[key]) || 0) + bonus - optimisticBonus) }));
       }
-      toast.success("Check-in collected", {
+      toast.success("Daily bonus claimed", {
         description: bonus > 0
           ? `+${formatCurrency(bonus)} added to your balance. Day ${nextStreak} streak.`
           : `Day ${nextStreak} streak saved.`,
@@ -238,7 +238,7 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
       });
       setClaimedLedger((prev) => ({ ...prev, [key]: previousLedgerAmount }));
       setCoins(null);
-      toast.error(err.message || "Check-in failed.");
+      toast.error(err.message || "Daily bonus claim failed.");
     } finally {
       claimBusyRef.current = false;
       setClaimBusy(false);
@@ -279,10 +279,10 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
           )}
            <div className="min-w-0 flex-1 mx-12">
             <p className="text-[12px] font-black tracking-[0.14em] text-[var(--theme-text)]  leading-none">
-              Daily checkin {isCurrentMonth ? "this month" : monthName}
+              Daily bonus {isCurrentMonth ? "this month" : monthName}
             </p>
             <div className="flex items-baseline gap-2.5 mt-2">
-              <p className="inline-flex items-center gap-1 text-[13px] font-sans font-black text-[var(--theme-primary)]">
+              <p className="inline-flex items-center gap-1 text-[13px] font-sans font-black text-[var(--theme-accent)]">
                 <img src={flameSvg} alt="" aria-hidden="true" className="h-4 w-auto" />
                 {monthClaimed} day{monthClaimed === 1 ? "" : "s"}
               </p>
@@ -296,26 +296,26 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
         {/*   the viewed month */}
         <div className="mt-3 flex items-center justify-between gap-3 px-1 py-1">
           <div className="flex min-w-0 flex-col items-start gap-1.5">
-            <p className="text-[11px] font-sans font-bold tabular-nums text-[var(--theme-primary)]">
-              Day {todayStreak} reward
+            <p className="text-[11px] font-sans font-bold tabular-nums text-[var(--theme-accent)]">
+              Day {todayStreak} bonus
             </p>
             <button
               type="button"
               onClick={(event) => void handleCheckin(event)}
               disabled={checkedInToday || claimBusy}
               aria-label={checkedInToday
-                ? `Day ${todayStreak} reward collected`
+                ? `Day ${todayStreak} bonus claimed`
                 : claimBusy
-                  ? "Collecting today's streak reward"
-                  : `Check in and collect ${formattedTodayAmount}`}
+                  ? "Claiming today's daily bonus"
+                  : `Claim daily bonus ${formattedTodayAmount}`}
               className="user-glossy-button inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--theme-primary-shadow)]/40 px-4 py-2 font-display text-[15px] font-black tabular-nums text-[var(--theme-on-primary)] active:scale-[0.98] disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
             >
               <img src={corn} alt="" aria-hidden="true" className="h-5 w-5 object-contain" />
-              {claimBusy ? "Collecting..." : formattedTodayAmount}
+              {claimBusy ? "Claiming..." : formattedTodayAmount}
             </button>
           </div>
           {checkedInToday ? (
-            <p className="shrink-0 text-right text-[11px] font-sans font-bold tabular-nums text-[var(--theme-primary)]">
+            <p className="shrink-0 text-right text-[11px] font-sans font-bold tabular-nums text-[var(--theme-accent)]">
               Come back in<br />{formatClock(nextIn)}
             </p>
           ) : null}
@@ -357,7 +357,7 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
                     className={`w-10 h-10 object-contain ${dimmed ? "grayscale" : ""}`}
                   />
                   {missed && <div className="absolute inset-0 rounded-xl bg-black/45 pointer-events-none" />}
-                  <span className={`text-[11px] font-sans font-black uppercase tracking-wide ${claimed ? "text-[var(--theme-primary)]" : "text-[var(--theme-text-muted)]"}`}>
+                  <span className={`text-[11px] font-sans font-black uppercase tracking-wide ${claimed ? "text-[var(--theme-accent)]" : "text-[var(--theme-text-muted)]"}`}>
                     {day}
                   </span>
                 </>
@@ -382,10 +382,10 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
                       void handleCheckin(e);
                     }}
                     disabled={claimBusy}
-                    aria-label="Check in today"
+                    aria-label="Claim today's daily bonus"
                     className={`${cls} cursor-pointer active:scale-95 transition-transform`}
                   >
-                    {claimBusy ? <span className="text-[10px] font-black text-[var(--theme-primary)]">…</span> : inner}
+                    {claimBusy ? <span className="text-[10px] font-black text-[var(--theme-accent)]">…</span> : inner}
                   </button>
                 );
               }
@@ -412,7 +412,7 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
                     onClick={() => {
                       toast.info(`Day ${day} • Come back in ${formatClock(nextIn)}`);
                     }}
-                    aria-label="Next check-in"
+                    aria-label="Next daily bonus"
                     className={`${cls} cursor-pointer active:scale-95 transition-transform`}
                   >
                     {inner}

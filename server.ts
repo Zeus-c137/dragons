@@ -49,7 +49,7 @@ import {
   adminCreateGiftCode,
   adminGetGiftCodes,
   adminDeleteGiftCode,
-  getAvailableGiftCodeCount,
+  getAvailableGiftCodeSummary,
   redeemGiftCode,
   dailyCheckin,
   openGenesisEgg,
@@ -917,8 +917,12 @@ app.get("/api/items", async (req, res) => {
 
 // Get user active subscriptions nodes
 app.get("/api/subscriptions/:phone", async (req, res) => {
+  const authenticatedPhone = await getAuthenticatedUserPhone(req);
+  if (!authenticatedPhone || authenticatedPhone !== String(req.params.phone)) {
+    return res.status(401).json({ error: "Please sign in again to view your chickens." });
+  }
   try {
-    const list = await getUserSubscriptions(req.params.phone);
+    const list = await getUserSubscriptions(authenticatedPhone);
     res.json(list);
   } catch (error: any) {
     logError("Get subs error:", error);
@@ -991,8 +995,12 @@ app.post("/api/profile/referrals/claim", async (req, res) => {
 
 // Virtual gallery: every finished run owns one keepsake row.
 app.get("/api/collectibles/:phone", async (req, res) => {
+  const authenticatedPhone = await getAuthenticatedUserPhone(req);
+  if (!authenticatedPhone || authenticatedPhone !== String(req.params.phone)) {
+    return res.status(401).json({ error: "Please sign in again to view your showroom." });
+  }
   try {
-    const list = await getUserCollectibles(req.params.phone);
+    const list = await getUserCollectibles(authenticatedPhone);
     res.json(list);
   } catch (error: any) {
     logError("Get collectibles error:", error);
@@ -1007,9 +1015,13 @@ app.post("/api/collectibles/claim", async (req, res) => {
   if (!phone || !subscriptionId) {
     return res.status(400).json({ error: "Missing phone and subscriptionId parameters." });
   }
+  const authenticatedPhone = await getAuthenticatedUserPhone(req);
+  if (!authenticatedPhone || authenticatedPhone !== String(phone)) {
+    return res.status(401).json({ error: "Please sign in again before keeping a hen." });
+  }
 
   try {
-    const result = await claimCollectible(phone, subscriptionId);
+    const result = await claimCollectible(authenticatedPhone, subscriptionId);
     res.json(result);
   } catch (error: any) {
     logError("Claim collectible error:", error);
@@ -2514,6 +2526,12 @@ app.get("/api/config/site", async (req, res) => {
       themeMode: config.themeMode || "light",
       authBgImage: config.authBgImage || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1600&q=80",
       authSlideImages: Array.isArray((config as any).authSlideImages) ? (config as any).authSlideImages : [],
+      activeFarmersBase: Number.isFinite(Number(config.activeFarmersBase)) && Number(config.activeFarmersBase) > 0
+        ? Math.floor(Number(config.activeFarmersBase))
+        : 300,
+      activeFarmersCeiling: Number.isFinite(Number(config.activeFarmersCeiling)) && Number(config.activeFarmersCeiling) > 0
+        ? Math.floor(Number(config.activeFarmersCeiling))
+        : 0,
       cardStyle: migrateCardStyleServer(config.cardStyle as string) || "solid",
       buttonStyle: "pill-gradient",
       borderRadius: "rounded-2xl",
@@ -2662,7 +2680,8 @@ app.post("/api/admin/logout", (_req, res) => {
 // Behind the admin guard above.
 const SITE_IMAGE_KINDS: Record<string, { exts: string[]; maxBytes: number; prefix: string; field: string }> = {
   logo: { exts: ["png", "jpg", "jpeg", "webp", "svg"], maxBytes: 2 * 1024 * 1024, prefix: "logo", field: "logoUrl" },
-  authbg: { exts: ["png", "jpg", "jpeg", "webp"], maxBytes: 4 * 1024 * 1024, prefix: "authbg", field: "authBgImage" },
+  authbg: { exts: ["png", "jpg", "jpeg", "webp", "gif"], maxBytes: 4 * 1024 * 1024, prefix: "authbg", field: "authBgImage" },
+  authslide: { exts: ["png", "jpg", "jpeg", "webp", "gif"], maxBytes: 4 * 1024 * 1024, prefix: "authslide", field: "" },
   eggart: { exts: ["png", "svg"], maxBytes: 4 * 1024 * 1024, prefix: "egg", field: "" },
   dragonart: { exts: ["png", "jpg", "jpeg", "webp", "svg"], maxBytes: 4 * 1024 * 1024, prefix: "dragon", field: "" },
   youngdragonart: { exts: ["png", "jpg", "jpeg", "webp", "svg"], maxBytes: 4 * 1024 * 1024, prefix: "young-dragon", field: "" },
@@ -2687,11 +2706,12 @@ app.post("/api/admin/upload", async (req, res) => {
       "image/jpeg": "jpg",
       "image/jpg": "jpg",
       "image/webp": "webp",
+      "image/gif": "gif",
       "image/svg+xml": "svg",
     };
     const ext = extFromMime[dataMime];
     if (!ext || !spec.exts.includes(ext)) {
-      return res.status(400).json({ error: kind === "eggart" ? "Egg artwork must be PNG or SVG." : "Chicken artwork must be PNG, JPG, WebP, or SVG." });
+      return res.status(400).json({ error: kind === "authbg" || kind === "authslide" ? "Auth wallpaper must be PNG, JPG, WebP, or GIF." : kind === "eggart" ? "Egg artwork must be PNG or SVG." : "Chicken artwork must be PNG, JPG, WebP, or SVG." });
     }
 
     const buffer = Buffer.from(match[2], "base64");
@@ -2771,8 +2791,12 @@ app.put("/api/admin/config", async (req, res) => {
 
 app.get("/api/user/gift_codes/available/:phone", async (req, res) => {
   try {
-    const count = await getAvailableGiftCodeCount(req.params.phone);
-    res.json({ available: count > 0, count });
+    const authenticatedPhone = await getAuthenticatedUserPhone(req);
+    if (!authenticatedPhone || authenticatedPhone !== String(req.params.phone)) {
+      return res.status(401).json({ error: "Please sign in again to check for gift codes." });
+    }
+    const summary = await getAvailableGiftCodeSummary(authenticatedPhone);
+    res.json({ available: summary.count > 0, count: summary.count, amount: summary.amount });
   } catch (e: any) {
     res.status(400).json({ error: e.message });
   }
@@ -2781,7 +2805,11 @@ app.get("/api/user/gift_codes/available/:phone", async (req, res) => {
 app.post("/api/user/redeem_gift_code", async (req, res) => {
   try {
     const { phone, code } = req.body;
-    const result = await redeemGiftCode(phone, code);
+    const authenticatedPhone = await getAuthenticatedUserPhone(req);
+    if (!authenticatedPhone || authenticatedPhone !== String(phone)) {
+      return res.status(401).json({ error: "Please sign in again before redeeming a gift code." });
+    }
+    const result = await redeemGiftCode(authenticatedPhone, code);
     res.json(result);
   } catch (e: any) {
     res.status(400).json({ error: e.message });
@@ -2807,7 +2835,7 @@ app.post("/api/user/checkin", async (req, res) => {
     const authenticatedPhone = await getAuthenticatedUserPhone(req);
     const requestedPhone = String(req.body?.phone || "");
     if (!authenticatedPhone || (requestedPhone && requestedPhone !== authenticatedPhone)) {
-      return res.status(401).json({ error: "Please sign in again before feeding your chick." });
+      return res.status(401).json({ error: "Please sign in again before claiming your daily bonus." });
     }
     const result = await dailyCheckin(authenticatedPhone);
     res.json(result);

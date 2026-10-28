@@ -7,6 +7,23 @@
  */
 import type { SubscribedNode, SubscriptionItem } from "../types";
 
+/**
+ * One stable order for every run list. Newest hatch first, run id as the
+ * tie-breaker. Optimistic inserts and server refetches must use this so a
+ * newly fed chicken never appears to swap places with an older hatch.
+ */
+export function sortRuns(nodes: SubscribedNode[]): SubscribedNode[] {
+  const startedAt = (value: string) => {
+    const time = new Date(value).getTime();
+    return Number.isFinite(time) ? time : 0;
+  };
+  return [...nodes].sort((a, b) => {
+    const byStart = startedAt(b.startDate) - startedAt(a.startDate);
+    if (byStart !== 0) return byStart;
+    return b.id.localeCompare(a.id);
+  });
+}
+
 export interface RunProgress {
   elapsed: number;
   total: number;

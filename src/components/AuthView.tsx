@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from "react";
 import { UserProfile } from "../types";
-import { Phone, Lock, Eye, EyeOff, User, ChevronLeft, ArrowRight, Gift, Link2, Mail, Send, CheckCircle2, UsersRound, MapPinned } from "lucide-react";
+import { Phone, Lock, Eye, EyeOff, User, ChevronLeft, Gift, Link2, Mail, Send, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { BrandLogo } from "./BrandLogo";
@@ -20,41 +20,85 @@ interface AuthViewProps {
 
 type AuthScreen = "welcome" | "login" | "register" | "support";
 
-const FARM_HERO_IMAGE = "https://images.pexels.com/photos/34161995/pexels-photo-34161995/free-photo-of-free-range-chickens-grazing-on-a-farm.jpeg?auto=compress&cs=tinysrgb&w=1600";
-
-// Welcome hero: admin-customizable via Custom Wallpapers (authBgImage).
-// Blank until siteconfig loads — no flashing fallback image.
+// Welcome bg + carousel: admin-customizable via Custom Wallpapers
+// (authBgImage is the everything-sits-on-it base; authSlideImages rotate
+// full-screen above it. No baked-in fallbacks).
 
 const PHONE_PATTERN = /^\d{9,10}$/;
 const USERNAME_PATTERN = /^[a-zA-Z0-9_.-]{3,32}$/;
 
-function CountUpMetric({ value }: { value: number | null }) {
-  const reducedMotion = useReducedMotion();
-  const [displayValue, setDisplayValue] = useState(0);
+/**
+ * Display-only social proof under the Log in button. Kept in its own component
+ * so the per-frame count-up does not re-render the whole welcome screen.
+ */
+function AnimatedFarmerCount({
+  floor,
+  ceiling,
+  reducedMotion,
+}: {
+  floor: number;
+  ceiling: number;
+  reducedMotion: boolean;
+}) {
+  const [count, setCount] = useState(() =>
+    Math.min(ceiling, Math.max(floor, Math.round(floor + (ceiling - floor) * 0.55)))
+  );
 
   useEffect(() => {
-    if (value === null || !Number.isFinite(value)) return;
-    if (reducedMotion) {
-      setDisplayValue(value);
-      return;
-    }
+    const range = ceiling - floor;
+    let cancelled = false;
+    let timeoutId = 0;
+    let frameId = 0;
+    let current = Math.min(ceiling, Math.max(floor, Math.round(floor + range * (0.45 + Math.random() * 0.3))));
+    setCount(current);
+    if (range <= 0) return;
 
-    let startTime: number | null = null;
-    let frame = 0;
-    const duration = 900;
-    const tick = (time: number) => {
-      if (startTime === null) startTime = time;
-      const progress = Math.min(1, (time - startTime) / duration);
-      const eased = 1 - Math.pow(1 - progress, 4);
-      setDisplayValue(Math.round(value * eased));
-      if (progress < 1) frame = requestAnimationFrame(tick);
+    const maxStep = Math.max(2, Math.round(range * 0.14));
+    const animateTo = (next: number) => {
+      if (reducedMotion) {
+        current = next;
+        setCount(next);
+        return;
+      }
+      // A throttled/occluded tab can queue several tweens; keep only the newest.
+      window.cancelAnimationFrame(frameId);
+      const start = current;
+      const startedAt = performance.now();
+      const tick = (now: number) => {
+        if (cancelled) return;
+        const progress = Math.min(1, (now - startedAt) / 700);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        current = Math.round(start + (next - start) * eased);
+        setCount(current);
+        if (progress < 1) frameId = window.requestAnimationFrame(tick);
+      };
+      frameId = window.requestAnimationFrame(tick);
     };
 
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [reducedMotion, value]);
+    const schedule = () => {
+      timeoutId = window.setTimeout(() => {
+        if (cancelled) return;
+        // Mean-reverting walk: drift toward the middle, then add a random step.
+        const midpoint = floor + range * 0.55;
+        const pull = (midpoint - current) * 0.18;
+        const jitter = (Math.random() * 2 - 1) * maxStep;
+        let next = Math.round(current + pull + jitter);
+        if (next === current) next += Math.random() < 0.5 ? -1 : 1;
+        next = Math.max(floor, Math.min(ceiling, next));
+        animateTo(next);
+        schedule();
+      }, 2400 + Math.random() * 2200);
+    };
+    schedule();
 
-  return <>{value === null ? "—" : Math.max(0, displayValue).toLocaleString("en-UG")}</>;
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [ceiling, floor, reducedMotion]);
+
+  return <>{count.toLocaleString("en-UG")}</>;
 }
 
 function AuthField({
@@ -112,7 +156,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
   const [recoverySent, setRecoverySent] = useState(false);
 
   const [localSiteConfig, setLocalSiteConfig] = useState<any>(null);
-  const [peopleCount, setPeopleCount] = useState<number | null>(null);
+  const [totalUsers, setTotalUsers] = useState<number | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -122,12 +166,14 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
         return response.json() as Promise<{ totalUsers?: unknown }>;
       })
       .then((stats) => {
-        const count = 300 + (stats.totalUsers ? Number(stats.totalUsers) : 0); // Add 9000 to the count to make it look more impressive
-        if (Number.isFinite(count) && count >= 0) setPeopleCount(Math.floor(count));
+        const count = Number(stats.totalUsers);
+        setTotalUsers(Number.isFinite(count) && count > 0 ? Math.floor(count) : 0);
       })
       .catch((error: unknown) => {
         if ((error as Error)?.name !== "AbortError") {
           console.warn("Could not load welcome metrics:", error);
+          // Keep the display ticker alive on the manual baseline when stats fail.
+          setTotalUsers(0);
         }
       });
     return () => controller.abort();
@@ -142,9 +188,27 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
       .catch(() => {});
   }, []);
 
-  const activeConfig = localSiteConfig || siteConfig;
+  // Prefer the freshest copy so an admin save updates the landing ticker without a reload.
+  const activeConfig =
+    siteConfig && Number(siteConfig.updatedAt || 0) > Number(localSiteConfig?.updatedAt || 0)
+      ? siteConfig
+      : localSiteConfig || siteConfig;
   const authBackgroundImage = fixGitHubImageUrl(String(activeConfig?.authBgImage || "").trim());
   const isAuthFormScreen = screen === "login" || screen === "register" || screen === "support";
+
+  // Landing ticker: a manual baseline plus real registered users, capped by an
+  // admin-set ceiling. The number random-walks between those bounds so the farm
+  // reads as busy without ever running away.
+  const configuredBase = Number(activeConfig?.activeFarmersBase);
+  const configuredCeiling = Number(activeConfig?.activeFarmersCeiling);
+  const activeFarmersBase = Number.isFinite(configuredBase) && configuredBase > 0 ? Math.floor(configuredBase) : 300;
+  const activeFarmersFloor = activeFarmersBase + (totalUsers ?? 0);
+  const activeFarmersCeiling = Math.max(
+    activeFarmersFloor,
+    Number.isFinite(configuredCeiling) && configuredCeiling > 0
+      ? Math.floor(configuredCeiling)
+      : activeFarmersFloor + 160
+  );
 
   useEffect(() => {
     setFailedAuthBackground(false);
@@ -161,9 +225,9 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
   ));
   const configuredSlidesKey = configuredWelcomeImages.join("\n");
   const availableWelcomeImages = configuredWelcomeImages.filter((image) => !failedWelcomeImages.includes(image));
-  const welcomeSlides = availableWelcomeImages.length > 0 ? availableWelcomeImages : [FARM_HERO_IMAGE];
+  const welcomeSlides = availableWelcomeImages;
   const welcomeSlidesKey = welcomeSlides.join("\n");
-  const welcomeImage = welcomeSlides[activeWelcomeSlide % welcomeSlides.length];
+  const welcomeImage = welcomeSlides.length > 0 ? welcomeSlides[activeWelcomeSlide % welcomeSlides.length] : "";
 
   // Clear stale image failures when the configured carousel changes.
   useEffect(() => {
@@ -364,29 +428,63 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
     }
   };
   const brandName = activeConfig?.brandName;
+  // Two-tone wordmark: the first half reads in ink, the second half in gold (kash|chick).
+  const brandBaseMark = String(brandName ?? "").slice(0, Math.floor(String(brandName ?? "").length / 2));
+  const brandGoldMark = String(brandName ?? "").slice(Math.floor(String(brandName ?? "").length / 2));
   const inviteBonus = Number(activeConfig?.inviteBonus ?? 0);
   const regBonus = Number(activeConfig?.registrationBonus ?? activeConfig?.welcomeBonus ?? 0);
+  // Critically damped springs (Apple §4): graceful settle, no overshoot on entrance.
+  const heroSpring = (delay: number) => ({
+    initial: reducedMotion ? { opacity: 0 } : { opacity: 0, y: 14 },
+    animate: reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 },
+    transition: reducedMotion
+      ? { duration: 0.3, delay }
+      : { type: "spring" as const, bounce: 0, duration: 0.5, delay },
+  });
   const authFormBrand = (
     <div className="auth-form-brand flex items-center gap-3">
       <BrandLogo siteConfig={activeConfig} className="flex h-[60px] w-[60px] shrink-0 items-center justify-center" />
-      <span className="font-display text-md font-black tracking-tight">{brandName}</span>
+      <span className="font-display text-md font-black tracking-tight">{brandBaseMark}<span className="text-[var(--theme-primary)]">{brandGoldMark}</span></span>
     </div>
   );
 
   return (
     <div className="relative isolate min-h-[100dvh] overflow-x-hidden bg-[var(--theme-bg)] text-[var(--theme-text)] font-[var(--theme-font-family)] transition-colors">
-      {(isAuthFormScreen || screen === "welcome") && authBackgroundImage && !failedAuthBackground && (
-        <div className="auth-screen-backdrop" aria-hidden="true">
-          <img
-            src={authBackgroundImage}
-            alt=""
-            referrerPolicy="no-referrer"
-            onError={() => setFailedAuthBackground(true)}
-          />
+      {/* Admin-set auth background — the landing page's everything-sits-on-it layer.
+          Welcome shows it bare (no scrim); login/register keep their dimmed treatment. */}
+      {(screen === "welcome" || (isAuthFormScreen && authBackgroundImage && !failedAuthBackground)) && (
+        <div className={`auth-screen-backdrop ${screen === "welcome" ? "auth-screen-backdrop--clear" : ""}`} aria-hidden="true">
+          {authBackgroundImage && !failedAuthBackground && (
+            <img
+              src={authBackgroundImage}
+              alt=""
+              referrerPolicy="no-referrer"
+              onError={() => setFailedAuthBackground(true)}
+            />
+          )}
         </div>
       )}
-      {screen === "welcome" && authBackgroundImage && !failedAuthBackground && (
-        <div className="auth-welcome-frost" aria-hidden="true" />
+      {/* Full-screen rotating carousel sits above the static bg, below the content */}
+      {screen === "welcome" && welcomeSlides.length > 0 && (
+        <div className="fixed inset-0 z-[1] overflow-hidden" aria-hidden="true">
+          <AnimatePresence mode="sync" initial={false}>
+            <motion.img
+              key={welcomeImage}
+              src={welcomeImage}
+              alt=""
+              loading="eager"
+              referrerPolicy="no-referrer"
+              onError={() => {
+                setFailedWelcomeImages((failed) => failed.includes(welcomeImage) ? failed : [...failed, welcomeImage]);
+              }}
+              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 1.05 }}
+              animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1 }}
+              exit={reducedMotion ? { opacity: 0 } : { opacity: 0 }}
+              transition={{ duration: reducedMotion ? 0.25 : 1.05, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute inset-0 block h-full w-full object-cover"
+            />
+          </AnimatePresence>
+        </div>
       )}
       {isAuthFormScreen && authFormBrand}
       {screen !== "welcome" && (
@@ -399,40 +497,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
           <ChevronLeft className="h-6 w-6" />
         </button>
       )}
-      <div className={`relative z-10 w-full min-h-[100dvh] flex flex-col ${screen === "welcome" ? "mx-auto max-w-6xl px-3 pt-3 pb-6 sm:px-8 sm:pt-7" : isAuthFormScreen ? "m-0 p-0" : "mx-auto max-w-md px-6 pt-6 pb-8"}`}>
-        {/* Brand header */}
-        {!isAuthFormScreen && (
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            <BrandLogo siteConfig={activeConfig} className="flex h-[60px] w-[60px] shrink-0 items-center justify-center sm:h-[45px] sm:w-[45px]" />
-            <span className="min-w-0 truncate font-display text-sm font-black tracking-tight sm:text-base">{brandName}</span>
-            <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
-            {screen === "welcome" && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => goTo("login")}
-                  className="user-glossy-button user-glossy-button--small inline-flex min-h-9 items-center justify-center rounded-xl px-2.5 text-[12px] font-sans font-bold text-[var(--theme-on-primary)] sm:px-3 sm:text-[13px]"
-                >
-                  Log in
-                </button>
-                <button
-                  type="button"
-                  onClick={() => goTo("register")}
-                  disabled={isLoading}
-                  className="user-glossy-button user-glossy-button--small inline-flex min-h-9 items-center justify-center rounded-xl px-2.5 text-[12px] font-sans font-bold text-[var(--theme-on-primary)] disabled:cursor-not-allowed disabled:opacity-60 sm:px-3 sm:text-[13px]"
-                >
-                  Register
-                </button>
-              </>
-            )}
-            </div>
-          </div>
-        )}
-
-        {screen === "welcome" && (
-          <div className="hidden sm:block h-px mt-5 bg-[var(--theme-card-border)]/80" />
-        )}
-
+      <div className={`relative z-10 w-full min-h-[100dvh] flex flex-col ${screen === "welcome" ? "p-0" : isAuthFormScreen ? "m-0 p-0" : "mx-auto max-w-md px-6 pt-6 pb-8"}`}>
         <AnimatePresence mode="wait">
           {/* ============ WELCOME ============ */}
           {screen === "welcome" && (
@@ -441,85 +506,99 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.25 }}
-              className="auth-welcome-grid flex-1 grid grid-cols-1 items-center gap-y-6 pt-5 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] lg:gap-x-0 lg:gap-y-0 lg:pt-8"
+              transition={reducedMotion ? { duration: 0.3 } : { type: "spring" as const, bounce: 0, duration: 0.45 }}
+              className="auth-welcome-grid relative flex-1 flex flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+5rem)] pt-[calc(env(safe-area-inset-top)+6.5rem)] sm:px-8 lg:px-16 xl:px-24"
             >
-              <div className="auth-welcome-art order-1 relative h-[clamp(16rem,62vw,24rem)] min-h-[16rem] overflow-hidden bg-[#10264b] lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:h-auto lg:min-h-[23rem] lg:self-stretch">
-                <AnimatePresence mode="sync">
-                  <motion.img
-                    key={welcomeImage}
-                    src={welcomeImage}
-                    alt="Free-range chickens roaming across a farmyard"
-                    loading="eager"
-                    referrerPolicy="no-referrer"
-                    onError={(event) => {
-                      if (welcomeImage !== FARM_HERO_IMAGE) {
-                        setFailedWelcomeImages((failed) => failed.includes(welcomeImage) ? failed : [...failed, welcomeImage]);
-                      } else {
-                        event.currentTarget.style.display = "none";
-                      }
-                    }}
-                    initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 1.08 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 1.08 }}
-                    transition={{ duration: reducedMotion ? 0.2 : 0.85, ease: [0.16, 1, 0.3, 1] }}
-                    className="auth-welcome-art-image auth-welcome-art-primary absolute block object-cover"
-                  />
-                </AnimatePresence>
-                {welcomeSlides.length > 1 && (
-                  <div className="absolute bottom-4 left-4 z-[4] flex items-center gap-1.5 rounded-full bg-[#08162d]/55 px-2.5 py-2 backdrop-blur-sm" aria-label="Welcome image slides">
-                    {welcomeSlides.map((image, index) => (
-                      <button
-                        key={image}
-                        type="button"
-                        aria-label={`Show welcome image ${index + 1}`}
-                        aria-current={index === activeWelcomeSlide ? "true" : undefined}
-                        onClick={() => setActiveWelcomeSlide(index)}
-                        className={`h-1.5 rounded-full transition-[width,background-color] duration-300 ${index === activeWelcomeSlide ? "w-5 bg-white" : "w-1.5 bg-white/55 hover:bg-white/80"}`}
-                      />
-                    ))}
+              {/* Edge scrims — gradient veils keep nav, badges and dots readable over any image (Apple §12, scroll-edge effect) */}
+              <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-[linear-gradient(180deg,rgba(7,20,43,0.66),rgba(7,20,43,0))] sm:h-44" />
+              <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-[linear-gradient(0deg,rgba(7,20,43,0.55),rgba(7,20,43,0))]" />
+
+              {/* Transparent top nav overlay — no background, no border */}
+              <div className="absolute inset-x-0 top-0 z-30 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-8 sm:pt-[max(1.1rem,env(safe-area-inset-top))] lg:px-16 xl:px-24">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <BrandLogo siteConfig={activeConfig} className="flex h-[45px] w-[45px] shrink-0 items-center justify-center" />
+                  <span className="min-w-0 truncate font-display text-sm font-black tracking-tight sm:text-base">
+                    <span className="text-white drop-shadow-[0_1px_8px_rgba(7,20,43,0.6)]">{brandBaseMark}</span>
+                    <span className="text-[var(--theme-primary)] drop-shadow-[0_1px_8px_rgba(7,20,43,0.6)]">{brandGoldMark}</span>
+                  </span>
+                  <div className="ml-auto flex shrink-0 items-center">
+                    <button
+                      type="button"
+                      onClick={() => goTo("login")}
+                      className="user-glossy-button user-glossy-button--small inline-flex min-h-9 items-center justify-center rounded-xl px-2.5 text-[12px] font-sans font-bold text-[var(--theme-on-primary)] sm:px-3 sm:text-[13px]"
+                    >
+                      Log in
+                    </button>
                   </div>
-                )}
+                </div>
+                {/* Display-only active count hangs beneath the Log in button */}
+                <motion.p {...heroSpring(0.1)} className="mt-1.5 flex h-6 items-center justify-end gap-2.5">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--theme-primary)] shadow-[0_0_0_3.5px_color-mix(in_srgb,var(--theme-primary)_22%,transparent)]" aria-hidden="true" />
+                  <span className="text-[13px] font-sans font-bold tabular-nums text-white [text-shadow:0_1px_10px_rgba(7,20,43,0.55)] sm:text-[14px]">
+                    {totalUsers === null ? "—" : (
+                      <AnimatedFarmerCount
+                        floor={activeFarmersFloor}
+                        ceiling={activeFarmersCeiling}
+                        reducedMotion={reducedMotion}
+                      />
+                    )}
+                    <span className="ml-1.5 font-semibold text-white/75">active</span>
+                  </span>
+                </motion.p>
               </div>
 
-              <section className="auth-welcome-copy order-2 flex w-full flex-col justify-center pt-1 lg:col-start-2 lg:row-start-1 lg:pl-10 lg:pt-0 xl:pl-14">
-                <h1 className="w-full font-display text-[clamp(2.5rem,5.2vw,4.5rem)] leading-[0.68] tracking-tight text-[var(--theme-text)]">
-                  Hatch eggs.<br />Grow together.
-                </h1>
-                <div className="mt-5 max-w-[39rem] space-y-3 font-sans text-[15px] leading-[1.65] text-[var(--theme-text-muted)] sm:text-[16px]">
-                  <p>This virtual simulation focuses on responsible poultry farming, hatching eggs, caring for chicks till they are ready for market. Hatch with friends through your invite code and cash out. Terms and conditions apply.</p>
-                  
+              {/* Copy block — my-auto centers it when there's room, top-aligns without clipping on short viewports */}
+              <div className="relative mx-auto my-auto w-full max-w-[36rem] text-center">
+                <div aria-hidden="true" className="auth-hero-veil">
+                  <span className="auth-hero-veil-blur" />
+                  <span className="auth-hero-veil-tint" />
                 </div>
-              </section>  
+                <div className="relative">
+                  <motion.h1 {...heroSpring(0.05)} className="font-display text-[clamp(2.6rem,7vw,4.9rem)] font-black leading-[0.98] tracking-tight [text-shadow:0_2px_18px_rgba(7,20,43,0.35)]">
+                    <span className="text-white">Your living</span>
+                    <br />
+                    <span className="text-[var(--theme-primary)]">farm</span>
+                  </motion.h1>
+                  <motion.p {...heroSpring(0.13)} className="mx-auto mt-4 max-w-[27rem] font-sans text-[15px] font-semibold leading-[1.65] text-white/90 [text-shadow:0_1px_12px_rgba(7,20,43,0.45)] sm:mt-5 sm:text-[16px]">
+                    This virtual simulation focuses on responsible poultry farming, hatching eggs, caring for chicks till they are ready for market. Hatch with friends through your invite code and cash out.
+                  </motion.p>
+                  <motion.button
+                    {...heroSpring(0.21)}
+                    type="button"
+                    onClick={() => goTo("register")}
+                    disabled={isLoading}
+                    className="user-glossy-button mx-auto mt-7 flex h-12 w-fit items-center justify-center gap-2.5 rounded-xl px-9 font-sans text-[15px] font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 sm:mt-8"
+                  >
+                    Create account
+                  </motion.button>
+                </div>
+              </div>
 
-              <section aria-label="Farm community and coverage" className="auth-welcome-metrics order-3 lg:col-start-2 lg:row-start-2 lg:pl-10 xl:pl-14">
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <article className="relative z-10 flex min-h-[8.75rem] flex-col justify-between rounded-[1.2rem] rounded-br-[0.4rem] border border-[var(--theme-on-primary)]/15 bg-[var(--theme-primary)] p-4 text-[var(--theme-on-primary)] shadow-[0_12px_28px_color-mix(in_srgb,var(--theme-primary)_22%,transparent)] lg:-translate-x-5">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[11px] font-black uppercase tracking-[0.15em] opacity-75">People</p>
-                      <span className="grid h-8 w-8 place-items-center rounded-full bg-[var(--theme-on-primary)]/10">
-                        <UsersRound className="h-4 w-4" aria-hidden="true" />
-                      </span>
-                    </div>
-                    <p className="font-display text-[clamp(2rem,3.2vw,2.75rem)] font-black leading-none tabular-nums">
-                      <CountUpMetric value={peopleCount} />
-                    </p>
-                    <p className="text-[12px] font-semibold opacity-80">members on the farm</p>
-                  </article>
-                  <article className="flex min-h-[8.75rem] flex-col justify-between rounded-[1.2rem] rounded-tl-[0.4rem] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/95 p-4 text-[var(--theme-text)]">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--theme-text-muted)]">Coverage</p>
-                      <span className="grid h-8 w-8 place-items-center rounded-full bg-[var(--theme-primary)]/8 text-[var(--theme-primary)]">
-                        <MapPinned className="h-4 w-4" aria-hidden="true" />
-                      </span>
-                    </div>
-                    <p className="font-display text-[clamp(2rem,3.2vw,2.75rem)] font-black leading-none tabular-nums text-[var(--theme-primary)]">
-                      <CountUpMetric value={35} />
-                    </p>
-                    <p className="text-[12px] font-semibold text-[var(--theme-text-muted)]">35+ regions across Uganda</p>
-                  </article>
+              {welcomeSlides.length > 1 && (
+                <div className="absolute inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+2.5rem)] z-[4] flex items-center justify-center gap-1.5 rounded-full bg-[#08162d]/55 py-2 pl-3 pr-3.5 backdrop-blur-sm" aria-label="Welcome image slides">
+                  {welcomeSlides.map((image, index) => (
+                    <button
+                      key={image}
+                      type="button"
+                      aria-label={`Show welcome image ${index + 1}`}
+                      aria-current={index === activeWelcomeSlide ? "true" : undefined}
+                      onClick={() => setActiveWelcomeSlide(index)}
+                      className={`h-1.5 rounded-full transition-[width,background-color] duration-300 ${index === activeWelcomeSlide ? "w-5 bg-white" : "w-1.5 bg-white/55 hover:bg-white/80"}`}
+                    />
+                  ))}
                 </div>
-              </section>
+              )}
+
+              {/* Pinned legal footnote at the very bottom of the welcome screen */}
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={reducedMotion ? { duration: 0.3 } : { type: "spring" as const, bounce: 0, duration: 0.5, delay: 0.34 }}
+                className="absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.8rem)] z-[4] text-center font-sans text-[10.5px] font-semibold text-white/55 [text-shadow:0_1px_8px_rgba(7,20,43,0.6)]"
+              >
+                Terms and conditions apply.
+              </motion.p>
+
             </motion.div>
           )}
 
@@ -530,18 +609,18 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.25 }}
+              transition={reducedMotion ? { duration: 0.3 } : { type: "spring" as const, bounce: 0, duration: 0.45 }}
               className="auth-form-panel m-0 flex min-h-[100dvh] w-full flex-col"
             >
               <div className="auth-form-content">
-                <h1 className="mt-10 text-center font-display font-black text-[clamp(2rem,5vw,2.6rem)] leading-[1.08] tracking-tight">
+                <motion.h1 {...heroSpring(0.08)} className="mt-10 text-center font-display font-black text-[clamp(2rem,5vw,2.6rem)] leading-[1.08] tracking-tight">
                   Welcome back.
-                </h1>
-                <p className="mt-3 text-center text-[15px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
+                </motion.h1>
+                <motion.p {...heroSpring(0.16)} className="mt-3 text-center text-[15px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
                   Sign in to continue your farm.
-                </p>
+                </motion.p>
 
-                <form onSubmit={(e) => handleSubmit(e, "login")} className="mt-7 space-y-2.5">
+                <motion.form {...heroSpring(0.24)} onSubmit={(e) => handleSubmit(e, "login")} className="mt-7 space-y-2.5">
                   <AuthField
                     icon={<User className="w-5 h-5" />}
                     type="text"
@@ -578,7 +657,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   <button
                     type="button"
                     onClick={() => goTo("support")}
-                    className="text-[13px] font-sans font-semibold text-[var(--theme-primary)] hover:underline cursor-pointer"
+                    className="text-[13px] font-sans font-semibold text-[var(--theme-accent)] hover:underline cursor-pointer"
                   >
                     Forgot password?
                   </button>
@@ -593,23 +672,23 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                       </>
                     ) : (
                       <>
-                        Login <ArrowRight className="w-4 h-4" />
+                        Log In
                       </>
                     )}
                   </PrimaryButton>
                 </div>
-                </form>
+                </motion.form>
 
-                <div className="border-t border-[var(--theme-card-border)] mt-7 pt-5 text-center text-sm font-sans text-[var(--theme-text-muted)]">
+                <motion.div {...heroSpring(0.32)} className="border-t border-[var(--theme-card-border)] mt-7 pt-5 text-center text-sm font-sans text-[var(--theme-text-muted)]">
                   New here?{" "}
                   <button
                     type="button"
                     onClick={() => goTo("register")}
-                    className="font-bold text-[var(--theme-primary)] hover:underline cursor-pointer"
+                    className="font-bold text-[var(--theme-accent)] hover:underline cursor-pointer"
                   >
                     Register
                   </button>
-                </div>
+                </motion.div>
               </div>
             </motion.div>
           )}
@@ -621,27 +700,27 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.25 }}
+              transition={reducedMotion ? { duration: 0.3 } : { type: "spring" as const, bounce: 0, duration: 0.45 }}
               className="auth-form-panel m-0 flex min-h-[100dvh] w-full flex-col"
             >
               <div className="auth-form-content">
-                <h1 className="mt-10 font-display font-black text-[clamp(2rem,5vw,2.6rem)] leading-[1.08] tracking-tight">
+                <motion.h1 {...heroSpring(0.08)} className="mt-10 font-display font-black text-[clamp(2rem,5vw,2.6rem)] leading-[1.08] tracking-tight">
                 Start your farm.
-                </h1>
-                <p className="mt-3 text-[15px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
+                </motion.h1>
+                <motion.p {...heroSpring(0.16)} className="mt-3 text-[15px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
                 Choose a username, phone number, and password to get started.
-                </p>
+                </motion.p>
 
                 {regBonus > 0 && (
-                  <div className="relative mt-4 overflow-hidden rounded-2xl bg-[var(--theme-primary)]/10 px-3 py-2 tile-shimmer-5s">
-                    <p className="flex items-center gap-1.5 text-xs font-sans text-white">
+                  <motion.div {...heroSpring(0.24)} className="relative mt-4 overflow-hidden rounded-2xl bg-[var(--theme-primary)]/10 px-3 py-2 tile-shimmer-5s">
+                    <p className="flex items-center gap-1.5 text-xs font-sans text-[var(--theme-primary)]">
                       <Gift className="w-12 h-12 text-[var(--theme-primary)]" />
                       Plus UGX {regBonus.toLocaleString()} Registration bonus upon first login.
                     </p>
-                  </div>
+                  </motion.div>
                 )}
 
-                <form onSubmit={(e) => handleSubmit(e, "register")} className="mt-5 space-y-2.5">
+                <motion.form {...heroSpring(0.32)} onSubmit={(e) => handleSubmit(e, "register")} className="mt-5 space-y-2.5">
                 <AuthField
                   icon={<User className="w-5 h-5" />}
                   type="text"
@@ -696,7 +775,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                     onChange={(e) => setInviteCode(e.target.value)}
                   />
                   {inviteBonus > 0 && (
-                    <p className="mt-1.5 text-xs font-sans text-[var(--theme-primary)] font-semibold">
+                    <p className="mt-1.5 text-xs font-sans text-[var(--theme-accent)] font-semibold">
                       Invite bonus: UGX {inviteBonus.toLocaleString()}
                     </p>
                   )}
@@ -711,23 +790,23 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                       </>
                     ) : (
                       <>
-                        Register <ArrowRight className="w-4 h-4" />
+                        Create Account
                       </>
                     )}
                   </PrimaryButton>
                 </div>
-                </form>
+                </motion.form>
 
-                <div className="border-t border-[var(--theme-card-border)] mt-7 pt-5 text-center text-sm font-sans text-[var(--theme-text-muted)]">
+                <motion.div {...heroSpring(0.4)} className="border-t border-[var(--theme-card-border)] mt-7 pt-5 text-center text-sm font-sans text-[var(--theme-text-muted)]">
                   Already have an account?{" "}
                   <button
                     type="button"
                     onClick={() => goTo("login")}
-                    className="font-bold text-[var(--theme-primary)] hover:underline cursor-pointer"
+                    className="font-bold text-[var(--theme-accent)] hover:underline cursor-pointer"
                   >
                     Login
                   </button>
-                </div>
+                </motion.div>
               </div>
             </motion.div>
           )}
@@ -739,7 +818,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.25 }}
+              transition={reducedMotion ? { duration: 0.3 } : { type: "spring" as const, bounce: 0, duration: 0.45 }}
               className="auth-form-panel m-0 flex min-h-[100dvh] w-full flex-col"
             >
               <div className="auth-form-content auth-recovery-content">
@@ -752,7 +831,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
 
                 {recoverySent ? (
                   <div className="mt-8 border border-[var(--theme-primary)]/30 bg-[var(--theme-primary)]/10 px-5 py-6 text-center">
-                    <CheckCircle2 className="w-10 h-10 mx-auto text-[var(--theme-primary)]" />
+                    <CheckCircle2 className="w-10 h-10 mx-auto text-[var(--theme-accent)]" />
                     <p className="mt-3 font-display font-black text-lg tracking-tight">Message sent.</p>
                     <p className="mt-2 text-[14px] font-sans text-[var(--theme-text-muted)] leading-relaxed">
                       If the username matches an account, support will reply using the contact details you provided.
@@ -760,7 +839,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                     <button
                       type="button"
                       onClick={() => { setRecoverySent(false); setRecoveryMsg(""); }}
-                      className="mt-4 text-[13px] font-sans font-semibold text-[var(--theme-primary)] hover:underline cursor-pointer"
+                      className="mt-4 text-[13px] font-sans font-semibold text-[var(--theme-accent)] hover:underline cursor-pointer"
                     >
                       Send another message
                     </button>
@@ -830,7 +909,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   href={activeConfig?.whatsappLink || "https://t.me/#"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[var(--theme-primary)] hover:underline"
+                  className="text-[var(--theme-accent)] hover:underline"
                 >
                   WhatsApp support
                 </a>
@@ -839,7 +918,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                   href={activeConfig?.telegramLink || "https://t.me/#"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[var(--theme-primary)] hover:underline"
+                  className="text-[var(--theme-accent)] hover:underline"
                 >
                   Telegram support
                 </a>
@@ -851,7 +930,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                 <button
                   type="button"
                   onClick={() => goTo("login")}
-                  className="font-bold text-[var(--theme-primary)] hover:underline cursor-pointer"
+                  className="font-bold text-[var(--theme-accent)] hover:underline cursor-pointer"
                 >
                   Login
                 </button>

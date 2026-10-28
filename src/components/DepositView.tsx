@@ -326,7 +326,7 @@ export default function DepositView({
   return (
     <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] space-y-3 select-none p-3 pt-0 sm:p-4 sm:pt-0">
       <div className="flex justify-end">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/20 bg-[var(--theme-primary)]/8 px-3 py-1.5 text-[11px] font-bold text-[var(--theme-primary)]">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/20 bg-[var(--theme-primary)]/8 px-3 py-1.5 text-[11px] font-bold text-[var(--theme-accent)]">
           <LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
           Secure
         </span>
@@ -342,7 +342,7 @@ export default function DepositView({
               {selectedGpu.imageUrl ? (
                 <img src={selectedGpu.imageUrl} alt={selectedGpu.name} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-[var(--theme-primary)] opacity-60">
+                <div className="w-full h-full flex items-center justify-center text-[var(--theme-accent)] opacity-60">
                   <Cpu className="w-6 h-6" />
                 </div>
               )}
@@ -350,13 +350,13 @@ export default function DepositView({
             <div className="flex-1 min-w-0">
               <p className="text-[12px] font-sans font-medium opacity-60 leading-none">Paying for</p>
               <p className="text-[15px] font-sans font-extrabold leading-tight truncate mt-1">{selectedGpu.name}</p>
-              <p className="text-[11px] font-bold text-[var(--theme-primary)] leading-none mt-1">
+              <p className="text-[11px] font-bold text-[var(--theme-accent)] leading-none mt-1">
                 Earns {formatCurrency(selectedGpu.dailyYield)}/day • {selectedGpu.duration} days
               </p>
             </div>
             <div className="text-right shrink-0">
               <p className="text-[12px] font-sans font-medium opacity-60">Price</p>
-              <p className="text-sm font-black text-[var(--theme-primary)]">{formatCurrency(selectedGpu.amount)}</p>
+              <p className="text-sm font-black text-[var(--theme-accent)]">{formatCurrency(selectedGpu.amount)}</p>
             </div>
           </div>
         )}
@@ -531,7 +531,7 @@ export default function DepositView({
                   <div className="rounded-full bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 px-3 py-2 flex items-center justify-between gap-2 text-xs font-black">
                     <span className="opacity-70">Exact amount</span>
                     <span className="flex items-center gap-2">
-                      <span className="text-[var(--theme-primary)]">{formatCurrency(finalAmount)}</span>
+                      <span className="text-[var(--theme-accent)]">{formatCurrency(finalAmount)}</span>
                       <button
                         type="button"
                         onClick={() => {
@@ -638,7 +638,7 @@ export default function DepositView({
                       </div>
                     )}
                     <div className="text-center space-y-1">
-                      <p className="text-xl font-display font-black text-[var(--theme-primary)] tracking-tight leading-none">{formatCurrency(finalAmount)}</p>
+                      <p className="text-xl font-display font-black text-[var(--theme-accent)] tracking-tight leading-none">{formatCurrency(finalAmount)}</p>
                       {config.usdtRate ? <p className="text-[11px] font-semibold opacity-60">≈ ${(finalAmount / config.usdtRate).toFixed(2)}</p> : null}
                     </div>
                     <div className="rounded-xl bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] p-3.5 flex items-center gap-3">
@@ -729,11 +729,11 @@ export default function DepositView({
             <p className="text-xs font-bold opacity-60 leading-relaxed max-w-xs mx-auto">
               {depositMode === "manual" || depositMode === "usdt" ? (
                 <>
-                  Reference <span className="text-[var(--theme-primary)]">{currentTransId}</span> is under review. Your balance will update once the payment is confirmed.
+                  Reference <span className="text-[var(--theme-accent)]">{currentTransId}</span> is under review. Your balance will update once the payment is confirmed.
                 </>
               ) : (
                 <>
-                  Payment request sent to <span className="text-[var(--theme-primary)]">{mobileNumber}</span>. Approve <span className="text-[var(--theme-text)]">{formatCurrency(finalAmount)}</span> on your phone.
+                  Payment request sent to <span className="text-[var(--theme-accent)]">{mobileNumber}</span>. Approve <span className="text-[var(--theme-text)]">{formatCurrency(finalAmount)}</span> on your phone.
                 </>
               )}
             </p>
@@ -779,7 +779,7 @@ export default function DepositView({
             </div>
             <div className="flex justify-between">
               <span className="opacity-60">Type</span>
-              <span className="text-[var(--theme-primary)] truncate ml-2">{payType === "gpu" && selectedGpu ? selectedGpu.name : "Deposit"}</span>
+              <span className="text-[var(--theme-accent)] truncate ml-2">{payType === "gpu" && selectedGpu ? selectedGpu.name : "Deposit"}</span>
             </div>
           </div>
           <button

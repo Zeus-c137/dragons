@@ -130,7 +130,7 @@ export default function AdminView() {
   const seedFiredRef = useRef(false);
 
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
-  const [uploadingField, setUploadingField] = useState<"logoUrl" | "authBgImage" | null>(null);
+  const [uploadingField, setUploadingField] = useState<"logoUrl" | "authBgImage" | "authSlide" | null>(null);
 
   useEffect(() => {
     if (!isActivateRoute) return;
@@ -825,6 +825,36 @@ export default function AdminView() {
       if (!signal.aborted) setIsLoading(false);
     }
   };
+
+  const refreshGiftCodes = async () => {
+    try {
+      const res = await fetch("/api/admin/gift_codes");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data)) setGiftCodesList(data);
+    } catch {
+      // Keep the last good list; the header refresh button still works.
+    }
+  };
+
+  useEffect(() => {
+    if (!isAdminLoggedIn || activeAdminTab !== "config" || configSubTab !== "giftcodes") return;
+    void refreshGiftCodes();
+  }, [isAdminLoggedIn, activeAdminTab, configSubTab]);
+
+  useGatedInterval(() => {
+    void refreshGiftCodes();
+  }, 15000, {
+    enabled: isAdminLoggedIn && activeAdminTab === "config" && configSubTab === "giftcodes",
+    visibilityGate: true
+  });
+
+  // Keep an open detail modal in sync when the claim list refreshes.
+  useEffect(() => {
+    if (!selectedGiftCode) return;
+    const fresh = giftCodesList.find((gc) => gc.id === selectedGiftCode.id);
+    if (fresh && fresh !== selectedGiftCode) setSelectedGiftCode(fresh);
+  }, [giftCodesList, selectedGiftCode]);
 
   const refreshVipTaskClaims = async () => {
     setVipTaskClaimsLoading(true);
@@ -1629,18 +1659,20 @@ export default function AdminView() {
 
   const handleSiteImageFile = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    kind: "logo" | "authbg",
-    field: "logoUrl" | "authBgImage",
+    kind: "logo" | "authbg" | "authslide",
+    busyKey: "logoUrl" | "authBgImage" | "authSlide",
+    applyUrl: (url: string) => void,
     label: string
   ) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    const allowsGifs = kind !== "logo";
     const allowed = kind === "logo"
       ? ["image/png", "image/jpeg", "image/webp", "image/svg+xml"]
-      : ["image/png", "image/jpeg", "image/webp"];
+      : ["image/png", "image/jpeg", "image/webp", "image/gif"];
     if (!allowed.includes(file.type)) {
-      toast.error(kind === "logo" ? "Only PNG, JPG, WebP or SVG images are allowed." : "Only PNG, JPG or WebP images are allowed.");
+      toast.error(kind === "logo" ? "Only PNG, JPG, WebP or SVG images are allowed." : allowsGifs ? "Only PNG, JPG, WebP or GIF images are allowed." : "Only PNG, JPG or WebP images are allowed.");
       return;
     }
     const maxBytes = kind === "logo" ? 2 * 1024 * 1024 : 4 * 1024 * 1024;
@@ -1648,7 +1680,7 @@ export default function AdminView() {
       toast.error(`Image must be smaller than ${maxBytes / (1024 * 1024)} MB.`);
       return;
     }
-    setUploadingField(field);
+    setUploadingField(busyKey);
     try {
       const data = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -1663,7 +1695,7 @@ export default function AdminView() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Upload failed.");
-      setSiteConfig({ ...siteConfig, [field]: body.url });
+      applyUrl(body.url);
       toast.success(`${label} uploaded. Save configuration to apply it.`);
     } catch (err: any) {
       toast.error(err.message || "Upload failed.");
@@ -1673,7 +1705,36 @@ export default function AdminView() {
   };
 
   const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) =>
-    handleSiteImageFile(e, "logo", "logoUrl", "Logo");
+    handleSiteImageFile(
+      e,
+      "logo",
+      "logoUrl",
+      (url) => setSiteConfig({ ...siteConfig, logoUrl: url }),
+      "Logo"
+    );
+
+  const handleAuthBgFile = (e: React.ChangeEvent<HTMLInputElement>) =>
+    handleSiteImageFile(
+      e,
+      "authbg",
+      "authBgImage",
+      (url) => setSiteConfig({ ...siteConfig, authBgImage: url }),
+      "Auth background"
+    );
+
+  const handleAuthSlideFile = (e: React.ChangeEvent<HTMLInputElement>, index: number) =>
+    handleSiteImageFile(
+      e,
+      "authslide",
+      "authSlide",
+      (url) => {
+        const slides = Array.isArray(siteConfig.authSlideImages) ? siteConfig.authSlideImages : [];
+        const next = [0, 1, 2, 3].map((j) => String(slides[j] || ""));
+        next[index] = url;
+        setSiteConfig({ ...siteConfig, authSlideImages: next });
+      },
+      `Slide ${index + 1}`
+    );
 
   const handleSaveSiteConfig = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2175,7 +2236,7 @@ export default function AdminView() {
                 : "text-[var(--theme-text)] opacity-80 hover:opacity-100 hover:bg-[var(--theme-primary)]/10"
             }`}
           >
-            <IconComp className={`w-4 h-4 shrink-0 ${isActive ? "text-white" : "text-[var(--theme-primary)]"}`} />
+            <IconComp className={`w-4 h-4 shrink-0 ${isActive ? "text-white" : "text-[var(--theme-accent)]"}`} />
             <span className="truncate">{tab.label}</span>
           </button>
         );
@@ -2193,10 +2254,10 @@ export default function AdminView() {
           }`}
         >
           <div className="flex items-center gap-2">
-            <User className={`w-4 h-4 shrink-0 ${activeAdminTab === "profile" ? "text-white" : "text-[var(--theme-primary)]"}`} />
+            <User className={`w-4 h-4 shrink-0 ${activeAdminTab === "profile" ? "text-white" : "text-[var(--theme-accent)]"}`} />
             <span>Profile</span>
           </div>
-          <ChevronRight className={`w-3.5 h-3.5 ${activeAdminTab === "profile" ? "text-white" : "text-[var(--theme-primary)] opacity-50"}`} />
+          <ChevronRight className={`w-3.5 h-3.5 ${activeAdminTab === "profile" ? "text-white" : "text-[var(--theme-accent)] opacity-50"}`} />
         </button>
         <button
           onClick={handleAdminLogout}
@@ -2331,7 +2392,7 @@ export default function AdminView() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                     {/* Card 1: Total Deposits */}
                     <div className="p-6 theme-card transition-all flex flex-col justify-between relative overflow-hidden group">
-                      <div className="absolute right-6 top-6 text-[var(--theme-primary)]">
+                      <div className="absolute right-6 top-6 text-[var(--theme-accent)]">
                         <Coins className="w-5 h-5" />
                       </div>
                       <div className="space-y-4">
@@ -2349,7 +2410,7 @@ export default function AdminView() {
 
                     {/* Card 2: Total Cashout */}
                     <div className="p-6 theme-card transition-all flex flex-col justify-between relative overflow-hidden group">
-                      <div className="absolute right-6 top-6 text-[var(--theme-primary)]">
+                      <div className="absolute right-6 top-6 text-[var(--theme-accent)]">
                         <Activity className="w-5 h-5" />
                       </div>
                       <div className="space-y-4">
@@ -2367,7 +2428,7 @@ export default function AdminView() {
 
                     {/* Card 3: Total Users */}
                     <div className="p-6 theme-card transition-all flex flex-col justify-between relative overflow-hidden group">
-                      <div className="absolute right-6 top-6 text-[var(--theme-primary)]">
+                      <div className="absolute right-6 top-6 text-[var(--theme-accent)]">
                         <Users className="w-5 h-5" />
                       </div>
                       <div className="space-y-4">
@@ -2383,7 +2444,7 @@ export default function AdminView() {
                     {/* Card 4: Withdraw Revenue */}
                     <div className="p-6 theme-card transition-all flex flex-col justify-between relative overflow-hidden group">
                       <div className="absolute right-6 top-6">
-                        <span className="px-2 py-0.5 bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] text-[12px] font-sans rounded border border-[var(--theme-primary)]/20 inline-block align-middle font-bold">
+                        <span className="px-2 py-0.5 bg-[var(--theme-primary)]/10 text-[var(--theme-accent)] text-[12px] font-sans rounded border border-[var(--theme-primary)]/20 inline-block align-middle font-bold">
                           Fee: {siteConfig?.withdrawFee || 0}%
                         </span>
                       </div>
@@ -2458,7 +2519,7 @@ export default function AdminView() {
                               }}
                               className="px-4 py-2.5 text-left hover:bg-[var(--theme-bg)] text-[var(--theme-text)] flex items-center gap-2.5 cursor-pointer font-medium"
                             >
-                              <Tags className="w-4 h-4 text-[var(--theme-primary)]" />
+                              <Tags className="w-4 h-4 text-[var(--theme-accent)]" />
                               <span>Categories</span>
                             </button>
                             <button
@@ -2544,7 +2605,7 @@ export default function AdminView() {
                                 {item.duration}d
                               </td>
                               <td className="px-5 py-4 text-center">
-                                <span className="text-[var(--theme-primary)] font-bold">{activeSubs}</span>
+                                <span className="text-[var(--theme-accent)] font-bold">{activeSubs}</span>
                               </td>
                               <td className="px-5 py-4 text-center">
                                 {item.outOfStock ? (
@@ -2566,7 +2627,7 @@ export default function AdminView() {
                                     <div className="fixed inset-0 z-40" onClick={() => setActiveDropdown(null)}></div>
                                     <div className="absolute right-8 top-8 w-48 bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] text-[var(--theme-text)] rounded-[var(--theme-radius)] shadow-xl z-50 py-1 flex flex-col text-sm overflow-hidden animate-in fade-in zoom-in-95">
                                       <button onClick={() => handleOpenEditNode(item)} className="px-4 py-2.5 text-left hover:bg-[var(--theme-bg)] text-[var(--theme-text)] flex items-center gap-2 cursor-pointer font-bold transition-all">
-                                        <Edit className="w-4 h-4 text-[var(--theme-primary)]" /> <span>Edit Product</span>
+                                        <Edit className="w-4 h-4 text-[var(--theme-accent)]" /> <span>Edit Product</span>
                                       </button>
                                       <button
                                         onClick={() => { setActiveDropdown(null); handleToggleOutOfStock(item); }}
@@ -2574,7 +2635,7 @@ export default function AdminView() {
                                         className="px-4 py-2.5 text-left hover:bg-[var(--theme-bg)] text-[var(--theme-text)] flex items-center gap-2 cursor-pointer disabled:opacity-50 font-bold transition-all"
                                       >
                                         {togglingStockId === item.id ? (
-                                          <Loader2 className="w-4 h-4 text-[var(--theme-primary)] animate-spin" />
+                                          <Loader2 className="w-4 h-4 text-[var(--theme-accent)] animate-spin" />
                                         ) : (
                                           <PackageX className="w-4 h-4 text-[var(--theme-accent)]" />
                                         )}
@@ -2662,7 +2723,7 @@ export default function AdminView() {
                                 <span className="font-bold text-[var(--theme-text)]">{u.invitesCount || 0}</span>
                               </td>
                               <td className="px-5 py-4 text-center">
-                                <span className="font-bold text-[var(--theme-primary)]">{nodesCount}</span>
+                                <span className="font-bold text-[var(--theme-accent)]">{nodesCount}</span>
                               </td>
                               <td className="px-5 py-4 text-right">
                                 <div className="font-bold text-[var(--theme-text)]">Capital {formatCurrency(u.rechargeableBalance || 0)}</div>
@@ -3045,7 +3106,7 @@ export default function AdminView() {
                   {announcements.filter(a => annSubTab === "news" ? a.category === "news" : a.category !== "news").map((ann) => (
                     <div key={ann.id} className="border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] text-[var(--theme-text)] rounded-[var(--theme-radius)] p-5 relative shadow-md transition-all">
                       <div className="flex justify-between items-start mb-2">
-                        <span className="px-2 py-0.5 rounded text-[12px] font-mono font-bold uppercase bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] border border-[var(--theme-primary)]/20">
+                        <span className="px-2 py-0.5 rounded text-[12px] font-mono font-bold uppercase bg-[var(--theme-primary)]/10 text-[var(--theme-accent)] border border-[var(--theme-primary)]/20">
                           {ann.category}
                         </span>
                         <div className="flex gap-2.5">
@@ -3230,7 +3291,7 @@ export default function AdminView() {
                           </div>
 
                           <div className="border-t border-[var(--theme-card-border)] pt-4 mt-4 space-y-4">
-                            <h4 className="text-xs font-black uppercase text-[var(--theme-primary)] tracking-wider">Progressive Web App (PWA) Settings</h4>
+                            <h4 className="text-xs font-black uppercase text-[var(--theme-accent)] tracking-wider">Progressive Web App (PWA) Settings</h4>
                             
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div className="space-y-2">
@@ -3437,16 +3498,16 @@ export default function AdminView() {
                                 <label className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] text-[11px] font-bold text-[var(--theme-text)] transition-all active:scale-[0.97] w-fit ${uploadingField === "authBgImage" ? "opacity-60 pointer-events-none" : "cursor-pointer hover:border-[var(--theme-primary)]"}`}>
                                   <input
                                     type="file"
-                                    accept="image/png,image/jpeg,image/webp"
+                                    accept="image/png,image/jpeg,image/webp,image/gif"
                                     className="hidden"
                                     disabled={uploadingField === "authBgImage"}
-                                    onChange={(e) => handleSiteImageFile(e, "authbg", "authBgImage", "Auth background")}
+                                    onChange={handleAuthBgFile}
                                   />
-                                  {uploadingField === "authBgImage" ? "Uploading…" : "Upload from disk (max 4 MB)"}
+                                  {uploadingField === "authBgImage" ? "Uploading…" : "Upload from disk (max 4 MB, PNG/JPG/WebP/GIF)"}
                                 </label>
                               </div>
                               <div>
-                                <span className="text-[11px] opacity-70 block mb-1">Landing carousel images (4 slides, no fallback)</span>
+                                <span className="text-[11px] opacity-70 block mb-1">Landing carousel images (4 slides, no fallback — PNG/JPG/WebP/GIF)</span>
                                 <div className="grid grid-cols-2 gap-2">
                                   {[0, 1, 2, 3].map((i) => {
                                     const slides = Array.isArray(siteConfig.authSlideImages) ? siteConfig.authSlideImages : [];
@@ -3471,11 +3532,61 @@ export default function AdminView() {
                                             <div className="w-full h-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-400">{i + 1}</div>
                                           )}
                                         </div>
+                                        <label className={`inline-grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] text-[var(--theme-text)] text-[9px] font-black uppercase transition-all active:scale-95 ${uploadingField === "authSlide" ? "opacity-60 pointer-events-none" : "cursor-pointer hover:border-[var(--theme-primary)]"}`} title={`Upload slide ${i + 1} (max 4 MB, PNG/JPG/WebP/GIF)`}>
+                                          <input
+                                            type="file"
+                                            accept="image/png,image/jpeg,image/webp,image/gif"
+                                            className="hidden"
+                                            disabled={uploadingField === "authSlide"}
+                                            onChange={(e) => handleAuthSlideFile(e, i)}
+                                          />
+                                          {uploadingField === "authSlide" ? "…" : "Up"}
+                                        </label>
                                       </div>
                                     );
                                   })}
                                 </div>
                               </div>
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold block">Landing Active Ticker</label>
+                            <p className="text-[11px] opacity-70">
+                              The live number under the Log in button. Real registered users are added to the baseline; the count drifts up and down but never passes the ceiling. Raise the baseline to show more people. Leave a field blank for the default (300 baseline, baseline + 160 ceiling).
+                            </p>
+                            <div className="grid grid-cols-2 gap-3">
+                              <label className="block">
+                                <span className="text-[11px] opacity-70 block mb-1">Baseline people</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={1}
+                                  inputMode="numeric"
+                                  value={siteConfig.activeFarmersBase ? siteConfig.activeFarmersBase : ""}
+                                  onChange={(e) => setSiteConfig({
+                                    ...siteConfig,
+                                    activeFarmersBase: e.target.value === "" ? 0 : Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                                  })}
+                                  placeholder="300"
+                                  className="theme-input w-full px-3.5 py-2 text-xs font-mono"
+                                />
+                              </label>
+                              <label className="block">
+                                <span className="text-[11px] opacity-70 block mb-1">Ceiling</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={1}
+                                  inputMode="numeric"
+                                  value={siteConfig.activeFarmersCeiling ? siteConfig.activeFarmersCeiling : ""}
+                                  onChange={(e) => setSiteConfig({
+                                    ...siteConfig,
+                                    activeFarmersCeiling: e.target.value === "" ? 0 : Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                                  })}
+                                  placeholder="Auto (+160)"
+                                  className="theme-input w-full px-3.5 py-2 text-xs font-mono"
+                                />
+                              </label>
                             </div>
                           </div>
                         </div>
@@ -3484,7 +3595,7 @@ export default function AdminView() {
                             <h4 className="text-xs font-bold uppercase tracking-wider opacity-70 flex items-center gap-1.5">
                               <Sparkles className="w-4 h-4 text-amber-500" /> Preview
                             </h4>
-                            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[var(--theme-card-bg)] text-[var(--theme-primary)] font-mono uppercase border border-[var(--theme-card-border)]">
+                            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[var(--theme-card-bg)] text-[var(--theme-accent)] font-mono uppercase border border-[var(--theme-card-border)]">
                               {siteConfig.themePreset || "hut12-light"}
                             </span>
                           </div>
@@ -3662,7 +3773,7 @@ export default function AdminView() {
 
                         <div className="border-t border-[var(--theme-card-border)] pt-6 space-y-4">
                           <div>
-                            <h4 className="text-sm font-extrabold text-[var(--theme-text)] flex items-center gap-2"><Tags className="w-4 h-4 text-[var(--theme-primary)]" />VIP Taskboard</h4>
+                            <h4 className="text-sm font-extrabold text-[var(--theme-text)] flex items-center gap-2"><Tags className="w-4 h-4 text-[var(--theme-accent)]" />VIP Taskboard</h4>
                             <p className="text-xs text-[var(--theme-text)] opacity-65 mt-1">Create tasks using the user's total credited referral income across Levels 1–4. Tasks are saved inside site configuration and rewards are validated on the server.</p>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -3680,7 +3791,7 @@ export default function AdminView() {
                             <div className="space-y-2">
                               {getVipTasks().map((task) => (
                                 <div key={task.id} className="rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] p-3 flex items-center gap-3">
-                                  <div className="min-w-0 flex-1"><div className="flex items-center gap-2 flex-wrap"><span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]">{task.category}</span><span className="text-sm font-bold truncate">{task.title}</span></div><p className="text-[11px] opacity-60 mt-1">Unlock at {formatCurrency(task.requiredBonus)} · Reward {formatCurrency(task.reward)}</p></div>
+                                  <div className="min-w-0 flex-1"><div className="flex items-center gap-2 flex-wrap"><span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-accent)]">{task.category}</span><span className="text-sm font-bold truncate">{task.title}</span></div><p className="text-[11px] opacity-60 mt-1">Unlock at {formatCurrency(task.requiredBonus)} · Reward {formatCurrency(task.reward)}</p></div>
                                   <button type="button" onClick={() => handleToggleVipTask(task.id)} className={`text-[10px] font-black px-2.5 py-1.5 rounded-full border cursor-pointer ${task.active === false ? "opacity-50 border-[var(--theme-card-border)]" : "text-emerald-500 border-emerald-500/30 bg-emerald-500/10"}`}>{task.active === false ? "INACTIVE" : "ACTIVE"}</button>
                                   <button type="button" onClick={() => handleRemoveVipTask(task.id)} aria-label={`Remove ${task.title}`} className="p-2 rounded-lg text-rose-500 hover:bg-rose-500/10 cursor-pointer"><Trash2 className="w-4 h-4" /></button>
                                 </div>
@@ -3732,7 +3843,7 @@ export default function AdminView() {
                   {configSubTab === "vipTasks" && false && (
                     <div className="flex flex-col md:flex-row md:gap-12 py-4">
                       <div className="md:w-1/3 mb-6 md:mb-0 shrink-0">
-                        <h3 className="text-sm font-extrabold text-[var(--theme-text)] flex items-center gap-2"><Tags className="w-4 h-4 text-[var(--theme-primary)]" />VIP Taskboard</h3>
+                        <h3 className="text-sm font-extrabold text-[var(--theme-text)] flex items-center gap-2"><Tags className="w-4 h-4 text-[var(--theme-accent)]" />VIP Taskboard</h3>
                         <p className="text-xs text-[var(--theme-text)] opacity-70 mt-2 leading-relaxed">Create tasks using the server-calculated credited referral income across all four levels.</p>
                       </div>
                       <div className="md:w-2/3 max-w-3xl space-y-4">
@@ -3750,7 +3861,7 @@ export default function AdminView() {
                           <div className="space-y-2">
                             {getVipTasks().map((task) => (
                               <div key={task.id} className="rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] p-3 flex items-center gap-3">
-                                <div className="min-w-0 flex-1"><div className="flex items-center gap-2 flex-wrap"><span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]">{task.category}</span><span className="text-sm font-bold truncate">{task.title}</span></div><p className="text-[11px] opacity-60 mt-1">Unlock at {formatCurrency(task.requiredBonus)} · Reward {formatCurrency(task.reward)}</p></div>
+                                <div className="min-w-0 flex-1"><div className="flex items-center gap-2 flex-wrap"><span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-accent)]">{task.category}</span><span className="text-sm font-bold truncate">{task.title}</span></div><p className="text-[11px] opacity-60 mt-1">Unlock at {formatCurrency(task.requiredBonus)} · Reward {formatCurrency(task.reward)}</p></div>
                                 <button type="button" onClick={() => handleToggleVipTask(task.id)} className={`text-[10px] font-black px-2.5 py-1.5 rounded-full border cursor-pointer ${task.active === false ? "opacity-50 border-[var(--theme-card-border)]" : "text-emerald-500 border-emerald-500/30 bg-emerald-500/10"}`}>{task.active === false ? "INACTIVE" : "ACTIVE"}</button>
                                 <button type="button" onClick={() => handleRemoveVipTask(task.id)} aria-label={`Remove ${task.title}`} className="p-2 rounded-lg text-rose-500 hover:bg-rose-500/10 cursor-pointer"><Trash2 className="w-4 h-4" /></button>
                               </div>
@@ -3765,7 +3876,7 @@ export default function AdminView() {
                     <div className="space-y-5 py-4">
                       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--theme-radius)] bg-[var(--theme-primary)]/12 text-[var(--theme-primary)]"><Tags className="w-4 h-4" /></span>
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--theme-radius)] bg-[var(--theme-primary)]/12 text-[var(--theme-accent)]"><Tags className="w-4 h-4" /></span>
                           <div>
                             <h3 className="text-base font-extrabold text-[var(--theme-text)]">Milestone board</h3>
                             <p className="text-xs text-[var(--theme-text)] opacity-65 mt-0.5">Metric tasks track progress; social tasks go to your verification queue.</p>
@@ -3781,7 +3892,7 @@ export default function AdminView() {
 
                       <section className="rounded-[var(--theme-radius)] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] p-4 space-y-3">
                         <div className="flex items-center justify-between gap-3">
-                          <div><h4 className="text-sm font-black">Social tasks to verify <span className="text-[var(--theme-primary)]">{vipTaskClaims.length}</span></h4><p className="text-[11px] opacity-60 mt-1">Check completion with your social tracking team. Approval credits the task reward. This queue refreshes every 15 seconds while open.</p></div>
+                          <div><h4 className="text-sm font-black">Social tasks to verify <span className="text-[var(--theme-accent)]">{vipTaskClaims.length}</span></h4><p className="text-[11px] opacity-60 mt-1">Check completion with your social tracking team. Approval credits the task reward. This queue refreshes every 15 seconds while open.</p></div>
                           <button type="button" onClick={() => void refreshVipTaskClaims()} disabled={vipTaskClaimsLoading} className="btn-3d-secondary px-3 py-2 text-[11px] font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-50"><RefreshCw className={`w-3.5 h-3.5 ${vipTaskClaimsLoading ? "animate-spin" : ""}`} />Refresh</button>
                         </div>
                         {vipTaskClaims.length === 0 ? <p className="rounded-lg bg-[var(--theme-bg)]/60 px-3 py-4 text-center text-xs opacity-60">No social tasks waiting for verification.</p> : (
@@ -3791,8 +3902,8 @@ export default function AdminView() {
                               return (
                                 <article key={claim.id} className="rounded-xl border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/45 p-3.5 space-y-3">
                                   <div className="flex flex-wrap items-start justify-between gap-2">
-                                    <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-wider text-[var(--theme-primary)]">{claim.category}</p><h5 className="text-sm font-black mt-0.5">{claim.taskTitle}</h5><p className="text-[11px] opacity-60 mt-1">{claim.username || "User"} · {claim.userId} · {new Date(claim.submittedAt).toLocaleString()}</p></div>
-                                    <span className="shrink-0 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-[11px] font-black text-[var(--theme-primary)]">+{formatCurrency(Number(claim.reward) || 0)}</span>
+                                    <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-wider text-[var(--theme-accent)]">{claim.category}</p><h5 className="text-sm font-black mt-0.5">{claim.taskTitle}</h5><p className="text-[11px] opacity-60 mt-1">{claim.username || "User"} · {claim.userId} · {new Date(claim.submittedAt).toLocaleString()}</p></div>
+                                    <span className="shrink-0 rounded-full bg-[var(--theme-primary)]/10 px-2.5 py-1 text-[11px] font-black text-[var(--theme-accent)]">+{formatCurrency(Number(claim.reward) || 0)}</span>
                                   </div>
                                   <div className="rounded-lg border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] px-3 py-2.5 text-[11px] opacity-65">Verify this member’s activity for the task above. Approval makes the reward available to the user; they claim it from their milestones.</div>
                                   <div className="flex flex-col sm:flex-row gap-2">
@@ -3849,9 +3960,9 @@ export default function AdminView() {
                                       <tr className="bg-[var(--theme-bg)]/60">
                                         <td colSpan={7} className="px-4 py-2.5">
                                           <div className="flex items-center gap-2.5 flex-wrap">
-                                            <span className="rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] px-2 py-1 text-[10px] font-black uppercase">{group}</span>
+                                            <span className="rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-accent)] px-2 py-1 text-[10px] font-black uppercase">{group}</span>
                                             {manualClaims && <span className="rounded-full bg-amber-500/10 px-2 py-1 text-[9px] font-black uppercase text-amber-500">Social verification</span>}
-                                            <span className="text-[11px] font-bold text-[var(--theme-primary)]">Task +{formatCurrency(Number(getVipTierTaskRewards()[group]) || 0)} · Completion +{formatCurrency(tierRewardFor(getVipTierRewards(), group))}</span>
+                                            <span className="text-[11px] font-bold text-[var(--theme-accent)]">Task +{formatCurrency(Number(getVipTierTaskRewards()[group]) || 0)} · Completion +{formatCurrency(tierRewardFor(getVipTierRewards(), group))}</span>
                                             {meta.description && <span className="text-[11px] opacity-55">{meta.description}</span>}
                                             <span className="text-[10px] opacity-45 font-bold ml-auto">{rows.length} task{rows.length === 1 ? "" : "s"}</span>
                                           </div>
@@ -3865,9 +3976,9 @@ export default function AdminView() {
                                 return (
                                   <tr key={task.id} className="hover:bg-[var(--theme-bg)]/45 transition-colors">
                                     <td className="px-4 py-4 min-w-[220px]"><div className="flex items-center gap-2.5"><div className="w-9 h-9 rounded-lg bg-[var(--theme-bg)] border border-[var(--theme-card-border)] overflow-hidden shrink-0 flex items-center justify-center">{task.imageUrl ? <img src={fixGitHubImageUrl(task.imageUrl)} alt="" className="w-full h-full object-cover" /> : <span className="text-[10px] opacity-40 font-black">{task.title.charAt(0).toUpperCase()}</span>}</div><div className="min-w-0"><div className="font-bold text-[var(--theme-text)] truncate">{task.title}</div><div className="text-[11px] opacity-55 mt-1 max-w-[290px] truncate">{task.description || "No description"}</div></div></div></td>
-                                    <td className="px-4 py-4"><span className="rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] px-2 py-1 text-[10px] font-black uppercase">{task.category}</span><div className="text-[10px] opacity-50 mt-1">{task.socialType ? VIP_SOCIAL_TASKS.find((item) => item.id === task.socialType)?.label || "Social action" : taskManual ? "Social verification" : needMeta.source}</div></td>
+                                    <td className="px-4 py-4"><span className="rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-accent)] px-2 py-1 text-[10px] font-black uppercase">{task.category}</span><div className="text-[10px] opacity-50 mt-1">{task.socialType ? VIP_SOCIAL_TASKS.find((item) => item.id === task.socialType)?.label || "Social action" : taskManual ? "Social verification" : needMeta.source}</div></td>
                                     <td className="px-4 py-4 text-right font-bold">{taskManual ? "Verify" : needText}</td>
-                                    <td className="px-4 py-4 text-right font-bold text-[var(--theme-primary)]">{Number(getVipTierTaskRewards()[task.category]) > 0 ? `+${formatCurrency(Number(getVipTierTaskRewards()[task.category]) || 0)}` : "—"}</td>
+                                    <td className="px-4 py-4 text-right font-bold text-[var(--theme-accent)]">{Number(getVipTierTaskRewards()[task.category]) > 0 ? `+${formatCurrency(Number(getVipTierTaskRewards()[task.category]) || 0)}` : "—"}</td>
                                     <td className="px-4 py-4 text-center font-bold">{claimedUsers}</td>
                                     <td className="px-4 py-4 text-center"><button type="button" onClick={() => void handleToggleVipTask(task.id)} className={`rounded-full border px-2.5 py-1 text-[10px] font-black cursor-pointer ${task.active === false ? "border-[var(--theme-card-border)] opacity-55" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"}`}>{task.active === false ? "INACTIVE" : "ACTIVE"}</button></td>
                                     <td className="px-4 py-4 text-right">
@@ -3885,7 +3996,7 @@ export default function AdminView() {
                                         {openVipTaskMenuId === task.id && (
                                           <div role="menu" className="absolute right-0 top-full mt-2 z-30 min-w-32 rounded-[var(--theme-radius)] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] p-1 shadow-xl text-left">
                                             <button type="button" role="menuitem" onClick={() => handleOpenVipTaskEditor(task)} className="w-full flex items-center gap-2 rounded-[calc(var(--theme-radius)-2px)] px-3 py-2 text-xs font-bold hover:bg-[var(--theme-bg)] cursor-pointer">
-                                              <Edit className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
+                                              <Edit className="w-3.5 h-3.5 text-[var(--theme-accent)]" />
                                               Edit
                                             </button>
                                             <button type="button" role="menuitem" onClick={() => { setOpenVipTaskMenuId(null); void handleRemoveVipTask(task.id); }} className="w-full flex items-center gap-2 rounded-[calc(var(--theme-radius)-2px)] px-3 py-2 text-xs font-bold text-rose-500 hover:bg-rose-500/10 cursor-pointer">
@@ -3982,7 +4093,7 @@ export default function AdminView() {
                         {Boolean(vipTaskSocialType) ? (
                           <div className="rounded-lg border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/60 px-3 py-2.5 text-xs opacity-75 space-y-2">
                             <p>Users open the social link and tap Verify. Your team checks completion and approval credits the tier’s per-task reward.</p>
-                            {vipTaskSocialType && (!isVipManualClaimCategory(vipTaskCategory) || (Number(getVipTierTaskRewards()[vipTaskCategory]) || 0) <= 0) && <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-amber-500">Enable social verification and set a reward per task for this tier.</span><button type="button" onClick={openTierEditor} className="font-black text-[var(--theme-primary)] underline underline-offset-2">Manage tiers</button></div>}
+                            {vipTaskSocialType && (!isVipManualClaimCategory(vipTaskCategory) || (Number(getVipTierTaskRewards()[vipTaskCategory]) || 0) <= 0) && <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-amber-500">Enable social verification and set a reward per task for this tier.</span><button type="button" onClick={openTierEditor} className="font-black text-[var(--theme-accent)] underline underline-offset-2">Manage tiers</button></div>}
                           </div>
                         ) : <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <label className="text-xs font-bold uppercase tracking-wider opacity-75">Unlocks from
@@ -4111,7 +4222,7 @@ export default function AdminView() {
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { if (!isApplyingVipImport) setIsVipImportOpen(false); }} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
                     <motion.div initial={{ opacity: 0, y: 14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.98 }} className="relative w-full max-w-2xl max-h-[88vh] theme-card bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] rounded-[var(--theme-radius)] shadow-2xl overflow-hidden flex flex-col text-[var(--theme-text)]">
                       <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-[var(--theme-card-border)] shrink-0">
-                        <div className="flex items-center gap-3"><span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]"><FileSpreadsheet className="w-4 h-4" /></span><div><h3 className="text-base font-black">Bulk import milestones</h3><p className="text-xs opacity-60 mt-0.5">Load tiers and tasks from Excel or JSON.</p></div></div>
+                        <div className="flex items-center gap-3"><span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--theme-primary)]/10 text-[var(--theme-accent)]"><FileSpreadsheet className="w-4 h-4" /></span><div><h3 className="text-base font-black">Bulk import milestones</h3><p className="text-xs opacity-60 mt-0.5">Load tiers and tasks from Excel or JSON.</p></div></div>
                         <button type="button" onClick={() => setIsVipImportOpen(false)} disabled={isApplyingVipImport} className="p-2 rounded-full hover:bg-[var(--theme-bg)] opacity-70 hover:opacity-100 disabled:opacity-40"><X className="w-4 h-4" /></button>
                       </div>
                       <div className="p-5 overflow-y-auto space-y-4">
@@ -4125,7 +4236,7 @@ export default function AdminView() {
                         {!parsedVipImport ? (
                           <label className="relative flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[var(--theme-card-border)] bg-[var(--theme-bg)]/35 px-5 py-6 text-center hover:border-[var(--theme-primary)]">
                             <input type="file" accept=".xlsx,.xls,.json" onChange={(event) => void handleVipImportFileSelected(event)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
-                            {isParsingVipImport ? <Loader2 className="w-7 h-7 animate-spin text-[var(--theme-primary)]" /> : <Upload className="w-7 h-7 text-[var(--theme-primary)]" />}
+                            {isParsingVipImport ? <Loader2 className="w-7 h-7 animate-spin text-[var(--theme-accent)]" /> : <Upload className="w-7 h-7 text-[var(--theme-accent)]" />}
                             <span className="text-sm font-bold">{isParsingVipImport ? "Checking file…" : "Choose a milestone file"}</span>
                             <span className="text-[11px] opacity-55">Excel workbook (.xlsx, .xls) or JSON (.json)</span>
                           </label>
@@ -4133,10 +4244,10 @@ export default function AdminView() {
                           <div className="space-y-3">
                             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] px-3.5 py-3">
                               <div><p className="text-sm font-black">{parsedVipImportFileName}</p><p className="text-[11px] opacity-65 mt-0.5">Ready to merge into the current board</p></div>
-                              <span className="text-right text-[11px] font-bold text-[var(--theme-primary)]">{parsedVipImport.tiers.length} tiers · {parsedVipImport.tasks.length} tasks</span>
+                              <span className="text-right text-[11px] font-bold text-[var(--theme-accent)]">{parsedVipImport.tiers.length} tiers · {parsedVipImport.tasks.length} tasks</span>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <section className="rounded-xl border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/35 p-3"><h4 className="text-[10px] font-black uppercase tracking-wider opacity-55 mb-2">Tiers</h4><div className="space-y-2 max-h-40 overflow-y-auto">{parsedVipImport.tiers.slice(0, 8).map((tier) => <div key={tier.name} className="flex items-center justify-between gap-2 text-xs"><span className="min-w-0 truncate font-bold">{tier.name}{tier.manualClaims && <span className="ml-1.5 text-[9px] uppercase text-[var(--theme-primary)]">Social check</span>}</span><span className="shrink-0 text-right tabular-nums opacity-70">{formatCurrency(tier.taskReward)} / task</span></div>)}{parsedVipImport.tiers.length > 8 && <p className="text-[10px] opacity-50">and {parsedVipImport.tiers.length - 8} more</p>}</div></section>
+                              <section className="rounded-xl border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/35 p-3"><h4 className="text-[10px] font-black uppercase tracking-wider opacity-55 mb-2">Tiers</h4><div className="space-y-2 max-h-40 overflow-y-auto">{parsedVipImport.tiers.slice(0, 8).map((tier) => <div key={tier.name} className="flex items-center justify-between gap-2 text-xs"><span className="min-w-0 truncate font-bold">{tier.name}{tier.manualClaims && <span className="ml-1.5 text-[9px] uppercase text-[var(--theme-accent)]">Social check</span>}</span><span className="shrink-0 text-right tabular-nums opacity-70">{formatCurrency(tier.taskReward)} / task</span></div>)}{parsedVipImport.tiers.length > 8 && <p className="text-[10px] opacity-50">and {parsedVipImport.tiers.length - 8} more</p>}</div></section>
                               <section className="rounded-xl border border-[var(--theme-card-border)] bg-[var(--theme-bg)]/35 p-3"><h4 className="text-[10px] font-black uppercase tracking-wider opacity-55 mb-2">Tasks</h4><div className="space-y-2 max-h-40 overflow-y-auto">{parsedVipImport.tasks.slice(0, 8).map((task) => <div key={task.id} className="text-xs"><p className="font-bold truncate">{task.title}</p><p className="text-[10px] opacity-55">{task.category} · {task.metric === "manual_claim" ? "Social verification" : metricMeta(task.metric).source}</p></div>)}{parsedVipImport.tasks.length > 8 && <p className="text-[10px] opacity-50">and {parsedVipImport.tasks.length - 8} more</p>}</div></section>
                             </div>
                           </div>
@@ -4158,7 +4269,7 @@ export default function AdminView() {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
                           <h3 className="text-base font-bold text-[var(--theme-text)] flex items-center gap-2">
-                            <Gift className="w-5 h-5 text-[var(--theme-primary)]" />
+                            <Gift className="w-5 h-5 text-[var(--theme-accent)]" />
                             Manage Gift Codes
                           </h3>
                           <p className="text-xs text-[var(--theme-text)] opacity-70 mt-1">Generate and distribute bonus gift codes with precise custom expirations.</p>
@@ -4207,7 +4318,7 @@ export default function AdminView() {
                                 
                                 <div className="flex justify-between items-start">
                                   <div className="p-2 rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] group-hover:border-[var(--theme-primary)] transition-colors">
-                                    <Gift className={`w-4 h-4 ${isActive ? 'text-[var(--theme-primary)]' : 'text-[var(--theme-text)] opacity-40'}`} />
+                                    <Gift className={`w-4 h-4 ${isActive ? 'text-[var(--theme-accent)]' : 'text-[var(--theme-text)] opacity-40'}`} />
                                   </div>
                                   <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
                                 </div>
@@ -4222,6 +4333,10 @@ export default function AdminView() {
                                       <span>Timer:</span>
                                     </span>
                                     <GiftCountdown expiryDate={gc.expiryDate} />
+                                  </div>
+                                  <div className="mt-1 flex items-center justify-between text-[11px] text-[var(--theme-text)] opacity-60 font-mono">
+                                    <span>Claims</span>
+                                    <span>{Number(gc.currentRedemptions) || 0}/{Number(gc.maxRedemptions) || 0}</span>
                                   </div>
                                 </div>
                               </motion.div>
@@ -4256,7 +4371,7 @@ export default function AdminView() {
                               {/* Header */}
                               <div className="flex justify-between items-start mb-6">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="p-2 rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] text-[var(--theme-primary)]">
+                                  <div className="p-2 rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] text-[var(--theme-accent)]">
                                     <Gift className="w-5 h-5" />
                                   </div>
                                   <div>
@@ -4320,7 +4435,7 @@ export default function AdminView() {
 
                                 <div>
                                   <label className="block text-xs font-bold text-[var(--theme-text)] opacity-80 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
-                                    <Calendar className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
+                                    <Calendar className="w-3.5 h-3.5 text-[var(--theme-accent)]" />
                                     Expiration Date & Time
                                   </label>
                                   <input
@@ -4390,7 +4505,7 @@ export default function AdminView() {
                               {/* Header */}
                               <div className="flex justify-between items-start mb-5">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="p-2 rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] text-[var(--theme-primary)]">
+                                  <div className="p-2 rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] text-[var(--theme-accent)]">
                                     <Folder className="w-5 h-5 fill-[var(--theme-primary)]/10" />
                                   </div>
                                   <div>
@@ -4472,6 +4587,56 @@ export default function AdminView() {
                                       }}
                                     />
                                   </div>
+                                </div>
+
+                                {/* Claimants list */}
+                                <div className="p-3.5 bg-[var(--theme-bg)] rounded-[var(--theme-radius)] border border-[var(--theme-card-border)]/30 space-y-2.5">
+                                  <div className="flex justify-between items-center text-xs">
+                                    <span className="text-[var(--theme-text)] opacity-70 font-medium">Claimed by</span>
+                                    <span className="font-mono font-semibold text-[var(--theme-text)]">
+                                      {(selectedGiftCode.claims || []).length}
+                                    </span>
+                                  </div>
+                                  {(selectedGiftCode.claims || []).length === 0 ? (
+                                    <p className="text-[11px] text-[var(--theme-text)] opacity-50 leading-relaxed">
+                                      No one has claimed this code yet.
+                                    </p>
+                                  ) : (
+                                    <ul className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                                      {(selectedGiftCode.claims || []).map((claim: any) => {
+                                        const claimedAt = claim.redeemedAt ? new Date(claim.redeemedAt) : null;
+                                        const claimedAtLabel = claimedAt && !isNaN(claimedAt.getTime())
+                                          ? claimedAt.toLocaleString()
+                                          : "Legacy claim";
+                                        return (
+                                          <li
+                                            key={claim.id}
+                                            className="flex items-center gap-2.5 rounded-[var(--theme-radius)] border border-[var(--theme-card-border)]/30 bg-[var(--theme-card-bg)]/70 p-2.5"
+                                          >
+                                            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--theme-primary)]/12 text-[var(--theme-accent)]">
+                                              <User className="h-4 w-4" />
+                                            </span>
+                                            <div className="min-w-0 flex-1">
+                                              <p className="truncate text-xs font-bold text-[var(--theme-text)]">
+                                                {claim.username || "User"}
+                                              </p>
+                                              <p className="truncate text-[11px] font-mono text-[var(--theme-text)] opacity-55">
+                                                {claim.phone || claim.userId}
+                                              </p>
+                                            </div>
+                                            <div className="shrink-0 text-right">
+                                              <p className="text-[11px] font-bold text-[var(--theme-text)]">
+                                                {formatCurrency(claim.amount || 0)}
+                                              </p>
+                                              <p className="text-[10px] text-[var(--theme-text)] opacity-45">
+                                                {claimedAtLabel}
+                                              </p>
+                                            </div>
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  )}
                                 </div>
 
                                 {/* Full Date & Time detail */}
@@ -4663,7 +4828,7 @@ export default function AdminView() {
                               type="checkbox"
                               checked={siteConfig.allowAutoDeposit !== false}
                               readOnly
-                              className="w-4 h-4 rounded text-[var(--theme-primary)] border-[var(--theme-card-border)] focus:ring-[var(--theme-primary)] cursor-pointer pointer-events-none"
+                              className="w-4 h-4 rounded text-[var(--theme-accent)] border-[var(--theme-card-border)] focus:ring-[var(--theme-primary)] cursor-pointer pointer-events-none"
                             />
                           </div>
                           {/* Manual Deposit Toggle */}
@@ -4676,7 +4841,7 @@ export default function AdminView() {
                               type="checkbox"
                               checked={siteConfig.allowManualDeposit === true}
                               readOnly
-                              className="w-4 h-4 rounded text-[var(--theme-primary)] border-[var(--theme-card-border)] focus:ring-[var(--theme-primary)] cursor-pointer pointer-events-none"
+                              className="w-4 h-4 rounded text-[var(--theme-accent)] border-[var(--theme-card-border)] focus:ring-[var(--theme-primary)] cursor-pointer pointer-events-none"
                             />
                           </div>
                           {/* Auto Withdraw Toggle */}
@@ -4696,7 +4861,7 @@ export default function AdminView() {
                               type="checkbox"
                               checked={currentWithdrawMode === "automatic"}
                               readOnly
-                              className="w-4 h-4 rounded text-[var(--theme-primary)] border-[var(--theme-card-border)] focus:ring-[var(--theme-primary)] cursor-pointer pointer-events-none"
+                              className="w-4 h-4 rounded text-[var(--theme-accent)] border-[var(--theme-card-border)] focus:ring-[var(--theme-primary)] cursor-pointer pointer-events-none"
                             />
                           </div>
                           {/* Manual Withdraw Toggle */}
@@ -4716,7 +4881,7 @@ export default function AdminView() {
                               type="checkbox"
                               checked={currentWithdrawMode === "manual"}
                               readOnly
-                              className="w-4 h-4 rounded text-[var(--theme-primary)] border-[var(--theme-card-border)] focus:ring-[var(--theme-primary)] cursor-pointer pointer-events-none"
+                              className="w-4 h-4 rounded text-[var(--theme-accent)] border-[var(--theme-card-border)] focus:ring-[var(--theme-primary)] cursor-pointer pointer-events-none"
                             />
                           </div>
                         </div>
@@ -5017,7 +5182,7 @@ export default function AdminView() {
                           id="alert-users-news"
                           checked={annAlertUsers}
                           onChange={(e) => setAnnAlertUsers(e.target.checked)}
-                          className="w-4 h-4 rounded bg-[var(--theme-bg)] border-[var(--theme-card-border)] text-[var(--theme-primary)] focus:ring-0 focus:ring-offset-0"
+                          className="w-4 h-4 rounded bg-[var(--theme-bg)] border-[var(--theme-card-border)] text-[var(--theme-accent)] focus:ring-0 focus:ring-offset-0"
                         />
                         <label htmlFor="alert-users-news" className="text-xs text-[var(--theme-text)] opacity-80 font-bold cursor-pointer select-none">
                           Alert Users (Broadcast to User Alerts history)
@@ -5087,7 +5252,7 @@ export default function AdminView() {
                             <button
                               type="button"
                               onClick={() => setIsCategoryModalOpen(true)}
-                              className="text-[11px] text-[var(--theme-primary)] font-extrabold hover:underline cursor-pointer"
+                              className="text-[11px] text-[var(--theme-accent)] font-extrabold hover:underline cursor-pointer"
                             >
                               + Manage
                             </button>
@@ -5395,7 +5560,7 @@ export default function AdminView() {
             >
               <div className="px-6 py-5 border-b border-[var(--theme-card-border)] flex justify-between items-center bg-[var(--theme-bg)]">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 rounded-[var(--theme-radius)] text-[var(--theme-primary)]">
+                  <div className="p-2 bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 rounded-[var(--theme-radius)] text-[var(--theme-accent)]">
                     <Tags className="w-5 h-5" />
                   </div>
                   <div>
@@ -5495,12 +5660,12 @@ export default function AdminView() {
                           className="p-3 bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] rounded-[var(--theme-radius)]"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-[var(--theme-primary)] uppercase text-xs font-black truncate flex-1">{cat}</span>
+                            <span className="font-mono text-[var(--theme-accent)] uppercase text-xs font-black truncate flex-1">{cat}</span>
                             <span className="text-[10px] font-bold text-[var(--theme-text)] opacity-50 shrink-0">{count} item{count === 1 ? "" : "s"}</span>
                             <button
                               onClick={() => handleStartEditCategory(cat)}
                               title="Rename / edit description"
-                              className="text-[var(--theme-text)] opacity-50 hover:text-[var(--theme-primary)] hover:opacity-100 transition-colors p-0.5 cursor-pointer"
+                              className="text-[var(--theme-text)] opacity-50 hover:text-[var(--theme-accent)] hover:opacity-100 transition-colors p-0.5 cursor-pointer"
                             >
                               <Edit className="w-3.5 h-3.5" />
                             </button>
@@ -5553,7 +5718,7 @@ export default function AdminView() {
             >
               <div className="px-6 py-5 border-b border-[var(--theme-card-border)] flex justify-between items-center bg-[var(--theme-card-bg)] shrink-0">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 rounded-xl text-[var(--theme-primary)]">
+                  <div className="p-2 bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 rounded-xl text-[var(--theme-accent)]">
                     <FileSpreadsheet className="w-5 h-5" />
                   </div>
                   <div>
@@ -5576,13 +5741,13 @@ export default function AdminView() {
               <div className="p-6 overflow-y-auto space-y-6 flex-1">
                 {isParsingExcel ? (
                   <div className="py-12 text-center space-y-3">
-                    <Loader2 className="w-8 h-8 text-[var(--theme-primary)] animate-spin mx-auto" />
+                    <Loader2 className="w-8 h-8 text-[var(--theme-accent)] animate-spin mx-auto" />
                     <p className="text-sm text-[var(--theme-text)] font-medium">Parsing Excel sheet parameters...</p>
                   </div>
                 ) : !parsedExcelNodes ? (
                   <>
                     <div className="p-4 bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 rounded-2xl flex flex-col gap-2">
-                      <span className="text-[11px] font-mono text-[var(--theme-primary)] uppercase font-bold tracking-widest block">Excel Template Format</span>
+                      <span className="text-[11px] font-mono text-[var(--theme-accent)] uppercase font-bold tracking-widest block">Excel Template Format</span>
                       <p className="text-xs text-[var(--theme-text)] leading-relaxed">
                         Download the prefilled Excel template matching your calculations before uploading.
                       </p>
@@ -5605,7 +5770,7 @@ export default function AdminView() {
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                       />
                       <div className="w-12 h-12 rounded-full bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] flex items-center justify-center text-[var(--theme-text)] group-hover:scale-105 transition-transform">
-                        <FileSpreadsheet className="w-6 h-6 text-[var(--theme-primary)]" />
+                        <FileSpreadsheet className="w-6 h-6 text-[var(--theme-accent)]" />
                       </div>
                       <div>
                         <span className="text-[var(--theme-text)] text-sm font-semibold block">Click or drag Excel file here</span>
@@ -5617,12 +5782,12 @@ export default function AdminView() {
                   <div className="space-y-5 py-2">
                     {/* Document Icon & File Info */}
                     <div className="p-6 bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] rounded-3xl text-center flex flex-col items-center justify-center gap-3">
-                      <div className="w-16 h-16 rounded-2xl bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 flex items-center justify-center text-[var(--theme-primary)]">
+                      <div className="w-16 h-16 rounded-2xl bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 flex items-center justify-center text-[var(--theme-accent)]">
                         <FileSpreadsheet className="w-8 h-8" />
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-[var(--theme-text)] truncate max-w-md">{parsedExcelFileName}</h4>
-                        <span className="text-xs font-mono text-[var(--theme-primary)] font-bold block mt-1">
+                        <span className="text-xs font-mono text-[var(--theme-accent)] font-bold block mt-1">
                           {parsedExcelNodes.length} product document{parsedExcelNodes.length === 1 ? "" : "s"} ready to import
                         </span>
                       </div>
@@ -5632,7 +5797,7 @@ export default function AdminView() {
                     {isImportingBulk && bulkProgress && (
                       <div className="p-4 bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 rounded-2xl space-y-2">
                         <div className="flex justify-between items-center text-xs font-mono">
-                          <span className="text-[var(--theme-primary)] font-bold flex items-center gap-2">
+                          <span className="text-[var(--theme-accent)] font-bold flex items-center gap-2">
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             {bulkProgress.message}
                           </span>

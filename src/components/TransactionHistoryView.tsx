@@ -194,7 +194,7 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
 
       <section aria-label={metric.label} className="shrink-0 px-1 pb-3">
         <div className="min-w-0 rounded-2xl border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/70 p-4">
-          <div className="flex items-center gap-2 text-[var(--theme-primary)]">
+          <div className="flex items-center gap-2 text-[var(--theme-accent)]">
             <metric.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
             <h2 className="text-xs sm:text-sm font-bold">{metric.label}</h2>
           </div>
@@ -222,7 +222,7 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
       <div className="flex-none space-y-2 pb-8">
         {txLoading ? (
           <div className="bg-transparent border border-white/10 rounded-[20px] p-10 flex flex-col items-center gap-2 backdrop-blur-[0px]">
-            <Loader2 className="w-5 h-5 animate-spin text-[var(--theme-primary)]" />
+            <Loader2 className="w-5 h-5 animate-spin text-[var(--theme-accent)]" />
             <span className="text-xs font-sans font-medium text-[var(--theme-text)] opacity-60">SYNCHRONIZING..</span>
           </div>
         ) : txError ? (
@@ -296,19 +296,19 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
                 <div className={`${mappedImage ? "w-12 h-12 rounded-2xl bg-white/5 p-1" : "w-12 h-12 rounded-2xl bg-[var(--theme-card-bg)]/60"} flex items-center justify-center shrink-0 overflow-hidden`}>
                   {mappedImage
                     ? <img src={mappedImage} alt="" loading="lazy" decoding="async" className={`w-full h-full rounded-xl ${meta.canon === "daily_checkin_bonus" ? "object-contain" : "object-cover"}`} />
-                    : <TransactionIcon className={`w-5 h-5 ${isPositive ? "text-[var(--theme-primary)]" : "text-[var(--theme-text)] opacity-70"}`} strokeWidth={1.8} aria-hidden="true" />}
+                    : <TransactionIcon className={`w-5 h-5 ${isPositive ? "text-[var(--theme-accent)]" : "text-[var(--theme-text)] opacity-70"}`} strokeWidth={1.8} aria-hidden="true" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-[18px] font-sans font-bold tracking-tight text-[var(--theme-text)] leading-tight">{displayLabel}</span>
-                    {level != null && <span className="text-[12px] font-sans font-semibold px-1.5 py-0.5 rounded-full bg-[var(--theme-primary)]/12 text-[var(--theme-primary)] border border-[var(--theme-primary)]/15">L{level}</span>}
+                    {level != null && <span className="text-[12px] font-sans font-semibold px-1.5 py-0.5 rounded-full bg-[var(--theme-primary)]/12 text-[var(--theme-accent)] border border-[var(--theme-primary)]/15">L{level}</span>}
                   </div>
                   <p className="text-[12px] font-sans font-normal text-[var(--theme-text)] opacity-50 truncate mt-1 leading-none">{new Date(tx.createdAt||tx.timestamp||Date.now()).toLocaleDateString()}{meta.canon !== "withdrawal" && tx.operator ? ` • ${tx.operator}` : ""}</p>
                 </div>
                 <div className="text-right shrink-0 flex flex-col justify-center">
-                  <p className={`text-[18px] sm:text-base font-display font-black tracking-tight leading-tight ${isPositive?"text-[var(--theme-primary)]":"text-[var(--theme-text)]"}`}>{isPositive?"+":"-"} {formatCurrency(amount)}</p>
+                  <p className={`text-[18px] sm:text-base font-display font-black tracking-tight leading-tight ${isPositive?"text-[var(--theme-accent)]":"text-[var(--theme-text)]"}`}>{isPositive?"+":"-"} {formatCurrency(amount)}</p>
                   {showStatus && <p className={`mt-1 text-[11px] font-semibold leading-none ${statusClass}`}>{statusLabel}</p>}
-                  {siteConfig?.usdtRate && (tx.operator==="USDT"||String(tx.usdtAddress||"").startsWith("T")||String(tx.phone||"").startsWith("T")) && <p className="text-[12px] font-sans font-medium text-[var(--theme-primary)] mt-1">≈ ${(amount/ siteConfig.usdtRate).toFixed(2)}</p>}
+                  {siteConfig?.usdtRate && (tx.operator==="USDT"||String(tx.usdtAddress||"").startsWith("T")||String(tx.phone||"").startsWith("T")) && <p className="text-[12px] font-sans font-medium text-[var(--theme-accent)] mt-1">≈ ${(amount/ siteConfig.usdtRate).toFixed(2)}</p>}
                 </div>
               </div>
             );

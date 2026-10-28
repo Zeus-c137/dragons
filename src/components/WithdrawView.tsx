@@ -242,7 +242,7 @@ export default function WithdrawView({
             </div>
             <div className="flex justify-between">
               <span className="opacity-60">Destination</span>
-              <span className="text-[var(--theme-primary)] truncate ml-2">
+              <span className="text-[var(--theme-accent)] truncate ml-2">
                 {withdrawOperator === "USDT" ? usdtAddress.slice(0, 12) + "…" : withdrawalPhone}
               </span>
             </div>
@@ -255,7 +255,7 @@ export default function WithdrawView({
   return (
     <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] space-y-3 select-none p-3 pt-0 sm:p-4 sm:pt-0">
       <div className="flex justify-end">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/20 bg-[var(--theme-primary)]/8 px-3 py-1.5 text-[11px] font-bold text-[var(--theme-primary)]">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-primary)]/20 bg-[var(--theme-primary)]/8 px-3 py-1.5 text-[11px] font-bold text-[var(--theme-accent)]">
           <LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
           Secure
         </span>

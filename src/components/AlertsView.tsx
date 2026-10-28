@@ -162,11 +162,11 @@ export default function AlertsView({ profile, onBack, initialNotifications = [],
         : null);
 
     let Icon: LucideIcon = Bell;
-    let badgeClass = "bg-[var(--theme-primary)]/15 border border-[var(--theme-primary)]/30 text-[var(--theme-primary)]";
+    let badgeClass = "bg-[var(--theme-primary)]/15 border border-[var(--theme-primary)]/30 text-[var(--theme-accent)]";
     let categoryLabel = alert.category;
     if (category === "deposit") {
       Icon = CirclePlus;
-      badgeClass = "bg-[var(--theme-primary)] text-white border border-[var(--theme-primary)]";
+      badgeClass = "bg-[var(--theme-primary)] text-[var(--theme-on-primary)] border border-[var(--theme-primary)]";
     } else if (category === "withdraw") {
       Icon = Wallet;
       badgeClass = "bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] text-[var(--theme-text)]";
@@ -188,7 +188,7 @@ export default function AlertsView({ profile, onBack, initialNotifications = [],
     if (isTierNotice) {
       Icon = Trophy;
       categoryLabel = isMilestoneTaskVerified ? `${tierName} task` : tierName ? `${tierName} bonus` : "milestone bonus";
-      badgeClass = "bg-[var(--theme-primary)]/15 border border-[var(--theme-primary)]/20 text-[var(--theme-primary)]";
+      badgeClass = "bg-[var(--theme-primary)]/15 border border-[var(--theme-primary)]/20 text-[var(--theme-accent)]";
     } else if (isReturns) {
       Icon = TrendingUp;
       categoryLabel = "returns";
@@ -262,7 +262,7 @@ export default function AlertsView({ profile, onBack, initialNotifications = [],
                     <div className="w-10 h-10 rounded-xl bg-[var(--theme-card-bg)]/70 flex items-center justify-center shrink-0 overflow-hidden">
                       {presentation.image
                         ? <img src={presentation.image} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                        : <AlertIcon className="w-5 h-5 text-[var(--theme-primary)]" strokeWidth={1.8} aria-hidden="true" />}
+                        : <AlertIcon className="w-5 h-5 text-[var(--theme-accent)]" strokeWidth={1.8} aria-hidden="true" />}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
@@ -369,7 +369,7 @@ export default function AlertsView({ profile, onBack, initialNotifications = [],
                     <div className="w-10 h-10 rounded-xl bg-[var(--theme-card-bg)]/70 flex items-center justify-center shrink-0 overflow-hidden">
                       {presentation.image
                         ? <img src={presentation.image} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                        : <AlertIcon className="w-5 h-5 text-[var(--theme-primary)]" strokeWidth={1.8} aria-hidden="true" />}
+                        : <AlertIcon className="w-5 h-5 text-[var(--theme-accent)]" strokeWidth={1.8} aria-hidden="true" />}
                     </div>
                     
                     <div className="space-y-1.5 flex-1 min-w-0">

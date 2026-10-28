@@ -29,7 +29,7 @@ interface MilestoneChipProps {
 function chipCaption(tier: TierProgress): ReactNode {
   // The next tier name rides in primary — plain text color, no badge.
   const next = tier.nextName ? (
-    <span className="text-[var(--theme-primary)]">{tier.nextName}</span>
+    <span className="text-[var(--theme-accent)]">{tier.nextName}</span>
   ) : null;
   const tasks = `${tier.left} ${tier.left === 1 ? "task" : "tasks"}`;
   if (tier.readyToClaim) return <>Claim reward</>;
@@ -89,7 +89,7 @@ function TierRing({ pct, art, metric }: { pct: number; art: string; metric: stri
             className="w-full h-full object-cover"
           />
         ) : (
-          <AchievementGlyph metric={metric} className="w-4 h-4 text-[var(--theme-primary)]" />
+          <AchievementGlyph metric={metric} className="w-4 h-4 text-[var(--theme-accent)]" />
         )}
       </span>
     </span>
@@ -142,7 +142,7 @@ export default function MilestoneChip({ phone, username, onOpen }: MilestoneChip
     >
       <TierRing pct={tier.pct} art={tier.art} metric={tier.metric} />
       <span className="min-w-0 flex-1 text-left leading-none">
-        <span className="block font-sans font-bold text-[11px] text-[var(--theme-primary)] truncate max-w-full">
+        <span className="block font-sans font-bold text-[11px] text-[var(--theme-accent)] truncate max-w-full">
           @{username || "Operator"}
         </span>
         <span className="mt-2.5 block min-w-0">

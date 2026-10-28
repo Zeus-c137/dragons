@@ -112,6 +112,16 @@ export const collectibles = mysqlTable(
   })
 );
 
+// 2c. Per-item serial counter. Minting locks one row here so two finished
+// runs of the same egg can never receive the same serial.
+export const collectibleCounters = mysqlTable(
+  "collectible_counters",
+  {
+    itemId: varchar("item_id", { length: 64 }).primaryKey(),
+    nextSerial: int("next_serial").notNull().default(0),
+  }
+);
+
 // 3. Catalog Products Table
 export const catalogProducts = mysqlTable(
   "catalog_products",
@@ -183,6 +193,25 @@ export const giftCodes = mysqlTable(
   },
   (table) => ({
     codeIdx: index("idx_gift_codes_code").on(table.code)
+  })
+);
+
+// 6b. Gift Code Redemptions — one auditable row per claimant so the admin
+// panel can show exactly who redeemed each code.
+export const giftCodeRedemptions = mysqlTable(
+  "gift_code_redemptions",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    giftCodeId: varchar("gift_code_id", { length: 64 }).notNull(),
+    code: varchar("code", { length: 64 }).notNull(),
+    userId: varchar("user_id", { length: 32 }).notNull(),
+    amount: double("amount").notNull(),
+    redeemedAt: varchar("redeemed_at", { length: 64 }).notNull()
+  },
+  (table) => ({
+    giftCodeIdIdx: index("idx_gift_code_redemptions_gift_code_id").on(table.giftCodeId),
+    userIdIdx: index("idx_gift_code_redemptions_user_id").on(table.userId),
+    codeUserUnique: uniqueIndex("uq_gift_code_redemptions_code_user").on(table.code, table.userId)
   })
 );
 

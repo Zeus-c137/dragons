@@ -80,7 +80,7 @@ export default function FeaturedProducts({ items, onBrowseProducts }: FeaturedPr
         <div>
           <div className="flex items-center gap-1.5">
             <img src={heart3d} alt="" loading="lazy" decoding="async" className="w-4 h-4 object-contain" />
-            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--theme-primary)]">Trending products</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--theme-accent)]">Trending products</span>
           </div>
           <h2 id="trending-products-title" className="text-[15px] font-black text-[var(--theme-text)] mt-0.5 leading-tight">
             Most chosen this week
@@ -89,7 +89,7 @@ export default function FeaturedProducts({ items, onBrowseProducts }: FeaturedPr
         <button
           type="button"
           onClick={onBrowseProducts}
-          className="inline-flex items-center gap-1 text-[11px] font-black text-[var(--theme-primary)] hover:opacity-75 transition-opacity cursor-pointer shrink-0"
+          className="inline-flex items-center gap-1 text-[11px] font-black text-[var(--theme-accent)] hover:opacity-75 transition-opacity cursor-pointer shrink-0"
         >
           Browse all <ArrowUpRight className="w-3.5 h-3.5" />
         </button>
@@ -117,7 +117,7 @@ export default function FeaturedProducts({ items, onBrowseProducts }: FeaturedPr
                   className="w-full h-full object-contain group-hover:scale-[1.02] transition-transform duration-500"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-[var(--theme-primary)] opacity-40">
+                <div className="w-full h-full flex items-center justify-center text-[var(--theme-accent)] opacity-40">
                   <Cpu className="w-8 h-8" />
                 </div>
               )}
@@ -134,7 +134,7 @@ export default function FeaturedProducts({ items, onBrowseProducts }: FeaturedPr
               </div>
               <div className="rounded-[calc(var(--theme-radius)-4px)] bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)]/60 px-2.5 py-2">
                 <p className="text-[8px] font-black uppercase tracking-widest opacity-50 leading-none">You withdraw</p>
-                <p className="text-[12px] font-black text-[var(--theme-primary)] leading-none mt-1 truncate">{formatCurrency(item.dailyYield)}<span className="font-bold opacity-70"> / day</span></p>
+                <p className="text-[12px] font-black text-[var(--theme-accent)] leading-none mt-1 truncate">{formatCurrency(item.dailyYield)}<span className="font-bold opacity-70"> / day</span></p>
               </div>
             </div>
           </button>

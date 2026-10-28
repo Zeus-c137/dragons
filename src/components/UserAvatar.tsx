@@ -21,7 +21,7 @@ export default function UserAvatar({ username, phone, className = "w-9 h-9 text-
   const initials = initialsFor(username, phone);
   // Blacked-out mark, no border — initials keep the primary color.
   const shell =
-    `${className} rounded-full shrink-0 flex items-center justify-center font-display font-black uppercase leading-none tracking-tight text-[var(--theme-primary)] bg-black`;
+    `${className} rounded-full shrink-0 flex items-center justify-center font-display font-black uppercase leading-none tracking-tight text-[var(--theme-accent)] bg-black`;
 
   if (!onClick) {
     return (

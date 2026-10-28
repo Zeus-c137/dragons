@@ -22,19 +22,19 @@ export interface OnboardingSlide {
 export const DEFAULT_ONBOARDING_SLIDES: OnboardingSlide[] = [
   {
     eyebrow: "YOUR NEXT RUN",
-    title: <>Rare Collectibles.<br /><span className="text-[var(--theme-primary)]">Real Progress.</span></>,
+    title: <>Rare Collectibles.<br /><span className="text-[var(--theme-accent)]">Real Progress.</span></>,
     sub: "Activate a Run, earn rare virtual collectibles, and they become yours permanently after the cycle.",
     ctaLabel: "Explore Store",
   },
   {
     eyebrow: "YOUR JOURNEY",
-    title: <>Milestones that<br /><span className="text-[var(--theme-primary)]">move you up.</span></>,
+    title: <>Milestones that<br /><span className="text-[var(--theme-accent)]">move you up.</span></>,
     sub: "Finish achievements, claim finished runs as collectibles, unlock new stages.",
     ctaLabel: "View Milestones",
   },
   {
     eyebrow: "DAILY HABIT",
-    title: <>One tap keeps<br /><span className="text-[var(--theme-primary)]">the streak.</span></>,
+    title: <>One tap keeps<br /><span className="text-[var(--theme-accent)]">the streak.</span></>,
     sub: "Check in daily, claim accumulated run returns, then claim your collectible.",
     ctaLabel: "Start a Run",
   },

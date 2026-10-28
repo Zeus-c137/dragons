@@ -555,7 +555,7 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
             <button type="button" onClick={() => setSelectedStage(null)} aria-label="Back to journey" className="w-9 h-9 rounded-full border border-white/10 bg-[var(--theme-card-bg)]/60 flex items-center justify-center text-[var(--theme-text)] cursor-pointer active:scale-95 transition-transform"><ArrowLeft className="w-4 h-4" /></button>
             <div ref={balanceRef} className="text-right">
               <p className="text-[8px] font-sans font-normal tracking-[0.13em] text-[var(--theme-text)] opacity-65">WITHDRAWABLE</p>
-              <p className="mt-0.5 font-display font-black text-[16px] leading-none text-[var(--theme-primary)]">{formatCurrency(Number(userProfile?.withdrawableBalance || 0))}</p>
+              <p className="mt-0.5 font-display font-black text-[16px] leading-none text-[var(--theme-accent)]">{formatCurrency(Number(userProfile?.withdrawableBalance || 0))}</p>
             </div>
           </div>
           {/* Hero — frosted continuation, borderless so it blends into the page
@@ -587,7 +587,7 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
                     <img src={dollar3d} alt="" loading="lazy" decoding="async" className="w-4 h-4 object-contain" /> {claiming ? "CLAIMING…" : formatCurrency(detail.tierReward)}
                   </button>
                 ))}
-                <span className="text-right text-[11px] font-sans font-normal tabular-nums text-[var(--theme-primary)]">{detail.done}/{detail.total} COMPLETE</span>
+                <span className="text-right text-[11px] font-sans font-normal tabular-nums text-[var(--theme-accent)]">{detail.done}/{detail.total} COMPLETE</span>
               </div>
             </div>
           </div>
@@ -647,12 +647,12 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
                                 rel="noopener noreferrer"
                                 onClick={() => setOpenedTaskLinks((current) => new Set(current).add(actionLinkKey))}
                                 aria-label={`${socialActionLabel(task.socialType)}: ${task.title}`}
-                                className="cursor-pointer text-[11px] font-sans font-bold text-[var(--theme-primary)] underline underline-offset-4 decoration-[var(--theme-primary)]/60 transition-opacity duration-150 hover:opacity-75 active:opacity-55"
+                                className="cursor-pointer text-[11px] font-sans font-bold text-[var(--theme-accent)] underline underline-offset-4 decoration-[var(--theme-primary)]/60 transition-opacity duration-150 hover:opacity-75 active:opacity-55"
                               >
                                 {socialActionLabel(task.socialType)}
                               </a>
                             ) : (
-                              <span className="text-[11px] font-sans font-bold text-[var(--theme-primary)]/55 underline underline-offset-4">
+                              <span className="text-[11px] font-sans font-bold text-[var(--theme-accent)]/55 underline underline-offset-4">
                                 {socialActionLabel(task.socialType)}
                               </span>
                             )}
@@ -661,8 +661,8 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
                             <span role="status" className="inline-flex shrink-0 items-center gap-1.5 text-[10px] font-sans font-black tracking-[0.08em] animate-shimmer">
                               <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> VERIFYING
                             </span>
-                          ) : taskApproved ? <span className="shrink-0 text-[10px] font-sans font-black tracking-[0.08em] text-[var(--theme-primary)]">CLAIMED</span>
-                            : taskVerified ? <span className="shrink-0 text-[10px] font-sans font-black tracking-[0.08em] text-[var(--theme-primary)]">VERIFIED - TAP REWARD</span>
+                          ) : taskApproved ? <span className="shrink-0 text-[10px] font-sans font-black tracking-[0.08em] text-[var(--theme-accent)]">CLAIMED</span>
+                            : taskVerified ? <span className="shrink-0 text-[10px] font-sans font-black tracking-[0.08em] text-[var(--theme-accent)]">VERIFIED - TAP REWARD</span>
                             : <button type="button" onClick={(event) => void handleTaskAction(task, event)} disabled={locked || task.reward <= 0 || submittingTasks.has(task.id) || !actionLinkOpened} title={task.actionUrl ? `Open the link and ${socialActionLabel(task.socialType).toLowerCase()} before verifying.` : "This task needs a social link before it can be verified."} className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-[var(--theme-card-bg)]/55 px-3 py-1.5 text-[10px] font-sans font-black text-[var(--theme-text)] cursor-pointer active:scale-[0.97] transition-transform disabled:cursor-not-allowed disabled:opacity-45" aria-label={`Verify ${task.title}. Open and ${socialActionLabel(task.socialType).toLowerCase()} the social link first.`}>
                                 <Info className="h-3 w-3 opacity-65" aria-hidden="true" />
                                 {submittingTasks.has(task.id) ? <><Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> VERIFYING</> : "VERIFY"}
@@ -671,12 +671,12 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
                       ) : (
                         <div className="mt-2 space-y-1.5">
                           <div className="flex items-center justify-end gap-2">
-                            <span className="text-[10px] font-sans font-normal tabular-nums leading-none text-[var(--theme-primary)]">{fmtRange(task)}</span>
-                            {taskApproved && <span className="text-[9px] font-sans font-black tracking-[0.08em] text-[var(--theme-primary)]">CLAIMED</span>}
+                            <span className="text-[10px] font-sans font-normal tabular-nums leading-none text-[var(--theme-accent)]">{fmtRange(task)}</span>
+                            {taskApproved && <span className="text-[9px] font-sans font-black tracking-[0.08em] text-[var(--theme-accent)]">CLAIMED</span>}
                           </div>
                           <div className="flex items-center gap-2">
                             <div className={`flex-1 min-w-0 ${taskApproved || locked ? "opacity-50 saturate-50" : ""}`}><CellsProgress pct={p} /></div>
-                            <span className="w-9 text-right shrink-0 text-[10px] font-sans font-normal tabular-nums leading-none text-[var(--theme-primary)]">{Math.round(p)}%</span>
+                            <span className="w-9 text-right shrink-0 text-[10px] font-sans font-normal tabular-nums leading-none text-[var(--theme-accent)]">{Math.round(p)}%</span>
                           </div>
                         </div>
                       )}
@@ -701,10 +701,10 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
       </AnimatePresence>
       <div className="flex-1 overflow-y-auto overscroll-contain p-4 pb-8 scrollbar-none min-h-0">
         <div className="flex items-start justify-between gap-2">
-          <h1 className="min-w-0 flex-1 font-display font-black text-[26px] leading-none tracking-tight text-[var(--theme-text)] sm:text-[30px]">YOUR <span className="text-[var(--theme-primary)]">JOURNEY</span></h1>
+          <h1 className="min-w-0 flex-1 font-display font-black text-[26px] leading-none tracking-tight text-[var(--theme-text)] sm:text-[30px]">YOUR <span className="text-[var(--theme-accent)]">JOURNEY</span></h1>
           <div ref={balanceRef} className="shrink-0 text-right">
             <p className="whitespace-nowrap text-[7px] font-sans font-normal tracking-[0.08em] text-[var(--theme-text)] opacity-65">WITHDRAWABLE</p>
-            <p className="mt-0.5 font-display font-black text-[16px] leading-none text-[var(--theme-primary)]">{formatCurrency(Number(userProfile?.withdrawableBalance || 0))}</p>
+            <p className="mt-0.5 font-display font-black text-[16px] leading-none text-[var(--theme-accent)]">{formatCurrency(Number(userProfile?.withdrawableBalance || 0))}</p>
           </div>
         </div>
         <p className="mt-2 text-[13px] font-sans text-[var(--theme-text)] opacity-65 leading-snug max-w-[300px]">Complete achievements, unlock new stages, and level up your Operator status.</p>
@@ -777,7 +777,7 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
         <div className="mt-5 rounded-[24px] overflow-hidden border border-white/10 relative">
           <div className="absolute inset-0" style={{ background: "linear-gradient(120deg, rgba(0,0,0,0.85) 20%, rgba(0,0,0,0.45) 60%, var(--theme-primary) 160%)" }} />
           <div className="relative p-5 flex items-end justify-between gap-3 min-h-[130px]">
-            <p className="font-display font-black italic text-[24px] leading-[1.02] text-[var(--theme-primary)]">More<br />Levels.<br />Bigger<br />Rewards.</p>
+            <p className="font-display font-black italic text-[24px] leading-[1.02] text-[var(--theme-accent)]">More<br />Levels.<br />Bigger<br />Rewards.</p>
             <p className="text-right text-[10px] font-sans font-bold tracking-[0.2em] text-white/75 leading-relaxed">STAY ACTIVE.<br />KEEP GROWING.<br />UNLOCK MORE.</p>
           </div>
         </div>

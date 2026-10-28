@@ -200,7 +200,7 @@ export const ThemeProvider: React.FC<{
     } else {
       root.classList.remove("dark");
       root.style.setProperty("--theme-text-muted", "#5F5B7A");
-      root.style.setProperty("--theme-on-primary", "#FFFFFF");
+      root.style.setProperty("--theme-on-primary", "#252B47");
     }
     void darkenColor;
   }, [themePreset, themeMode, cardStyle, buttonStyle, borderRadius, primaryColor, accentColor, secondaryColor, bgColor, cardBgColor, fontFamily, fontSizeScale, textColor]);
