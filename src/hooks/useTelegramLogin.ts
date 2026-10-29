@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { notify } from "../lib/notify";
 
 // Official Telegram.Login popup library, shared by the login-screen button,
 // the register pill, and the Bind Account flow. Loads telegram-login.js once;
@@ -81,13 +81,13 @@ export function useTelegramLogin(onAuth: (payload: TelegramAuthPayload) => void)
         const err = payload?.error || "dismissed";
         console.warn("Telegram sign-in:", err);
         if (payload?.error && payload.error !== "popup_closed") {
-          toast.error("Telegram sign-in failed. Please try again.");
+          notify("error", "Telegram sign-in failed. Please try again.");
         }
         return;
       }
       if (!payload.id_token) {
         console.warn("Telegram sign-in: no id_token returned");
-        toast.error("Telegram sign-in failed. Please try again.");
+        notify("error", "Telegram sign-in failed. Please try again.");
         return;
       }
       onAuthRef.current(payload as TelegramAuthPayload);

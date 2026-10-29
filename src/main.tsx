@@ -1,6 +1,6 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
-import { Toaster } from 'sonner';
+import { Toaster } from 'sileo';
 import App from './App.tsx';
 import UpdateBanner from './components/UpdateBanner.tsx';
 import './index.css';
@@ -23,6 +23,12 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
     <UpdateBanner />
-    <Toaster theme="dark" richColors position="top-center" />
+    <Toaster
+      position="top-center"
+      options={{
+        fill: "var(--theme-card-bg)",
+        roundness: 16,
+      }}
+    />
   </StrictMode>,
 );

@@ -1,7 +1,7 @@
 // TODO: flagged untested — add minimal src/utils/referral.test.ts and src/hooks/useClipboard.test.ts once vitest configured
 import { CLIPBOARD_TIMEOUT_MS } from "@/src/utils/motion";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { notify } from "../lib/notify";
 
 function clearTimer(ref: { current: number | null }) {
   if (ref.current !== null) {
@@ -23,11 +23,11 @@ export function useClipboard(timeoutMs = CLIPBOARD_TIMEOUT_MS) {
       try {
         await navigator.clipboard.writeText(text);
         setCopied(true);
-        toast.success(successMessage);
+        notify("success", successMessage);
         clearTimer(timerRef);
         timerRef.current = window.setTimeout(() => setCopied(false), timeoutMs);
       } catch {
-        toast.error("Copy failed");
+        notify("error", "Copy failed");
       }
     },
     [timeoutMs]

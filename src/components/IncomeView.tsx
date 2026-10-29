@@ -26,7 +26,8 @@ import { celebrateFeed } from "../utils/feedCelebration";
 import { rarityMapForCatalog } from "../utils/rarity";
 import RarityBadge from "./RarityBadge";
 import confetti from "canvas-confetti";
-import { toast } from "sonner";
+import { sileo } from "sileo";
+import { notify } from "../lib/notify";
 import dollar3d from "@/src/assets/3d/3dicons-dollar-iso-premium.png";
 import tractor from "@/src/assets/svg/tractor.svg";
 import corn from "@/src/assets/svg/corn.svg";
@@ -44,6 +45,7 @@ interface IncomeViewProps {
   items: SubscriptionItem[];
   onNavigateToCatalog: () => void;
   onNavigateToIncomeHistory: () => void;
+  onNavigateToHistory: () => void;
   onNavigateToCollection?: () => void;
   onRenew?: (item: SubscriptionItem) => void;
   onClaimSuccess?: (pointsEarned: number, newBalance: number, subId: string, lastClaimedDate: string, status: "active" | "expired", withdrawableBalance?: number, daysFed?: number) => void;
@@ -56,6 +58,7 @@ export default function IncomeView({
   items,
   onNavigateToCatalog,
   onNavigateToIncomeHistory,
+  onNavigateToHistory,
   onNavigateToCollection,
   onRenew,
   onClaimSuccess,
@@ -163,11 +166,11 @@ export default function IncomeView({
       const accrued = getRunClaimableReturns(selectedNode).amount;
       const dailyRate = getRunDailyRate(selectedNode, items);
       if (dailyRate <= 0) {
-        toast.error("This chicken is not configured to earn income.");
+        notify("error", "This chicken is not configured to earn income.");
         return;
       }
       if (accrued < getRunMinimumClaimAmount(selectedNode)) {
-        toast.error("You have already fed this chick today. Come back after midnight EAT.");
+        notify("error", "You have already fed this chick today. Come back after midnight EAT.");
         return;
       }
     }
@@ -188,16 +191,20 @@ export default function IncomeView({
         else confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
       }
 
-      window.setTimeout(() => toast.success(isChicken
-        ? `${formatCurrency(Number(data.pointsClaimed) || 0)} added to your withdrawable balance from ${data.itemName}.`
-        : `Claimed ${formatCurrency(Number(data.pointsClaimed) || 0)} from ${data.itemName}!`), 3000);
+      window.setTimeout(() => sileo.action({
+        title: isChicken ? "Chick fed" : "Earnings claimed",
+        description: isChicken
+          ? `${formatCurrency(Number(data.pointsClaimed) || 0)} has been added to your withdrawable balance.`
+          : `Claimed ${formatCurrency(Number(data.pointsClaimed) || 0)} from ${data.itemName}!`,
+        ...(isChicken ? { icon: <img src={corn} alt="" className="h-5 w-5 object-contain" />, button: { title: "View history", onClick: onNavigateToHistory } } : {}),
+      }), 3000);
 
       if (onClaimSuccess) {
         onClaimSuccess(data.pointsClaimed, data.updatedPoints, subId, data.lastClaimedDate, data.status, data.updatedWithdrawableBalance, data.daysFed);
       }
       void loadCollectibles();
     } catch (err: any) {
-      toast.error(err.message || "Failed to claim earnings.");
+      notify("error", err.message || "Failed to claim earnings.");
     } finally {
       setClaimingId(null);
     }
@@ -220,11 +227,15 @@ export default function IncomeView({
         spread: 75,
         origin: { y: 0.6 }
       });
-      toast.success(`Collectible #${String(data.collectible?.serial || 0).padStart(3, "0")} is now permanently yours!`);
+      sileo.action({
+        title: "Collectible claimed",
+        description: `Collectible #${String(data.collectible?.serial || 0).padStart(3, "0")} is now permanently yours!`,
+        ...(onNavigateToCollection ? { button: { title: "View collection", onClick: onNavigateToCollection } } : {}),
+      });
       setCollectibles((prev) => ({ ...prev, [node.id]: data.collectible }));
       onCollectibleClaimed?.();
     } catch (err: any) {
-      toast.error(err.message || "Could not claim this collectible.");
+      notify("error", err.message || "Could not claim this collectible.");
     } finally {
       setClaimingCollectibleId(null);
     }

@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Phone, Wallet, CheckCircle2 } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "../lib/notify";
 import { Button } from "./ui/button";
 import { UserProfile } from "../types";
 
@@ -36,12 +36,12 @@ export default function BindAccountView({ userProfile, onProfileUpdate }: BindAc
     setSuccessUpdate(false);
 
     if (newPassword && newPassword !== confirmPassword) {
-      toast.error("Passwords do not match.");
+      notify("error", "Passwords do not match.");
       return;
     }
 
     if (!/^\d{9,10}$/.test(withdrawalPhone)) {
-      toast.error("Withdrawal phone number must be 9 or 10 digits.");
+      notify("error", "Withdrawal phone number must be 9 or 10 digits.");
       return;
     }
 
@@ -67,14 +67,14 @@ export default function BindAccountView({ userProfile, onProfileUpdate }: BindAc
 
       onProfileUpdate(data.profile);
       setSuccessUpdate(true);
-      toast.success("Account preferences updated successfully.");
+      notify("success", "Account preferences updated successfully.");
       if (newPassword) {
         setNewPassword("");
         setConfirmPassword("");
-        toast.info("Password saved.");
+        notify("info", "Password saved.");
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to edit user settings.");
+      notify("error", err.message || "Failed to edit user settings.");
     } finally {
       setIsSavingProfile(false);
     }

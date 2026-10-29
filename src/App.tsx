@@ -22,7 +22,7 @@ import StreaksPage from "./components/StreaksPage";
 import AlertsView from "./components/AlertsView";
 import AdminView from "./components/AdminView";
 import { BrandLogo } from "./components/BrandLogo";
-import { toast } from "sonner";
+import { notify } from "./lib/notify";
 import { useCurrency } from "./currency";
 
 import confetti from "canvas-confetti";
@@ -575,7 +575,7 @@ export default function App() {
         revokeUserSession();
         setUserProfile(null);
         setActiveTab("dashboard");
-        toast.info("You have been signed out due to inactivity.");
+        notify("info", "You have been signed out due to inactivity.");
       }, 5 * 60 * 1000); // 5 minutes
     };
 
@@ -979,6 +979,7 @@ export default function App() {
                   onNavigateToCatalog={() => setActiveTab("catalog")}
                   onNavigateToIncomeHistory={() => { setHistoryFilterRequest("yield"); setActiveTab("history"); }}
                   onNavigateToCollection={() => { setCollectionReturn("income"); setActiveTab("collection"); }}
+                  onNavigateToHistory={() => { setHistoryFilterRequest("all"); setActiveTab("history"); }}
                   onCollectibleClaimed={() => { void handleManualStatsRefresh(); }}
                   onClaimSuccess={handleClaimSuccess}
                   onRenew={(item) => {
@@ -1006,6 +1007,7 @@ export default function App() {
                   onRefresh={() => { void handleManualStatsRefresh(); }}
                   onBack={() => setActiveTab(collectionReturn)}
                   onClaimed={() => { void handleManualStatsRefresh(); }}
+                  onNavigateToHistory={() => { setHistoryFilterRequest("all"); setActiveTab("history"); }}
                 />
               </motion.div>
             )}
@@ -1038,6 +1040,7 @@ export default function App() {
                   siteConfig={siteConfig}
                   onDepositSuccess={handleDepositSuccess}
                   onGpuSuccess={handleGpuSuccess}
+                  onNavigateToHistory={() => { setHistoryFilterRequest("all"); setActiveTab("history"); }}
                   preselectedItem={preselectedGpuRent}
                 />
               </motion.div>
@@ -1057,6 +1060,7 @@ export default function App() {
                   siteConfig={siteConfig}
                   activeNodes={activeNodes}
                   onProfileUpdate={handleProfileChange}
+                  onNavigateToHistory={() => { setHistoryFilterRequest("all"); setActiveTab("history"); }}
                 />
               </motion.div>
             )}
@@ -1101,7 +1105,7 @@ export default function App() {
                 transition={{ duration: 0.12 }}
                 className="user-app-tab-pad w-full flex-1 min-h-0 h-full flex flex-col overflow-hidden"
               >
-                <StreaksPage phone={userProfile.id} userProfile={userProfile} siteConfig={siteConfig} onClaimSuccess={handleProfileChange} onBack={() => setActiveTab(streaksReturn)} />
+                <StreaksPage phone={userProfile.id} userProfile={userProfile} siteConfig={siteConfig} onClaimSuccess={handleProfileChange} onBack={() => setActiveTab(streaksReturn)} onNavigateToWithdraw={() => setActiveTab("withdraw")} />
               </motion.div>
             )}
 
@@ -1113,7 +1117,7 @@ export default function App() {
                 transition={{ duration: 0.12 }}
                 className="user-app-tab-pad w-full flex-1 min-h-0 h-full flex flex-col overflow-hidden"
               >
-                <VipTasksPage phone={userProfile.id} siteConfig={siteConfig} userProfile={userProfile} onClaimSuccess={handleProfileChange} onBack={() => setActiveTab("dashboard")} focusStage={journeyStage} />
+                <VipTasksPage phone={userProfile.id} siteConfig={siteConfig} userProfile={userProfile} onClaimSuccess={handleProfileChange} onBack={() => setActiveTab("dashboard")} focusStage={journeyStage} onNavigateToWithdraw={() => setActiveTab("withdraw")} />
               </motion.div>
             )}
 

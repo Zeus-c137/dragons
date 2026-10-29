@@ -27,7 +27,7 @@ import {
 import { Button } from "./ui/button";
 import { motion, AnimatePresence } from "motion/react";
 import { useCurrency } from "../currency";
-import { toast } from "sonner";
+import { notify } from "../lib/notify";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import RarityBadge from "./RarityBadge";
 import { rarityMapForCatalog } from "../utils/rarity";
@@ -111,15 +111,13 @@ export default function CatalogView({
   // "Starting..." with no way back.
   const handleSubscribe = async (item: SubscriptionItem): Promise<boolean> => {
     if (item.outOfStock || item.disabled) {
-      toast.error("This product is currently out of stock.");
+      notify("error", "This product is currently out of stock.");
       return false;
     }
 
     const balance = Number(userProfile.rechargeableBalance) || 0;
     if (balance < item.amount) {
-      toast.error(
-        `Insufficient capital. Buying ${item.name} requires ${formatCurrency(item.amount)}. Your available capital is ${formatCurrency(balance)}. Please top up first.`
-      );
+      notify("error", `Insufficient capital. Buying ${item.name} requires ${formatCurrency(item.amount)}. Your available capital is ${formatCurrency(balance)}. Please top up first.`);
       return false;
     }
 
@@ -147,7 +145,7 @@ export default function CatalogView({
       return true;
 
     } catch (err: any) {
-      toast.error(err.message || "Failed to lock asset. Please try again.");
+      notify("error", err.message || "Failed to lock asset. Please try again.");
       return false;
     } finally {
       setSubmittingItemId(null);
@@ -156,7 +154,7 @@ export default function CatalogView({
 
   const handleStartRun = (item: SubscriptionItem) => {
     if (item.outOfStock || item.disabled) {
-      toast.error("This product is currently out of stock.");
+      notify("error", "This product is currently out of stock.");
       return;
     }
     setConfirmingItem(item);
