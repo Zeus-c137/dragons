@@ -15,10 +15,11 @@ import { useAbortSignal, useGatedInterval } from "@/src/hooks/useGatedInterval";
 import { fetchJsonWithSignal, readApiJson } from "@/src/utils/api";
 import InviteTeamView from "@/src/components/InviteTeamView";
 import { motion, AnimatePresence } from "motion/react";
+import { sileo } from "sileo";
 import { POLL_INTERVAL_MS, getViewMotion } from "@/src/utils/motion";
 import { useReducedMotion } from "@/src/hooks/useReducedMotion";
 import type { ReferralStat, SiteConfig, UserProfile } from "@/src/types";
-import { toast } from "sonner";
+import { notify } from "../lib/notify";
 import inviteUserArt from "@/src/assets/3d/3dicons-boy-iso-premium.png";
 import inviteLinkArt from "@/src/assets/3d/3dicons-link-iso-premium.png";
 import inviteNavIcon from "@/src/assets/svg/invite.svg";
@@ -397,13 +398,20 @@ export default function ReferralView({ userProfile, siteConfig, onProfileChange,
       }
       onProfileChange(data.profile);
       playCheckinSound();
-      toast.success(`${formatCurrency(Number(data.claimed) || 0)} added to your balance.`);
+      sileo.action({
+        title: "Referral rewards claimed",
+        description: `${formatCurrency(Number(data.claimed) || 0)} added to your balance.`,
+        button: {
+          title: "Copy invite link",
+          onClick: () => { void copyLink(inviteLink, "Invite link copied"); },
+        },
+      });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not claim referral rewards.");
+      notify("error", error instanceof Error ? error.message : "Could not claim referral rewards.");
     } finally {
       setIsClaiming(false);
     }
-  }, [formatCurrency, isClaiming, onProfileChange, userProfile.id, userProfile.pendingReferralRewards]);
+  }, [copyLink, formatCurrency, inviteLink, isClaiming, onProfileChange, userProfile.id, userProfile.pendingReferralRewards]);
   const goBack = () => setView("overview");
   const shareInvite = async () => {
     if (!inviteLink) return;
@@ -422,7 +430,7 @@ export default function ReferralView({ userProfile, siteConfig, onProfileChange,
       await navigator.share(shareData);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      toast.error("Could not open the share menu. Please try again.");
+      notify("error", "Could not open the share menu. Please try again.");
     }
   };
   const viewElements: Record<View, React.ReactElement> = {

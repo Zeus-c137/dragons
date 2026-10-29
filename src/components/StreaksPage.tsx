@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { sileo } from "sileo";
 import flameSvg from "@/src/assets/svg/flame.svg";
-import { toast } from "sonner";
+import { notify } from "../lib/notify";
 import { useCurrency } from "../currency";
 import { fetchJsonWithSignal } from "../utils/abortableFetch";
 import { playCheckinSound } from "../utils/checkinSound";
@@ -17,6 +18,7 @@ interface Props {
   siteConfig?: any;
   onClaimSuccess?: (p: UserProfile) => void;
   onBack?: () => void;
+  onNavigateToWithdraw?: () => void;
 }
 
 interface Cursor { y: number; m: number; }
@@ -34,7 +36,7 @@ interface FlightCoin {
  * and home-style day tiles. Linked from Home's calendar icon and Profile's
  * check-in button — no modals.
  */
-export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuccess, onBack }: Props) {
+export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuccess, onBack, onNavigateToWithdraw }: Props) {
   const { formatCurrency } = useCurrency();
   const [claimedDays, setClaimedDays] = useState<Set<string>>(new Set());
   const [claimedLedger, setClaimedLedger] = useState<Record<string, number>>({});
@@ -212,11 +214,14 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
       if (bonus !== optimisticBonus) {
         setClaimedLedger((prev) => ({ ...prev, [key]: Math.max(0, (Number(prev[key]) || 0) + bonus - optimisticBonus) }));
       }
-      toast.success("Daily bonus claimed", {
+      sileo.action({
+        title: "Daily bonus claimed",
         description: bonus > 0
           ? `+${formatCurrency(bonus)} added to your balance. Day ${nextStreak} streak.`
           : `Day ${nextStreak} streak saved.`,
+        icon: <img src={flameSvg} alt="" className="h-5 w-5 object-contain" />,
         duration: 4500,
+        ...(onNavigateToWithdraw ? { button: { title: "View balance", onClick: onNavigateToWithdraw } } : {}),
       });
     } catch (err: any) {
       claimRevisionRef.current += 1;
@@ -238,7 +243,7 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
       });
       setClaimedLedger((prev) => ({ ...prev, [key]: previousLedgerAmount }));
       setCoins(null);
-      toast.error(err.message || "Daily bonus claim failed.");
+      notify("error", err.message || "Daily bonus claim failed.");
     } finally {
       claimBusyRef.current = false;
       setClaimBusy(false);
@@ -395,7 +400,7 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
                     key={key}
                     type="button"
                     onClick={() => {
-                      toast.info(`Day ${day} • Already checked-in`);
+                      notify("info", `Day ${day} • Already checked-in`);
                     }}
                     aria-label={`Claimed day ${day}`}
                     className={`${cls} cursor-pointer active:scale-95 transition-transform`}
@@ -410,7 +415,7 @@ export default function StreaksPage({ phone, userProfile, siteConfig, onClaimSuc
                     key={key}
                     type="button"
                     onClick={() => {
-                      toast.info(`Day ${day} • Come back in ${formatClock(nextIn)}`);
+                      notify("info", `Day ${day} • Come back in ${formatClock(nextIn)}`);
                     }}
                     aria-label="Next daily bonus"
                     className={`${cls} cursor-pointer active:scale-95 transition-transform`}

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { sileo } from "sileo";
+import { notify } from "../lib/notify";
 import { useCurrency } from "../currency";
 import { useGatedInterval } from "../hooks/useGatedInterval";
 import { fetchJsonWithSignal } from "../utils/abortableFetch";
@@ -10,12 +11,14 @@ import { getPlatformDayKey, getPlatformDayParts, getPlatformYesterdayKey, msUnti
 import { playCheckinSound, primeCheckinSound } from "../utils/checkinSound";
 import type { SiteConfig, TransactionRow, UserProfile } from "../types";
 import corn from "@/src/assets/svg/corn.svg";
+import flameSvg from "@/src/assets/svg/flame.svg";
 
 interface Props {
   isActive: boolean;
   profile: UserProfile;
   siteConfig?: SiteConfig | null;
   onProfileUpdate: (profile: UserProfile) => void;
+  onNavigateToWithdraw?: () => void;
 }
 
 const SUCCESSFUL_STATUSES = new Set(["SUCCESSFUL", "COMPLETED"]);
@@ -27,7 +30,7 @@ function formatRewardAmount(amount: number): string {
   return numericAmount.toLocaleString("en-UG", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
-export default function GenesisEggCard({ isActive, profile, siteConfig, onProfileUpdate }: Props) {
+export default function GenesisEggCard({ isActive, profile, siteConfig, onProfileUpdate, onNavigateToWithdraw }: Props) {
   const { formatCurrency } = useCurrency();
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [claimedDays, setClaimedDays] = useState<Set<string>>(new Set());
@@ -154,13 +157,13 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
       window.clearTimeout(hatchAnimationTimer);
       if (!hatchAnimationFinished) revealHatch();
       playCheckinSound();
-      toast.success("Your monthly egg hatched! Your daily bonus is ready.");
+      notify("success", "Your monthly egg hatched! Your daily bonus is ready.");
     } catch (error) {
       window.clearTimeout(hatchAnimationTimer);
       onProfileUpdate({ ...profileRef.current, genesisOpenedMonth: profile.genesisOpenedMonth });
       setIsHatching(false);
       setRevealChick(false);
-      toast.error(error instanceof Error ? error.message : "This month's egg could not be opened.");
+      notify("error", error instanceof Error ? error.message : "This month's egg could not be opened.");
     } finally {
       setIsOpening(false);
       setIsHatching(false);
@@ -212,9 +215,12 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
       profileRef.current = updatedProfile;
       onProfileUpdate(updatedProfile);
       setClaimedDays((previous) => new Set(previous).add(creditedDay));
-      const showSuccess = () => toast.success("Daily bonus claimed", {
+      const showSuccess = () => sileo.action({
+        title: "Daily bonus claimed",
         description: `${formatCurrency(amount)} added to your withdrawable balance.`,
+        icon: <img src={flameSvg} alt="" className="h-5 w-5 object-contain" />,
         duration: 4500,
+        ...(onNavigateToWithdraw ? { button: { title: "View balance", onClick: onNavigateToWithdraw } } : {}),
       });
       window.setTimeout(showSuccess, FEED_SUCCESS_TOAST_DELAY_MS);
     } catch (error) {
@@ -234,7 +240,7 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
         return next;
       });
       if (fedDays < stageThreshold && fedDays + 1 >= stageThreshold) setRevealHen(false);
-      toast.error(error instanceof Error ? error.message : "The daily bonus could not be claimed. Please try again.");
+      notify("error", error instanceof Error ? error.message : "The daily bonus could not be claimed. Please try again.");
     } finally {
       setIsFeeding(false);
     }
@@ -247,9 +253,7 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
       return;
     }
     if (hasCheckedInToday) {
-      toast.info("You've claimed today's bonus", {
-        description: `Come back in ${formatClock(msUntilPlatformMidnight(nowMs))} for the next bonus.`,
-      });
+      notify("info", "You've claimed today's bonus", { description: `Come back in ${formatClock(msUntilPlatformMidnight(nowMs))} for the next bonus.` });
       return;
     }
     void handleFeed(source);
@@ -257,15 +261,15 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
 
   const handleDayTap = (source: HTMLButtonElement, key: string) => {
     if (key < todayKey) {
-      toast.info("That bonus day has passed", { description: "Only today's tile can be claimed." });
+      notify("info", "That bonus day has passed", { description: "Only today's tile can be claimed." });
       return;
     }
     if (key > todayKey) {
-      toast.info("That bonus day is coming up", { description: "Come back on that date to claim it." });
+      notify("info", "That bonus day is coming up", { description: "Come back on that date to claim it." });
       return;
     }
     if (!isOpened) {
-      toast.info("Hatch your egg first", { description: "Tap the egg thumbnail to open it." });
+      notify("info", "Hatch your egg first", { description: "Tap the egg thumbnail to open it." });
       return;
     }
     handleCycleTap(source);

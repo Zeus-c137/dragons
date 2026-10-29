@@ -1251,35 +1251,47 @@ input:-webkit-autofill::first-line { font-size: 14px; }
   color: var(--theme-text);
 }
 
-/* Sonner Toast Theme Preset Integration — frosted (raw --theme-card-bg is
-   ~6% white in dark mode, i.e. invisible without blur + weight) */
-[data-sonner-toaster] [data-sonner-toast] {
-  background-color: color-mix(in srgb, var(--theme-card-bg) 60%, var(--theme-bg)) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  color: var(--theme-text) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: var(--theme-radius) !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2), 0 4px 0 var(--theme-card-shadow) !important;
-  font-family: var(--theme-font-family), 'Nunito Sans', sans-serif !important;
+/* Sileo Toast Integration — use the active theme preset instead of Sileo's
+   default green success state. The fill is set on the Toaster in main.tsx. */
+:root {
+  --sileo-state-success: var(--theme-primary) !important;
+  --sileo-state-error: #e5484d !important;
+  --sileo-state-warning: var(--theme-primary) !important;
+  --sileo-state-info: var(--theme-secondary) !important;
+  --sileo-state-action: var(--theme-primary) !important;
 }
 
-[data-sonner-toaster] [data-sonner-toast][data-type="success"] {
-  border-color: var(--theme-primary) !important;
+[data-sileo-viewport] {
+  z-index: 9999;
+  font-family: var(--theme-font-family), 'Nunito Sans', sans-serif;
 }
 
-[data-sonner-toaster] [data-sonner-toast][data-type="error"] {
-  border-color: var(--theme-accent) !important;
+[data-sileo-toast] {
+  filter: drop-shadow(0 10px 22px rgba(10, 12, 30, 0.18));
 }
 
-[data-sonner-toaster] [data-sonner-toast] [data-title] {
+[data-sileo-header-inner] {
+  max-width: 302px;
+}
+
+[data-sileo-title] {
+  max-width: 270px;
+  overflow: hidden;
   color: var(--theme-text) !important;
   font-weight: 800 !important;
+  text-overflow: ellipsis;
+  text-transform: none !important;
+  white-space: nowrap;
 }
 
-[data-sonner-toaster] [data-sonner-toast] [data-description] {
+[data-sileo-description] {
   color: var(--theme-text) !important;
-  opacity: 0.85 !important;
+  opacity: 0.8;
+}
+
+[data-sileo-button] {
+  color: var(--theme-accent) !important;
+  font-weight: 800 !important;
 }
 
 /* Run progress fill — glossy lime ramp. Self-contained hex stops (never

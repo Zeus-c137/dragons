@@ -1,18 +1,17 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useGatedInterval } from "../hooks/useGatedInterval";
+import React, { useState, useEffect } from "react";
 import { UserProfile, SubscribedNode } from "../types";
 import {
-  Copy,
   AlertTriangle,
+  Check,
   CheckCircle2,
-  Info,
-  ArrowUpRight,
   LockKeyhole,
 } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "../lib/notify";
+import { sileo } from "sileo";
 import { useCurrency } from "../currency";
 import { formatUgandaPhoneInput, isValidUgandaPhone } from "../utils/ugandaPhone";
 import { formatIntegerAmount, handleIntegerAmountInput } from "../utils/amountInput";
+import { waitForPaymentResolution } from "../utils/paymentStatus";
 import PaymentMethodSelect from "./PaymentMethodSelect";
 import { Button } from "./ui/button";
 import phoneInputIcon from "@/src/assets/svg/input-phone.svg";
@@ -23,6 +22,7 @@ interface WithdrawViewProps {
   siteConfig?: any;
   activeNodes?: SubscribedNode[];
   onProfileUpdate: (p: UserProfile) => void;
+  onNavigateToHistory: () => void;
 }
 
 export default function WithdrawView({
@@ -30,6 +30,7 @@ export default function WithdrawView({
   siteConfig,
   activeNodes = [],
   onProfileUpdate,
+  onNavigateToHistory,
 }: WithdrawViewProps) {
   const { formatCurrency } = useCurrency();
 
@@ -37,8 +38,6 @@ export default function WithdrawView({
     Number(siteConfig?.minimumWithdrawal) > 0 ? Math.floor(Number(siteConfig.minimumWithdrawal)) : 0;
   const maximumWithdrawal =
     Number(siteConfig?.maximumWithdrawal) > 0 ? Math.floor(Number(siteConfig.maximumWithdrawal)) : 0;
-  const withdrawalMode = (siteConfig?.withdrawMode || siteConfig?.withdrawalMode || "automatic") as string;
-
   const [pointsToWithdraw, setPointsToWithdraw] = useState<number>(0);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [withdrawOperator, setWithdrawOperator] = useState<"MTN" | "Airtel" | "USDT">(
@@ -53,146 +52,141 @@ export default function WithdrawView({
   const destinationIsValid = withdrawOperator === "USDT"
     ? usdtAddress.trim().length >= 10
     : isValidUgandaPhone(withdrawalPhone);
-  const [paymentStatus, setPaymentStatus] = useState<"IDLE" | "PENDING" | "SUCCESSFUL" | "FAILED">("IDLE");
-  const [transactionId, setTransactionId] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState("");
-  const [trackingUnavailable, setTrackingUnavailable] = useState(false);
-  const [lastPayout, setLastPayout] = useState<number>(0);
-  const [pollDelay, setPollDelay] = useState(3000);
-  const abortRef = useRef<AbortController | null>(null);
-
   useEffect(() => {
     setWithdrawalPhone(userProfile.phone || "");
     setUsdtAddress(userProfile.usdtAddress || "");
     setWithdrawOperator((userProfile.operator as any) || "MTN");
   }, [userProfile.id, userProfile.phone, userProfile.usdtAddress, userProfile.operator]);
 
-  useEffect(() => {
-    if (paymentStatus !== "PENDING" || !transactionId) {
-      setPollDelay(3000);
-      abortRef.current?.abort();
-      return;
-    }
-    setPollDelay(3000);
-  }, [paymentStatus, transactionId]);
-
   const refreshProfile = async () => {
     const response = await fetch("/api/auth/session", { credentials: "same-origin", cache: "no-store" });
-    if (!response.ok) return;
-    const data = await response.json();
-    if (data.profile) onProfileUpdate(data.profile);
-  };
-
-  const checkStatus = async () => {
-    if (document.hidden || paymentStatus !== "PENDING" || !transactionId) return;
-    abortRef.current?.abort();
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    try {
-      const response = await fetch("/api/payment/status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trans_id: transactionId }),
-        signal: ctrl.signal,
-      });
-      if (ctrl.signal.aborted || !response.ok) return;
-      const data = await response.json();
-      if (data.status === "SUCCESSFUL") {
-        setPaymentStatus("SUCCESSFUL");
-        if (data.profile) onProfileUpdate(data.profile);
-        else await refreshProfile();
-        toast.success("Withdrawal completed successfully.");
-      } else if (data.status === "FAILED") {
-        setPaymentStatus("FAILED");
-        setErrorMsg(data.error || "The withdrawal failed. Any deducted balance has been returned.");
-        if (data.profile) onProfileUpdate(data.profile);
-        else await refreshProfile();
-        toast.error("Withdrawal failed. Your balance has been updated.");
-      } else {
-        setPollDelay((delay) => delay === 3000 ? 5000 : 10000);
-      }
-    } catch (err: unknown) {
-      if ((err as Error)?.name !== "AbortError") console.error("Error polling withdrawal status:", err);
+    const data = await response.json().catch(() => null);
+    if (
+      !response.ok ||
+      !data?.profile ||
+      data.profile.id !== userProfile.id ||
+      !Number.isFinite(Number(data.profile.points))
+    ) {
+      throw new Error(data?.error || "Your updated balance could not be loaded.");
     }
+    return data.profile as UserProfile;
   };
-
-  useGatedInterval(() => { void checkStatus(); }, pollDelay, {
-    enabled: paymentStatus === "PENDING" && !!transactionId,
-    visibilityGate: true,
-  });
-
-  useEffect(() => () => { abortRef.current?.abort(); }, []);
 
   const handleWithdrawal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeNodes || activeNodes.length === 0) {
-      toast.error("Purchase a product before requesting a withdrawal.");
+      notify("error", "Purchase a product before requesting a withdrawal.");
       return;
     }
     if (!Number.isInteger(pointsToWithdraw) || pointsToWithdraw < minimumWithdrawal) {
-      toast.error(`The minimum withdrawal is ${formatCurrency(minimumWithdrawal)}.`);
+      notify("error", `The minimum withdrawal is ${formatCurrency(minimumWithdrawal)}.`);
       return;
     }
     if (maximumWithdrawal > 0 && pointsToWithdraw > maximumWithdrawal) {
-      toast.error(`The maximum withdrawal is ${formatCurrency(maximumWithdrawal)}.`);
+      notify("error", `The maximum withdrawal is ${formatCurrency(maximumWithdrawal)}.`);
       return;
     }
     if (pointsToWithdraw > (userProfile.withdrawableBalance || 0)) {
-      toast.error(`Your withdrawable balance is ${formatCurrency(userProfile.withdrawableBalance || 0)}.`);
+      notify("error", `Your withdrawable balance is ${formatCurrency(userProfile.withdrawableBalance || 0)}.`);
       return;
     }
     if (withdrawOperator === "USDT") {
       if (!destinationIsValid) {
-        toast.error("Enter a valid USDT wallet address.");
+        notify("error", "Enter a valid USDT wallet address.");
         return;
       }
     } else {
       if (!destinationIsValid) {
-        toast.error("Enter a withdrawal phone number with 9 or 10 digits.");
+        notify("error", "Enter a withdrawal phone number with 9 or 10 digits.");
         return;
       }
     }
     setIsWithdrawing(true);
-    setErrorMsg("");
-    setTrackingUnavailable(false);
+    const withdrawalAmount = pointsToWithdraw;
+    const destination = withdrawOperator === "USDT" ? usdtAddress.trim() : normalizedWithdrawalPhone;
+    const feeAmount = Math.floor(withdrawalAmount * (Number(siteConfig?.withdrawFee || 0) / 100));
+    const payoutAmount = Math.max(0, withdrawalAmount - feeAmount);
+    let transactionResolved = false;
     try {
-      const res = await fetch("/api/payment/withdraw", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: userProfile.id,
-          amount: pointsToWithdraw,
-          operator: withdrawOperator,
-          withdrawPhone: withdrawOperator === "USDT" ? usdtAddress : normalizedWithdrawalPhone,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Withdrawal rejected.");
-      onProfileUpdate(data.profile);
-      setLastPayout(pointsToWithdraw);
-      setTransactionId(data.transaction?.id || null);
-      const canPoll = Boolean(data.transaction?.id);
-      if (data.status === "FAILED") setErrorMsg(data.error || "The withdrawal failed. Your balance has been updated.");
-      else if (data.status !== "SUCCESSFUL" && data.status !== "FAILED" && !canPoll) {
-        setTrackingUnavailable(true);
-        setErrorMsg("We received your request but could not get a tracking ID. Refresh your balance or contact support before trying again.");
-      }
-      setPaymentStatus(data.status === "SUCCESSFUL" ? "SUCCESSFUL" : data.status === "FAILED" || !canPoll ? "FAILED" : "PENDING");
-      if (data.status === "FAILED") toast.error("Withdrawal failed. Your balance has been updated.");
-      else if (!canPoll && data.status !== "SUCCESSFUL") {
-        try { await refreshProfile(); } catch { /* Keep the tracking issue visible. */ }
-        toast.error("We couldn’t track this withdrawal. Check your balance before trying again.");
-      }
-      else if (data.status === "SUCCESSFUL") toast.success("Withdrawal completed successfully.");
-      else toast.success(data.mode === "manual" || withdrawOperator === "USDT"
-        ? "Withdrawal request submitted. We’ll update you after review."
-        : "Withdrawal request sent. Waiting for provider confirmation.");
-      setPointsToWithdraw(0);
-    } catch (err: any) {
-      setPaymentStatus("IDLE");
-      try { await refreshProfile(); } catch { /* Keep the original withdrawal error visible. */ }
-      toast.error(err.message || "Something went wrong.");
+      const result = await sileo.promise(
+        async () => {
+          const response = await fetch("/api/payment/withdraw", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              phone: userProfile.id,
+              amount: withdrawalAmount,
+              operator: withdrawOperator,
+              withdrawPhone: destination,
+            }),
+          });
+          const data = await response.json().catch(() => null);
+          if (!response.ok) {
+            let failureMessage = data?.error || "Withdrawal rejected.";
+            try {
+              onProfileUpdate(await refreshProfile());
+            } catch (profileError) {
+              console.error("Could not refresh the balance after withdrawal request failure:", profileError);
+              failureMessage += " Your balance could not be refreshed; please reload your account.";
+            }
+            throw new Error(failureMessage);
+          }
+
+          const initialStatus = String(data?.status || "PENDING").toUpperCase();
+          const transactionId = data?.transaction?.id;
+          if (initialStatus !== "SUCCESSFUL" && initialStatus !== "FAILED" && typeof transactionId !== "string") {
+            throw new Error("The withdrawal was submitted, but its tracking reference was missing.");
+          }
+          if (data?.profile?.id === userProfile.id) {
+            onProfileUpdate(data.profile);
+          }
+
+          const status = initialStatus === "SUCCESSFUL" || initialStatus === "FAILED"
+            ? { ...data, status: initialStatus }
+            : await waitForPaymentResolution(transactionId, data);
+          transactionResolved = true;
+
+          if (status.status === "FAILED") {
+            let failureMessage = status.error || "The withdrawal failed. Any deducted balance has been returned.";
+            try {
+              onProfileUpdate(await refreshProfile());
+            } catch (profileError) {
+              console.error("Could not refresh the balance after withdrawal failure:", profileError);
+              failureMessage += " Your balance could not be refreshed; please reload your account.";
+            }
+            throw new Error(failureMessage);
+          }
+          if (status.profile?.id === userProfile.id) {
+            onProfileUpdate(status.profile);
+          }
+          setPointsToWithdraw(0);
+          return status;
+        },
+        {
+          loading: {
+            title: "Withdrawal initiated",
+            description: "Your withdrawal request is processing.",
+          },
+          success: () => ({
+            title: "Withdrawal successful",
+            icon: (
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-600 text-white">
+                <Check className="h-4 w-4" aria-hidden="true" />
+              </span>
+            ),
+            description: `${formatCurrency(payoutAmount)} has been sent to ${destination}.`,
+          }),
+          error: (error) => ({
+            title: "Withdrawal failed",
+            description: error instanceof Error ? error.message : "The withdrawal could not be completed.",
+          }),
+        }
+      );
+      if (result.status === "SUCCESSFUL") onNavigateToHistory();
+    } catch (error) {
+      console.error("Withdrawal flow failed:", error);
+      if (transactionResolved) onNavigateToHistory();
     } finally {
       setIsWithdrawing(false);
     }
@@ -201,57 +195,6 @@ export default function WithdrawView({
   const feePct = Number(siteConfig?.withdrawFee || 0);
   const feeAmount = Math.floor(pointsToWithdraw * (feePct / 100));
   const payout = Math.max(0, pointsToWithdraw - feeAmount);
-  const isManualPayout = withdrawalMode === "manual" || withdrawOperator === "USDT";
-  const statusTitle = paymentStatus === "PENDING" ? "Withdrawal processing" : paymentStatus === "FAILED" ? trackingUnavailable ? "Unable to track withdrawal" : "Withdrawal failed" : "Withdrawal complete";
-  const statusDescription = paymentStatus === "FAILED"
-    ? errorMsg
-    : paymentStatus === "PENDING"
-    ? `${formatCurrency(lastPayout)} requested. ${isManualPayout ? "Awaiting admin approval." : "Waiting for provider confirmation."}`
-    : "Your withdrawal is settled. Check your balance and destination for the final amount.";
-  const statusLabel = trackingUnavailable ? "Unknown" : paymentStatus === "SUCCESSFUL" ? "Completed" : paymentStatus === "FAILED" ? "Failed" : "Pending";
-  const statusColor = trackingUnavailable ? "text-[var(--theme-text)] opacity-60" : paymentStatus === "SUCCESSFUL" ? "text-emerald-600" : paymentStatus === "FAILED" ? "text-rose-600" : "text-amber-600";
-
-  if (paymentStatus !== "IDLE") {
-    return (
-      <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] p-4 pt-4 space-y-4 select-none">
-
-        <div className="rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] p-8 text-center space-y-5 shadow-sm">
-          {paymentStatus === "PENDING" ? (
-            <div className="payment-status-spinner mx-auto rounded-full" aria-hidden="true" />
-          ) : paymentStatus === "FAILED" ? (
-            <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto text-rose-500"><AlertTriangle className="w-10 h-10" /></div>
-          ) : (
-          <div className="w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center mx-auto text-emerald-500">
-            <CheckCircle2 className="w-10 h-10" />
-          </div>
-          )}
-          <div className="space-y-1">
-            <h3 className="font-black text-sm uppercase tracking-wide">{statusTitle}</h3>
-            <p className="text-xs font-bold opacity-60 max-w-sm mx-auto leading-relaxed">
-              {statusDescription}
-            </p>
-          </div>
-          <div className="rounded-xl bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] p-4 max-w-xs mx-auto text-left space-y-2 text-xs font-bold">
-            <div className="flex justify-between">
-              <span className="opacity-60">Requested</span>
-              <span>{formatCurrency(lastPayout)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="opacity-60">Status</span>
-              <span className={statusColor}>{statusLabel}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="opacity-60">Destination</span>
-              <span className="text-[var(--theme-accent)] truncate ml-2">
-                {withdrawOperator === "USDT" ? usdtAddress.slice(0, 12) + "…" : withdrawalPhone}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="bg-[var(--theme-card-bg)]/40 backdrop-blur-[20px] backdrop-saturate-[180%] text-[var(--theme-text)] space-y-3 select-none p-3 pt-0 sm:p-4 sm:pt-0">
       <div className="flex justify-end">

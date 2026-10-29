@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { ArrowLeft, Check, Lock, ChevronRight, Loader2, Info } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { toast } from "sonner";
+import { sileo } from "sileo";
+import { notify } from "../lib/notify";
 import { useCurrency } from "../currency";
 import { calcVipProgress, normalizeVipTaskboard, metricMeta, tierRewardFor, tierMetaFor, isTaskMet } from "@/src/utils/vip";
 import CellsProgress from "./CellsProgress";
@@ -182,7 +183,7 @@ export function clearMilestoneTierClaim(phone: string, category: string) {
   }
 }
 
-interface Props { phone: string; siteConfig?: any; userProfile?: any; onClaimSuccess?: (p: any) => void; onBack?: () => void; focusStage?: string | null; }
+interface Props { phone: string; siteConfig?: any; userProfile?: any; onClaimSuccess?: (p: any) => void; onBack?: () => void; focusStage?: string | null; onNavigateToWithdraw?: () => void; }
 
 export function AchievementGlyph({ metric, socialType, className }: { metric?: string; socialType?: string; className?: string }) {
   const socialIcon = socialType?.startsWith("facebook_")
@@ -238,7 +239,7 @@ interface StageGroup {
 
 interface FlightCoin { id: number; startX: number; startY: number; dx: number; dy: number; delay: number; }
 
-export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focusStage }: Props) {
+export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focusStage, onNavigateToWithdraw }: Props) {
   const { formatCurrency } = useCurrency();
   const [board, setBoard] = useState<VipTaskboard>({
     tasks: [], vipLevel: 0, stageOrder: [], tierRewards: {}, tierMeta: {}, claimedTierRewards: [],
@@ -281,7 +282,7 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
     setLoading(true);
     const s=renew();
     try { const n=await getMilestoneBoard(phone, s, true); setBoard(n); setHasLoadedBoard(true); }
-    catch(e:any){ if(s.aborted||e?.name==="AbortError") return; toast.error(e.message||"Journey unavailable"); }
+    catch(e:any){ if(s.aborted||e?.name==="AbortError") return; notify("error", e.message||"Journey unavailable"); }
     finally{ if (!s.aborted) { setLoading(false); setHasLoadedBoard(true); } }
   }, [phone]);
 
@@ -416,7 +417,11 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
       else if (data.claimedTierRewards) applyPointsDelta(0, { claimedTierRewards });
       setBoard((current) => ({ ...current, claimedTierRewards }));
       confirmMilestoneTierClaim(phone, stage.name);
-      toast.success(`Stage reward claimed: ${formatCurrency(reward)} added to your balance`);
+      sileo.action({
+        title: "Stage reward claimed",
+        description: `${formatCurrency(reward)} added to your balance.`,
+        ...(onNavigateToWithdraw ? { button: { title: "View balance", onClick: onNavigateToWithdraw } } : {}),
+      });
       void load(true);
     } catch (error: any) {
       clearMilestoneTierClaim(phone, stage.name);
@@ -426,7 +431,7 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
         const remaining = current?.filter((coin) => !flightIds.includes(coin.id)) || [];
         return remaining.length > 0 ? remaining : null;
       });
-      if (error?.name !== "AbortError") toast.error(error.message || "Claim failed");
+      if (error?.name !== "AbortError") notify("error", error.message || "Claim failed");
     } finally {
       stageClaimsInFlight.current.delete(stage.name);
       setBulkStage(null);
@@ -438,7 +443,7 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
     const claimingVerifiedSocial = Boolean(task.socialType) && task.claimStatus === "verified";
     const isRewardClaim = !task.socialType || claimingVerifiedSocial;
     if (!task.socialType && !isTaskMet(task)) {
-      toast.info("Complete this task requirement first.");
+      notify("info", "Complete this task requirement first.");
       return;
     }
 
@@ -479,7 +484,11 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
         } else if (reward !== optimisticReward) {
           applyPointsDelta(reward - optimisticReward);
         }
-        toast.success(`${formatCurrency(reward)} added to your balance.`);
+        sileo.action({
+          title: "Task reward claimed",
+          description: `${formatCurrency(reward)} added to your balance.`,
+          ...(onNavigateToWithdraw ? { button: { title: "View balance", onClick: onNavigateToWithdraw } } : {}),
+        });
         confirmMilestoneTaskClaim(phone, task.id);
         void load(true);
       } else {
@@ -495,7 +504,7 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
           ...current,
           tasks: current.tasks.map((item) => item.id === task.id ? { ...item, claimed: false, claimStatus: result.status } : item),
         }));
-        toast.success(result.status === "pending" ? "Task is being verified." : "Task verified. Tap its reward to claim.");
+        notify("success", result.status === "pending" ? "Task is being verified." : "Task verified. Tap its reward to claim.");
         void load(true);
       }
     } catch (error: any) {
@@ -511,7 +520,7 @@ export default function VipTasksPage({ phone, userProfile, onClaimSuccess, focus
           return remaining.length > 0 ? remaining : null;
         });
       }
-      if (error?.name !== "AbortError") toast.error(error.message || "Could not complete this task.");
+      if (error?.name !== "AbortError") notify("error", error.message || "Could not complete this task.");
     } finally {
       taskClaimsInFlight.current.delete(task.id);
       setSubmittingTasks((current) => {

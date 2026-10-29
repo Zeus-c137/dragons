@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Loader2, CirclePlus, Wallet, ShoppingBag, TrendingUp, CalendarCheck, BadgeCheck, Gift, Link2, Trophy, SlidersHorizontal, Bell, type LucideIcon } from "lucide-react";
+import { Loader2, Plus, Wallet, ShoppingBag, TrendingUp, CalendarCheck, BadgeCheck, Gift, Link2, Trophy, SlidersHorizontal, Bell, type LucideIcon } from "lucide-react";
 import { useCurrency } from "../currency";
 import { asMetadataRecord, canonicalTypeOf, getTransactionDisplayMeta, isPositiveTransaction, getWithdrawalDisplayAmounts, isSuccessfulStatus } from "@/src/utils/transactionMeta";
 import { fixGitHubImageUrl } from "@/src/utils/imageUtils";
@@ -13,7 +13,7 @@ interface Props {
 }
 
 const ICON_BY_CANON: Record<string, LucideIcon> = {
-  deposit: CirclePlus,
+  deposit: Plus,
   withdrawal: Wallet,
   product_activation: ShoppingBag,
   daily_yield: TrendingUp,
@@ -141,7 +141,7 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
   const metric = useMemo(() => {
     const metricTabs: Record<string, { label: string; icon: LucideIcon }> = {
       all: { label: "Total volume", icon: TrendingUp },
-      deposit: { label: "Total deposits", icon: CirclePlus },
+      deposit: { label: "Total deposits", icon: Plus },
       withdraw: { label: "Total withdrawals", icon: Wallet },
       yield: { label: "Chicken income", icon: TrendingUp },
       referral: { label: "Referral income", icon: Link2 },
@@ -300,13 +300,13 @@ export default function TransactionHistoryView({ phone, siteConfig, initialFilte
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[18px] font-sans font-bold tracking-tight text-[var(--theme-text)] leading-tight">{displayLabel}</span>
+                    <span className="text-[18px] font-sans font-semibold tracking-tight text-[var(--theme-text)] leading-tight">{displayLabel}</span>
                     {level != null && <span className="text-[12px] font-sans font-semibold px-1.5 py-0.5 rounded-full bg-[var(--theme-primary)]/12 text-[var(--theme-accent)] border border-[var(--theme-primary)]/15">L{level}</span>}
                   </div>
                   <p className="text-[12px] font-sans font-normal text-[var(--theme-text)] opacity-50 truncate mt-1 leading-none">{new Date(tx.createdAt||tx.timestamp||Date.now()).toLocaleDateString()}{meta.canon !== "withdrawal" && tx.operator ? ` • ${tx.operator}` : ""}</p>
                 </div>
                 <div className="text-right shrink-0 flex flex-col justify-center">
-                  <p className={`text-[18px] sm:text-base font-display font-black tracking-tight leading-tight ${isPositive?"text-[var(--theme-accent)]":"text-[var(--theme-text)]"}`}>{isPositive?"+":"-"} {formatCurrency(amount)}</p>
+                  <p className={`text-[18px] sm:text-base font-display font-black tracking-tight leading-tight ${isPositive?"text-[var(--theme-text)]":"text-[var(--theme-text)]"}`}>{isPositive?"":"-"} {formatCurrency(amount)}</p>
                   {showStatus && <p className={`mt-1 text-[11px] font-semibold leading-none ${statusClass}`}>{statusLabel}</p>}
                   {siteConfig?.usdtRate && (tx.operator==="USDT"||String(tx.usdtAddress||"").startsWith("T")||String(tx.phone||"").startsWith("T")) && <p className="text-[12px] font-sans font-medium text-[var(--theme-accent)] mt-1">≈ ${(amount/ siteConfig.usdtRate).toFixed(2)}</p>}
                 </div>

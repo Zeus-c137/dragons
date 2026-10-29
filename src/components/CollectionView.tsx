@@ -10,7 +10,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft, Award, Clock, Loader2, SlidersHorizontal, X } from "lucide-react";
 import confetti from "canvas-confetti";
-import { toast } from "sonner";
+import { sileo } from "sileo";
+import { notify } from "../lib/notify";
 import type { Collectible, SubscribedNode, SubscriptionItem } from "../types";
 import { useCurrency } from "../currency";
 import { motion } from "motion/react";
@@ -45,6 +46,7 @@ export default function CollectionView({
   activeNodes,
   products,
   onClaimSuccess,
+  onNavigateToHistory,
 }: {
   phone: string;
   onBack?: () => void;
@@ -53,6 +55,7 @@ export default function CollectionView({
   activeNodes: SubscribedNode[];
   products: SubscriptionItem[];
   onClaimSuccess: (amount: number, balance: number, subId: string, lastClaimedDate: string, status: "active" | "expired", withdrawableBalance?: number, daysFed?: number, deferRefresh?: boolean) => void;
+  onNavigateToHistory: () => void;
 }) {
   const { formatCurrency } = useCurrency();
   const prefersReducedMotion = useReducedMotion();
@@ -83,7 +86,7 @@ export default function CollectionView({
       if (!res.ok) throw new Error(data.error || "Could not load your collection.");
       setItems(Array.isArray(data) ? data : []);
     } catch (err: any) {
-      toast.error(err.message || "Could not load your collection.");
+      notify("error", err.message || "Could not load your collection.");
       setItems([]);
     }
   }, [phone]);
@@ -103,11 +106,11 @@ export default function CollectionView({
     if (isFeedingAll || feedingId) return;
     const minimumClaimAmount = getRunMinimumClaimAmount(node);
     if (minimumClaimAmount <= 0) {
-      toast.info("This chicken is not configured to earn income.");
+      notify("info", "This chicken is not configured to earn income.");
       return;
     }
     if (getRunClaimableReturns(node, new Date()).amount < minimumClaimAmount) {
-      toast.info(getNextFeedingMessage());
+      notify("info", getNextFeedingMessage());
       return;
     }
     primeCheckinSound();
@@ -131,9 +134,14 @@ export default function CollectionView({
       }
       if (!prefersReducedMotion) celebrateFeed([sourceRect]);
       playCheckinSound();
-      window.setTimeout(() => toast.success(`Fed ${data.itemName}.`), 3000);
+      window.setTimeout(() => sileo.action({
+        title: "Chick fed",
+        description: `${formatCurrency(Number(data.pointsClaimed) || 0)} has been added to your withdrawable balance.`,
+        icon: <img src={corn} alt="" className="h-5 w-5 object-contain" />,
+        button: { title: "View history", onClick: onNavigateToHistory },
+      }), 3000);
     } catch (err: any) {
-      toast.error(err.message || "Income could not be collected.");
+      notify("error", err.message || "Income could not be collected.");
     } finally {
       setFeedingId(null);
     }
@@ -147,7 +155,7 @@ export default function CollectionView({
       return minimum > 0 && getRunClaimableReturns(node, new Date(nowMs)).amount >= minimum;
     });
     if (!ready.length) {
-      toast.info("Nothing to feed right now. Come back after midnight EAT.");
+      notify("info", "Nothing to feed right now. Come back after midnight EAT.");
       return;
     }
 
@@ -188,9 +196,14 @@ export default function CollectionView({
           .map((card) => card.getBoundingClientRect());
         if (!prefersReducedMotion && cardRects.length) celebrateFeed(cardRects, true);
         playCheckinSound();
-        window.setTimeout(() => toast.success(`${formatCurrency(collected)} fed to your chickens.`), 3000);
+        window.setTimeout(() => sileo.action({
+          title: "Chicks fed",
+          description: `${formatCurrency(collected)} has been added to your withdrawable balance.`,
+          icon: <img src={corn} alt="" className="h-5 w-5 object-contain" />,
+          button: { title: "View history", onClick: onNavigateToHistory },
+        }), 3000);
       }
-      if (failures > 0) toast.error("Some chickens could not be fed. Please try again.");
+      if (failures > 0) notify("error", "Some chickens could not be fed. Please try again.");
     } finally {
       setIsFeedingAll(false);
     }
@@ -213,10 +226,19 @@ export default function CollectionView({
         data.collectible,
       ]);
       confetti({ particleCount: 130, spread: 75, origin: { y: 0.6 } });
-      toast.success(`Hen kept. Collectible #${String(data.collectible.serial || 0).padStart(3, "0")} is in your showroom.`);
+      sileo.action({
+        title: "Hen kept",
+        description: `Collectible #${String(data.collectible.serial || 0).padStart(3, "0")} is in your showroom.`,
+        button: {
+          title: "View showroom",
+          onClick: () => window.setTimeout(() => {
+            document.getElementById("collection-showroom")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 150),
+        },
+      });
       onClaimed?.();
     } catch (err: any) {
-      toast.error(err.message || "Hen could not be kept.");
+      notify("error", err.message || "Hen could not be kept.");
     } finally {
       setCollectingId(null);
     }
@@ -521,7 +543,7 @@ export default function CollectionView({
         <div className="space-y-5">
           {/* Coverflow showroom — claimed collectibles */}
           {claimed.length > 0 && (
-            <div className="space-y-4" onClick={expanded ? collapse : undefined}>
+            <div id="collection-showroom" className="space-y-4" onClick={expanded ? collapse : undefined}>
               <div className="flex items-baseline justify-between gap-3 px-1">
                 <div className="min-w-0">
                   <p className="text-[10px] font-sans font-black uppercase tracking-[0.14em] opacity-50">Finished hens</p>

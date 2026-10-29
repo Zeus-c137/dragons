@@ -64,7 +64,7 @@ import {
   Monitor
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { toast } from "sonner";
+import { notify } from "../lib/notify";
 import { useCurrency } from "../currency";
 import { UserProfile, SubscriptionItem, ThemePreset, ThemeMode, VipTaskConfig } from "../types";
 import AdminChatDesk from "./AdminChatDesk";
@@ -148,16 +148,16 @@ export default function AdminView() {
           setSeedStatus("success");
           setSeedMessage("Admin account successfully activated.");
           setActivatedAdminInfo({ username: data.username, phone: data.phone });
-          toast.success("Activation successful!");
+          notify("success", "Activation successful!");
         } else {
           setSeedStatus("error");
           setSeedError(data.error || "Seeding failed.");
-          toast.error(data.error || "Activation failed.");
+          notify("error", data.error || "Activation failed.");
         }
       } catch (err: any) {
         setSeedStatus("error");
         setSeedError(err.message || "Internal network error.");
-        toast.error("Internal network error.");
+        notify("error", "Internal network error.");
       }
     };
     
@@ -236,11 +236,11 @@ export default function AdminView() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to delete all nodes");
-      toast.success(data.message || "All server nodes deleted successfully!");
+      notify("success", data.message || "All server nodes deleted successfully!");
       setIsConfirmDeleteAllModalOpen(false);
       await fetchAllAdminData();
     } catch (err: any) {
-      toast.error(err.message || "Failed to delete all nodes");
+      notify("error", err.message || "Failed to delete all nodes");
     } finally {
       setIsDeletingAllNodes(false);
     }
@@ -343,10 +343,10 @@ export default function AdminView() {
       setSiteConfig(nextConfig);
       if ("vipTasks" in nextFields || "vipTaskCategories" in nextFields) setVipTaskPage(1);
       updateLocalThemeConfig(nextConfig);
-      toast.success(successMessage);
+      notify("success", successMessage);
       return true;
     } catch (err: any) {
-      toast.error(err.message || "Could not save milestone configuration.");
+      notify("error", err.message || "Could not save milestone configuration.");
       return false;
     } finally {
       setIsLoading(false);
@@ -368,11 +368,11 @@ export default function AdminView() {
   const handleAddVipTask = async () => {
     const manualTier = isVipManualClaimCategory(vipTaskCategory);
     if (vipTaskSocialType && !manualTier) {
-      toast.error("Enable social task verification for this tier in Manage tiers first.");
+      notify("error", "Enable social task verification for this tier in Manage tiers first.");
       return;
     }
     if (vipTaskSocialType && (Number(getVipTierTaskRewards()[vipTaskCategory]) || 0) <= 0) {
-      toast.error("Set an amount per task in Manage tiers before adding social tasks.");
+      notify("error", "Set an amount per task in Manage tiers before adding social tasks.");
       return;
     }
     const rawTask = {
@@ -395,7 +395,7 @@ export default function AdminView() {
       if (!Number.isFinite(task.requiredBonus) || task.requiredBonus <= 0) throw new Error("Requirement must be greater than zero.");
       if (editingVipTaskId) task.id = editingVipTaskId;
     } catch (err: any) {
-      toast.error(err.message || "Enter a milestone title and category.");
+      notify("error", err.message || "Enter a milestone title and category.");
       return;
     }
     const existingTask = editingVipTaskId ? getVipTasks().find((task) => task.id === editingVipTaskId) : undefined;
@@ -430,11 +430,11 @@ export default function AdminView() {
     e.target.value = "";
     if (!file) return;
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
-      toast.error("Only PNG, JPG or WebP images are allowed.");
+      notify("error", "Only PNG, JPG or WebP images are allowed.");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("Image must be smaller than 2 MB.");
+      notify("error", "Image must be smaller than 2 MB.");
       return;
     }
     try {
@@ -452,9 +452,9 @@ export default function AdminView() {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Upload failed.");
       setVipTaskImageUrl(body.url);
-      toast.success("Art uploaded — save the milestone to keep it.");
+      notify("success", "Art uploaded — save the milestone to keep it.");
     } catch (err: any) {
-      toast.error(err.message || "Upload failed.");
+      notify("error", err.message || "Upload failed.");
     }
   };
 
@@ -509,7 +509,7 @@ export default function AdminView() {
       if (list.some((draft) => draft.name.trim().toLowerCase() === name.toLowerCase())) { duplicate = true; return list; }
       return [...list, { key: "", name, reward: newVipTierReward ? String(newVipTierReward) : "", taskReward: "", manualClaims: false, description: "", imageUrl: "" }];
     });
-    if (duplicate) { toast.info("That tier already exists."); return; }
+    if (duplicate) { notify("info", "That tier already exists."); return; }
     setNewVipCategory("");
     setNewVipTierReward(0);
     setVipTaskCategory(name);
@@ -522,11 +522,11 @@ export default function AdminView() {
   const handleTierDraftImageFile = async (index: number, file: File | undefined) => {
     if (!file) return;
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
-      toast.error("Only PNG, JPG or WebP images are allowed.");
+      notify("error", "Only PNG, JPG or WebP images are allowed.");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("Image must be smaller than 2 MB.");
+      notify("error", "Image must be smaller than 2 MB.");
       return;
     }
     try {
@@ -544,29 +544,29 @@ export default function AdminView() {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Upload failed.");
       patchTierDraft(index, { imageUrl: body.url });
-      toast.success("Tier art uploaded — save tiers to keep it.");
+      notify("success", "Tier art uploaded — save tiers to keep it.");
     } catch (err: any) {
-      toast.error(err.message || "Upload failed.");
+      notify("error", err.message || "Upload failed.");
     }
   };
 
   const handleSaveTiers = async () => {
     const list = tierDrafts || [];
     const names = list.map((draft) => draft.name.trim());
-    if (names.some((name) => !name)) { toast.error("Every tier needs a name."); return; }
-    if (new Set(names.map((name) => name.toLowerCase())).size !== names.length) { toast.error("Tier names must be unique."); return; }
+    if (names.some((name) => !name)) { notify("error", "Every tier needs a name."); return; }
+    if (new Set(names.map((name) => name.toLowerCase())).size !== names.length) { notify("error", "Tier names must be unique."); return; }
     const renames = new Map<string, string>();
     list.forEach((draft) => { if (draft.key && draft.key !== draft.name.trim()) renames.set(draft.key, draft.name.trim()); });
     const tasks = getVipTasks();
     for (const task of tasks) {
       if (!names.includes(task.category) && !renames.has(task.category)) {
-        toast.error(`"${task.category}" still has tasks. Move or remove them first.`);
+        notify("error", `"${task.category}" still has tasks. Move or remove them first.`);
         return;
       }
     }
     for (const [oldName] of renames) {
       if (usersList.some((u) => (((u as any).claimedTierRewards || []) as string[]).includes(oldName))) {
-        toast.error(`Cannot rename "${oldName}" — users already claimed it.`);
+        notify("error", `Cannot rename "${oldName}" — users already claimed it.`);
         return;
       }
     }
@@ -647,7 +647,7 @@ export default function AdminView() {
       }
       setParsedVipImport(parseVipImport(tierRows, taskRows));
     } catch (error: any) {
-      toast.error(error.message || "Could not read this milestone file.");
+      notify("error", error.message || "Could not read this milestone file.");
       setParsedVipImport(null);
     } finally {
       setIsParsingVipImport(false);
@@ -718,7 +718,7 @@ export default function AdminView() {
         setParsedVipImport(null);
       }
     } catch (error: any) {
-      toast.error(error.message || "Could not import milestones.");
+      notify("error", error.message || "Could not import milestones.");
     } finally {
       setIsApplyingVipImport(false);
     }
@@ -772,7 +772,7 @@ export default function AdminView() {
       timeoutId = setTimeout(() => {
         setIsAdminLoggedIn(false);
         localStorage.removeItem("hut8_admin_active");
-        toast.info("You have been signed out due to inactivity.");
+        notify("info", "You have been signed out due to inactivity.");
       }, 3 * 60 * 1000); // 3 minute
     };
 
@@ -820,7 +820,7 @@ export default function AdminView() {
       if (vipClaimsRes.ok) setVipTaskClaims(await vipClaimsRes.json());
     } catch (err: unknown) {
       if ((err as Error)?.name === "AbortError") return;
-      toast.error("Failed loading admin states");
+      notify("error", "Failed loading admin states");
     } finally {
       if (!signal.aborted) setIsLoading(false);
     }
@@ -864,7 +864,7 @@ export default function AdminView() {
       if (!res.ok) throw new Error(data.error || "Unable to load the verification queue.");
       setVipTaskClaims(Array.isArray(data) ? data : []);
     } catch (err: any) {
-      toast.error(err.message || "Unable to load the verification queue.");
+      notify("error", err.message || "Unable to load the verification queue.");
     } finally {
       setVipTaskClaimsLoading(false);
     }
@@ -896,10 +896,10 @@ export default function AdminView() {
           setUsersList((current) => current.map((user) => ({ ...user, claimedVipTasks: [], claimedTierRewards: [] })));
           setVipTaskClaims([]);
           setVipTaskPage(1);
-          toast.success(data.message || "All milestones deleted and claim status reset.");
+          notify("success", data.message || "All milestones deleted and claim status reset.");
           setConfirmDialog(null);
         } catch (err: any) {
-          toast.error(err.message || "Unable to delete milestones.");
+          notify("error", err.message || "Unable to delete milestones.");
         } finally {
           setIsLoading(false);
         }
@@ -918,10 +918,10 @@ export default function AdminView() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to review this task.");
       setVipTaskReviewNotes((current) => { const next = { ...current }; delete next[claimId]; return next; });
-      toast.success(decision === "approve" ? "Task verified. The user can claim the reward." : "Task sent back for another verification.");
+      notify("success", decision === "approve" ? "Task verified. The user can claim the reward." : "Task sent back for another verification.");
       await refreshVipTaskClaims();
     } catch (err: any) {
-      toast.error(err.message || "Unable to review this task.");
+      notify("error", err.message || "Unable to review this task.");
     } finally {
       setReviewingVipTaskClaim(null);
     }
@@ -931,12 +931,12 @@ export default function AdminView() {
     e.preventDefault();
     if (!/^\d{9,10}$/.test(phone.trim())) {
       const message = "Phone number must be 9 or 10 digits.";
-      toast.error(message);
+      notify("error", message);
       return;
     }
     if (!password || password.length > 128) {
       const message = "Enter a valid admin password.";
-      toast.error(message);
+      notify("error", message);
       return;
     }
     try {
@@ -948,17 +948,17 @@ export default function AdminView() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success("Authenticated successfully");
+        notify("success", "Authenticated successfully");
         setIsAdminLoggedIn(true);
         localStorage.removeItem("session_phone");
         fetchAllAdminData();
       } else {
         const message = data.error || "Admin phone number or password is incorrect.";
-        toast.error(message);
+        notify("error", message);
       }
     } catch (err: any) {
       const message = err?.message || "Admin sign-in is temporarily unavailable.";
-      toast.error(message);
+      notify("error", message);
     } finally {
       setIsLoggingIn(false);
     }
@@ -968,7 +968,7 @@ export default function AdminView() {
     setIsAdminLoggedIn(false);
     localStorage.removeItem("hut8_admin_active");
     fetch("/api/admin/logout", { method: "POST" }).catch(() => undefined);
-    toast.info("Logged out of Admin Console");
+    notify("info", "Logged out of Admin Console");
   };
 
   // Node Actions
@@ -1022,10 +1022,10 @@ export default function AdminView() {
         })
       });
       if (!res.ok) throw new Error("Failed to update stock status.");
-      toast.success(`"${item.name}" is now marked as ${newStatus ? "Out of Stock" : "In Stock"}.`);
+      notify("success", `"${item.name}" is now marked as ${newStatus ? "Out of Stock" : "In Stock"}.`);
       fetchAllAdminData();
     } catch (err: any) {
-      toast.error(err.message);
+      notify("error", err.message);
     } finally {
       setTogglingStockId(null);
     }
@@ -1056,7 +1056,7 @@ export default function AdminView() {
     if (!trimmed) return;
     const existing: string[] = siteConfig?.categories || [];
     if (existing.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
-      toast.info(`Category "${trimmed}" already exists.`);
+      notify("info", `Category "${trimmed}" already exists.`);
       return;
     }
     const desc = newCategoryDesc.trim().slice(0, 280);
@@ -1068,9 +1068,9 @@ export default function AdminView() {
       await persistCategoriesConfig(updatedCats, nextMeta);
       setNewCategoryInput("");
       setNewCategoryDesc("");
-      toast.success(`Category "${trimmed}" added successfully!`);
+      notify("success", `Category "${trimmed}" added successfully!`);
     } catch (err: any) {
-      toast.error(err.message);
+      notify("error", err.message);
     } finally {
       setIsLoading(false);
     }
@@ -1090,13 +1090,11 @@ export default function AdminView() {
         setEditCategoryName("");
         setEditCategoryDesc("");
       }
-      toast.success(
-        affected > 0
+      notify("success", affected > 0
           ? `Category "${catToDelete}" removed from config. ${affected} product${affected === 1 ? "" : "s"} still use it and remain visible.`
-          : `Category "${catToDelete}" removed.`
-      );
+          : `Category "${catToDelete}" removed.`);
     } catch (err: any) {
-      toast.error(err.message);
+      notify("error", err.message);
     } finally {
       setIsLoading(false);
     }
@@ -1119,14 +1117,14 @@ export default function AdminView() {
     const oldName = editingCategoryKey;
     const newName = editCategoryName.trim();
     if (!newName) {
-      toast.error("Category name cannot be empty.");
+      notify("error", "Category name cannot be empty.");
       return;
     }
     const existing: string[] = siteConfig?.categories || [];
     const duplicate = existing.some((c) => c !== oldName && c.toLowerCase() === newName.toLowerCase())
       || getAllProductCategories().some((c) => c !== oldName && c.toLowerCase() === newName.toLowerCase() && !existing.includes(c));
     if (duplicate) {
-      toast.error(`Another category named "${newName}" already exists.`);
+      notify("error", `Another category named "${newName}" already exists.`);
       return;
     }
     const desc = editCategoryDesc.trim().slice(0, 280);
@@ -1158,10 +1156,10 @@ export default function AdminView() {
       }
       await persistCategoriesConfig(nextCats, nextMeta);
       handleCancelEditCategory();
-      toast.success(renamed ? `Category renamed to "${newName}".` : `Category "${newName}" updated.`);
+      notify("success", renamed ? `Category renamed to "${newName}".` : `Category "${newName}" updated.`);
       fetchAllAdminData();
     } catch (err: any) {
-      toast.error(err.message || "Failed saving category.");
+      notify("error", err.message || "Failed saving category.");
     } finally {
       setIsLoading(false);
     }
@@ -1219,7 +1217,7 @@ export default function AdminView() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Server Nodes");
     XLSX.writeFile(workbook, "server_nodes_bulk_upload_sample.xlsx");
-    toast.success("Downloaded Excel Sample Template!");
+    notify("success", "Downloaded Excel Sample Template!");
   };
 
   // Excel File Upload Handler (Parses sheet & displays preview)
@@ -1238,7 +1236,7 @@ export default function AdminView() {
       const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
       if (!rawRows || rawRows.length === 0) {
-        toast.error("Excel worksheet is empty.");
+        notify("error", "Excel worksheet is empty.");
         setIsParsingExcel(false);
         return;
       }
@@ -1321,13 +1319,13 @@ export default function AdminView() {
       }
 
       if (parsedItems.length === 0) {
-        toast.error("No valid product rows found in Excel sheet.");
+        notify("error", "No valid product rows found in Excel sheet.");
       } else {
         setParsedExcelNodes(parsedItems);
-        toast.success(`Parsed ${parsedItems.length} server nodes! Review and confirm import.`);
+        notify("success", `Parsed ${parsedItems.length} server nodes! Review and confirm import.`);
       }
     } catch (err: any) {
-      toast.error(`Failed parsing Excel upload: ${err.message}`);
+      notify("error", `Failed parsing Excel upload: ${err.message}`);
     } finally {
       setIsParsingExcel(false);
       e.target.value = "";
@@ -1368,9 +1366,9 @@ export default function AdminView() {
 
     if (failedItems.length > 0) {
       console.error("Bulk catalog import failures:", failedItems);
-      toast.error(`Imported ${total - failedItems.length} of ${total} products. ${failedItems.length} failed; each chicken farm product needs egg and mature chicken artwork. Young chicken artwork is optional.`);
+      notify("error", `Imported ${total - failedItems.length} of ${total} products. ${failedItems.length} failed; each chicken farm product needs egg and mature chicken artwork. Young chicken artwork is optional.`);
     } else {
-      toast.success(`Successfully imported ${total} products into catalog!`);
+      notify("success", `Successfully imported ${total} products into catalog!`);
     }
     setIsImportingBulk(false);
     setBulkProgress(null);
@@ -1382,11 +1380,11 @@ export default function AdminView() {
   const handleSaveNode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (Boolean(nodeEggImageUrl.trim()) !== Boolean(nodeDragonImageUrl.trim())) {
-      toast.error("Add both egg and mature chicken artwork to configure a chicken farm product.");
+      notify("error", "Add both egg and mature chicken artwork to configure a chicken farm product.");
       return;
     }
     if (nodeYoungDragonImageUrl.trim() && (!nodeEggImageUrl.trim() || !nodeDragonImageUrl.trim())) {
-      toast.error("Young chicken artwork requires egg and mature chicken artwork.");
+      notify("error", "Young chicken artwork requires egg and mature chicken artwork.");
       return;
     }
     try {
@@ -1415,12 +1413,12 @@ export default function AdminView() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed saving catalog node.");
 
-      toast.success(`Successfully saved: ${nodeName}`);
+      notify("success", `Successfully saved: ${nodeName}`);
       setIsEditingNode(null);
       setIsCreatingNode(false);
       fetchAllAdminData();
     } catch (err: any) {
-      toast.error(err.message);
+      notify("error", err.message);
     } finally {
       setIsLoading(false);
     }
@@ -1437,12 +1435,12 @@ export default function AdminView() {
       ? ["image/png", "image/svg+xml"]
       : ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
     if (!acceptedTypes.includes(file.type)) {
-      toast.error(kind === "egg" ? "Egg artwork must be PNG or SVG." : "Chicken artwork must be PNG, JPG, WebP, or SVG.");
+      notify("error", kind === "egg" ? "Egg artwork must be PNG or SVG." : "Chicken artwork must be PNG, JPG, WebP, or SVG.");
       return;
     }
     const maxBytes = kind === "egg" ? 4 * 1024 * 1024 : 4 * 1024 * 1024;
     if (file.size > maxBytes) {
-      toast.error(`Artwork must be smaller than ${maxBytes / (1024 * 1024)} MB.`);
+      notify("error", `Artwork must be smaller than ${maxBytes / (1024 * 1024)} MB.`);
       return;
     }
 
@@ -1464,9 +1462,9 @@ export default function AdminView() {
       if (kind === "egg") setNodeEggImageUrl(result.url);
       else if (kind === "youngDragon") setNodeYoungDragonImageUrl(result.url);
       else setNodeDragonImageUrl(result.url);
-      toast.success(`${kind === "egg" ? "Egg artwork" : "Chicken artwork"} uploaded. Save the product to apply it.`);
+      notify("success", `${kind === "egg" ? "Egg artwork" : "Chicken artwork"} uploaded. Save the product to apply it.`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Artwork upload failed.");
+      notify("error", error instanceof Error ? error.message : "Artwork upload failed.");
     } finally {
       setCatalogArtUpload(null);
     }
@@ -1498,7 +1496,7 @@ export default function AdminView() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      toast.success(editingAnnx ? "Announcement updated." : "Announcement published.");
+      notify("success", editingAnnx ? "Announcement updated." : "Announcement published.");
       setIsCreatingAnnx(false);
       setEditingAnnx(null);
       setAnnTitle("");
@@ -1509,7 +1507,7 @@ export default function AdminView() {
       setAnnTag("");
       fetchAllAdminData();
     } catch (err: any) {
-      toast.error(err.message);
+      notify("error", err.message);
     } finally {
       setIsLoading(false);
     }
@@ -1527,10 +1525,10 @@ export default function AdminView() {
           const data = await res.json();
           if (!res.ok) throw new Error(data.error);
 
-          toast.success("Announcement deleted.");
+          notify("success", "Announcement deleted.");
           fetchAllAdminData();
         } catch (err: any) {
-          toast.error(err.message);
+          notify("error", err.message);
         } finally {
           setIsLoading(false);
           setConfirmDialog(null);
@@ -1555,10 +1553,10 @@ export default function AdminView() {
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || "Deletion failed.");
           
-          toast.success(`Deleted ${name}`);
+          notify("success", `Deleted ${name}`);
           fetchAllAdminData();
         } catch (err: any) {
-          toast.error(err.message);
+          notify("error", err.message);
         } finally {
           setIsLoading(false);
           setConfirmDialog(null);
@@ -1584,10 +1582,10 @@ export default function AdminView() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      toast.success(isCurrentlyDisabled ? `Unlocked ${item.name}` : `Locked ${item.name}`);
+      notify("success", isCurrentlyDisabled ? `Unlocked ${item.name}` : `Locked ${item.name}`);
       fetchAllAdminData();
     } catch (err: any) {
-      toast.error(err.message);
+      notify("error", err.message);
     } finally {
       setIsLoading(false);
     }
@@ -1597,11 +1595,11 @@ export default function AdminView() {
   const handleCreateGiftCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGiftCode.trim()) {
-      toast.error("Please enter a gift code name");
+      notify("error", "Please enter a gift code name");
       return;
     }
     if (!newGiftCodeExpiryDateTime) {
-      toast.error("Please select an expiry date and time");
+      notify("error", "Please select an expiry date and time");
       return;
     }
     try {
@@ -1619,16 +1617,16 @@ export default function AdminView() {
         })
       });
       if (res.ok) {
-        toast.success("Gift code created successfully");
+        notify("success", "Gift code created successfully");
         setNewGiftCode("");
         setIsCreateGiftModalOpen(false);
         fetchAllAdminData();
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to create gift code");
+        notify("error", data.error || "Failed to create gift code");
       }
     } catch (err: any) {
-      toast.error(err.message);
+      notify("error", err.message);
     } finally {
       setIsCreatingGiftCode(false);
     }
@@ -1642,16 +1640,16 @@ export default function AdminView() {
         headers: { "Content-Type": "application/json" }
       });
       if (res.ok) {
-        toast.success("Gift code deleted successfully");
+        notify("success", "Gift code deleted successfully");
         setSelectedGiftCode(null);
         setIsDeleteGiftConfirmOpen(false);
         fetchAllAdminData();
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to delete gift code");
+        notify("error", data.error || "Failed to delete gift code");
       }
     } catch (err: any) {
-      toast.error(err.message);
+      notify("error", err.message);
     } finally {
       setIsDeletingGiftCode(false);
     }
@@ -1672,12 +1670,12 @@ export default function AdminView() {
       ? ["image/png", "image/jpeg", "image/webp", "image/svg+xml"]
       : ["image/png", "image/jpeg", "image/webp", "image/gif"];
     if (!allowed.includes(file.type)) {
-      toast.error(kind === "logo" ? "Only PNG, JPG, WebP or SVG images are allowed." : allowsGifs ? "Only PNG, JPG, WebP or GIF images are allowed." : "Only PNG, JPG or WebP images are allowed.");
+      notify("error", kind === "logo" ? "Only PNG, JPG, WebP or SVG images are allowed." : allowsGifs ? "Only PNG, JPG, WebP or GIF images are allowed." : "Only PNG, JPG or WebP images are allowed.");
       return;
     }
     const maxBytes = kind === "logo" ? 2 * 1024 * 1024 : 4 * 1024 * 1024;
     if (file.size > maxBytes) {
-      toast.error(`Image must be smaller than ${maxBytes / (1024 * 1024)} MB.`);
+      notify("error", `Image must be smaller than ${maxBytes / (1024 * 1024)} MB.`);
       return;
     }
     setUploadingField(busyKey);
@@ -1696,9 +1694,9 @@ export default function AdminView() {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Upload failed.");
       applyUrl(body.url);
-      toast.success(`${label} uploaded. Save configuration to apply it.`);
+      notify("success", `${label} uploaded. Save configuration to apply it.`);
     } catch (err: any) {
-      toast.error(err.message || "Upload failed.");
+      notify("error", err.message || "Upload failed.");
     } finally {
       setUploadingField(null);
     }
@@ -1739,7 +1737,7 @@ export default function AdminView() {
   const handleSaveSiteConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^\d{9,10}$/.test(siteConfig.adminPhone)) {
-      toast.error("Admin phone number must be 9 or 10 digits.");
+      notify("error", "Admin phone number must be 9 or 10 digits.");
       return;
     }
     const minimumDeposit = Number(siteConfig.minimumDeposit) > 0 ? Math.floor(Number(siteConfig.minimumDeposit)) : 20000;
@@ -1747,11 +1745,11 @@ export default function AdminView() {
     const minimumWithdrawal = Number(siteConfig.minimumWithdrawal) > 0 ? Math.floor(Number(siteConfig.minimumWithdrawal)) : 0;
     const maximumWithdrawal = Number(siteConfig.maximumWithdrawal) > 0 ? Math.floor(Number(siteConfig.maximumWithdrawal)) : 0;
     if (maximumDeposit > 0 && maximumDeposit < minimumDeposit) {
-      toast.error("Maximum deposit cannot be lower than minimum deposit.");
+      notify("error", "Maximum deposit cannot be lower than minimum deposit.");
       return;
     }
     if (maximumWithdrawal > 0 && maximumWithdrawal < minimumWithdrawal) {
-      toast.error("Maximum withdrawal cannot be lower than minimum withdrawal.");
+      notify("error", "Maximum withdrawal cannot be lower than minimum withdrawal.");
       return;
     }
     try {
@@ -1765,7 +1763,7 @@ export default function AdminView() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to save site configuration.");
-      toast.success("Site configuration updated successfully");
+      notify("success", "Site configuration updated successfully");
       const saved = data.config || {
         ...payload,
         minimumDeposit,
@@ -1781,7 +1779,7 @@ export default function AdminView() {
         window.dispatchEvent(new Event("siteConfigUpdated"));
       } catch {}
     } catch (err: any) {
-      toast.error(err.message);
+      notify("error", err.message);
     } finally {
       setIsLoading(false);
     }
@@ -1806,12 +1804,12 @@ export default function AdminView() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      toast.success(`Password updated for ${userToOverride.username || userToOverride.id}`);
+      notify("success", `Password updated for ${userToOverride.username || userToOverride.id}`);
       setUserToOverride(null);
       setNewOverridePassword("");
       fetchAllAdminData();
     } catch (err: any) {
-      toast.error(err.message);
+      notify("error", err.message);
     } finally {
       setIsLoading(false);
     }
@@ -1822,12 +1820,12 @@ export default function AdminView() {
     if (!userToAdjust) return;
     const magnitude = Math.abs(Number(adjustAmount));
     if (!Number.isSafeInteger(magnitude) || magnitude <= 0) {
-      toast.error("Enter a whole number amount greater than zero.");
+      notify("error", "Enter a whole number amount greater than zero.");
       return;
     }
     const current = Number(userToAdjust.rechargeableBalance) || 0;
     if (adjustDirection === "debit" && magnitude > current) {
-      toast.error(`Debit exceeds My capital of UGX ${current.toLocaleString()}.`);
+      notify("error", `Debit exceeds My capital of UGX ${current.toLocaleString()}.`);
       return;
     }
     const delta = adjustDirection === "debit" ? -magnitude : magnitude;
@@ -1846,13 +1844,13 @@ export default function AdminView() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      toast.success(data.message);
+      notify("success", data.message);
       setUserToAdjust(null);
       setAdjustAmount("");
       setAdjustReason("");
       fetchAllAdminData();
     } catch (err: any) {
-      toast.error(err.message || "Balance adjustment failed.");
+      notify("error", err.message || "Balance adjustment failed.");
     } finally {
       setIsLoading(false);
     }
@@ -1876,10 +1874,10 @@ export default function AdminView() {
           const data = await res.json();
           if (!res.ok) throw new Error(data.error);
 
-          toast.success(data.message);
+          notify("success", data.message);
           fetchAllAdminData();
         } catch (err: any) {
-          toast.error(err.message);
+          notify("error", err.message);
         } finally {
           setIsLoading(false);
           setConfirmDialog(null);
@@ -1901,10 +1899,10 @@ export default function AdminView() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      toast.success(`Transaction marked as ${targetStatus}`);
+      notify("success", `Transaction marked as ${targetStatus}`);
       fetchAllAdminData();
     } catch (err: any) {
-      toast.error(err.message);
+      notify("error", err.message);
     } finally {
       setIsLoading(false);
     }
@@ -2938,7 +2936,7 @@ export default function AdminView() {
                                         const addr = tx.withdrawPhone || tx.senderPhone || tx.phone;
                                         if (addr) {
                                           navigator.clipboard.writeText(addr);
-                                          toast.success("Copied address: " + addr);
+                                          notify("success", "Copied address: " + addr);
                                         }
                                       }}
                                       className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors"
@@ -4533,7 +4531,7 @@ export default function AdminView() {
                                     type="button"
                                     onClick={() => {
                                       navigator.clipboard.writeText(selectedGiftCode.code);
-                                      toast.success("Code copied to clipboard!");
+                                      notify("success", "Code copied to clipboard!");
                                     }}
                                     className="p-1.5 hover:bg-[var(--theme-card-bg)] text-[var(--theme-text)] opacity-70 hover:opacity-100 rounded-lg transition-all cursor-pointer"
                                     title="Copy Code"

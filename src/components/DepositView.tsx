@@ -1,21 +1,19 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useGatedInterval } from "../hooks/useGatedInterval";
+import React, { useState, useEffect } from "react";
 import { SubscriptionItem, UserProfile } from "../types";
 import {
-  CheckCircle,
+  Check,
   Cpu,
   Copy,
   LockKeyhole,
-  Clock,
-  BadgeInfo,
   InfoIcon,
   ChevronDown,
-  XCircle,
 } from "lucide-react";
-import { toast } from "sonner";
+import { sileo } from "sileo";
+import { notify } from "../lib/notify";
 import { useCurrency } from "../currency";
 import { formatUgandaPhoneInput, isValidUgandaPhone, normalizeUgandaPhone } from "../utils/ugandaPhone";
 import { formatDecimalAmountText, formatIntegerAmount, handleDecimalAmountInput, handleIntegerAmountInput, parseDecimalAmountText } from "../utils/amountInput";
+import { waitForPaymentResolution } from "../utils/paymentStatus";
 import PaymentMethodSelect from "./PaymentMethodSelect";
 import { Button } from "./ui/button";
 import phoneInputIcon from "@/src/assets/svg/input-phone.svg";
@@ -27,6 +25,7 @@ interface DepositViewProps {
   siteConfig?: any;
   onDepositSuccess: (newProfile: UserProfile) => void;
   onGpuSuccess: (newSub: any, CostAmount: number) => void;
+  onNavigateToHistory: () => void;
   preselectedItem?: SubscriptionItem | null;
 }
 
@@ -36,6 +35,7 @@ export default function DepositView({
   siteConfig,
   onDepositSuccess,
   onGpuSuccess,
+  onNavigateToHistory,
   preselectedItem = null,
 }: DepositViewProps) {
   const [payType, setPayType] = useState<"balance" | "gpu">(preselectedItem ? "gpu" : "balance");
@@ -92,10 +92,6 @@ export default function DepositView({
   const [manualRef, setManualRef] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
-  const [currentTransId, setCurrentTransId] = useState<string | null>(null);
-  const [paymentStatus, setPaymentStatus] = useState<"IDLE" | "PENDING" | "SUCCESSFUL" | "FAILED">("IDLE");
-  const handledSuccessTransIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (preselectedItem) {
@@ -106,128 +102,109 @@ export default function DepositView({
     }
   }, [preselectedItem]);
 
-  const backoffRef = useRef(0);
-  const abortRef = useRef<AbortController | null>(null);
-  const BACKOFF = [3000, 5000, 10000] as const;
-  const getBackoff = () => BACKOFF[Math.min(backoffRef.current, 2)];
-
-  useEffect(() => {
-    if (paymentStatus !== "PENDING" || !currentTransId) {
-      backoffRef.current = 0;
-      if (abortRef.current) abortRef.current.abort();
-      return;
-    }
-    backoffRef.current = 0;
-  }, [paymentStatus, currentTransId]);
-
-  const checkStatus = async () => {
-    if (document.hidden) return;
-    if (paymentStatus !== "PENDING" || !currentTransId) return;
-    if (abortRef.current) abortRef.current.abort();
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    try {
-      const res = await fetch("/api/payment/status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trans_id: currentTransId }),
-        signal: ctrl.signal,
-      });
-      if (ctrl.signal.aborted) return;
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === "SUCCESSFUL") {
-          if (handledSuccessTransIdRef.current === currentTransId) return;
-          handledSuccessTransIdRef.current = currentTransId;
-          let settledProfile = data.profile as UserProfile | undefined;
-          if (payType === "balance" && !settledProfile) {
-            const profileResponse = await fetch(`/api/profile/${encodeURIComponent(userProfile.id)}`, {
-              cache: "no-store",
-              credentials: "same-origin",
-              signal: ctrl.signal,
-            });
-            if (!profileResponse.ok) {
-              throw new Error("Payment is confirmed, but your updated balance could not be loaded. Please refresh your account.");
-            }
-            const profileData = await profileResponse.json();
-            if (profileData?.id !== userProfile.id || !Number.isFinite(Number(profileData.points))) {
-              throw new Error("Payment is confirmed, but your updated balance could not be loaded. Please refresh your account.");
-            }
-            settledProfile = profileData;
-          }
-          if (ctrl.signal.aborted) return;
-          if (payType === "balance" && (!settledProfile || settledProfile.id !== userProfile.id)) {
-            throw new Error("Payment is confirmed, but your account balance could not be refreshed.");
-          }
-          setPaymentStatus("SUCCESSFUL");
-          if (payType === "balance") {
-            onDepositSuccess(settledProfile);
-          } else if (data.subscription) {
-            onGpuSuccess(data.subscription, selectedGpu?.amount || 0);
-          }
-          toast.success("Payment confirmed. Your account has been updated.");
-        } else if (data.status === "FAILED") {
-          setPaymentStatus("FAILED");
-          toast.error("Payment failed. Please try again or contact support.");
-          setErrorMsg("We couldn’t confirm this payment. Please try again or contact support.");
-        } else {
-          backoffRef.current = Math.min(backoffRef.current + 1, 2);
-        }
-      }
-    } catch (err: unknown) {
-      if ((err as Error)?.name === "AbortError") return;
-      handledSuccessTransIdRef.current = null;
-      console.error("Error polling payment status:", err);
-      if (err instanceof Error && err.message.startsWith("Payment is confirmed")) {
-        toast.error(err.message);
-      }
-    }
-  };
-
-  useGatedInterval(() => { void checkStatus(); }, getBackoff(), { enabled: paymentStatus === "PENDING" && !!currentTransId, visibilityGate: true });
-
-  useEffect(() => () => { if (abortRef.current) abortRef.current.abort(); }, []);
-
   const handleStartPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg("");
     const normalizedDepositPhone = normalizeUgandaPhone(mobileNumber);
     if (!/^\d{9,10}$/.test(normalizedDepositPhone)) {
-      toast.error("Enter a valid mobile money number.");
+      sileo.error({ title: "Invalid phone number", description: "Enter a valid mobile money number." });
       return;
     }
     const finalAmount = payType === "gpu" ? selectedGpu?.amount || 0 : depositAmount;
     const limitError = getDepositLimitError(finalAmount);
     if (limitError) {
-      toast.error(limitError);
+      sileo.error({ title: "Invalid amount", description: limitError });
       return;
     }
     setIsSubmitting(true);
-    setPaymentStatus("PENDING");
-    setCurrentTransId(null);
-    handledSuccessTransIdRef.current = null;
     const operator = "MTN";
+    let transactionResolved = false;
+    let profileRefreshFailed = false;
     try {
-      const response = await fetch("/api/payment/deposit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: userProfile.id,
-          depositPhone: normalizedDepositPhone,
-          amount: finalAmount,
-          operator,
-          type: payType === "balance" ? "deposit" : "product_activation",
-          itemId: payType === "gpu" ? selectedGpu?.id : undefined,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Payment dispatch failed.");
-      setCurrentTransId(data.trans_id);
-      toast.info("Payment request sent. Check your phone and approve it to continue.");
-    } catch (err: any) {
-      console.error(err);
-      setPaymentStatus("IDLE");
-      toast.error(err.message || "We couldn’t start the mobile money payment. Please try again.");
+      const result = await sileo.promise(
+        async () => {
+          const response = await fetch("/api/payment/deposit", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              phone: userProfile.id,
+              depositPhone: normalizedDepositPhone,
+              amount: finalAmount,
+              operator,
+              type: payType === "balance" ? "deposit" : "product_activation",
+              itemId: payType === "gpu" ? selectedGpu?.id : undefined,
+            }),
+          });
+          const data = await response.json().catch(() => null);
+          if (!response.ok) {
+            throw new Error(data?.error || "Payment dispatch failed.");
+          }
+          if (typeof data?.trans_id !== "string" || !data.trans_id) {
+            throw new Error("The payment was submitted, but its transaction reference was missing.");
+          }
+
+          const status = await waitForPaymentResolution(data.trans_id, data);
+          transactionResolved = true;
+          if (status.status === "FAILED") {
+            throw new Error(status.error || "Payment failed. Please try again or contact support.");
+          }
+          if (payType === "balance") {
+            const settledProfile = status.profile as UserProfile | undefined;
+            if (settledProfile?.id === userProfile.id && Number.isFinite(Number(settledProfile.points))) {
+              onDepositSuccess(settledProfile);
+            } else {
+              try {
+                const profileResponse = await fetch(`/api/profile/${encodeURIComponent(userProfile.id)}`, {
+                  cache: "no-store",
+                  credentials: "same-origin",
+                });
+                const profileData = await profileResponse.json().catch(() => null);
+                if (
+                  !profileResponse.ok ||
+                  profileData?.id !== userProfile.id ||
+                  !Number.isFinite(Number(profileData.points))
+                ) {
+                  throw new Error("The updated account balance could not be loaded.");
+                }
+                onDepositSuccess(profileData as UserProfile);
+              } catch (profileError) {
+                profileRefreshFailed = true;
+                console.error("Payment confirmed, but the account balance could not be refreshed:", profileError);
+              }
+            }
+          } else if (status.subscription) {
+            onGpuSuccess(status.subscription, selectedGpu?.amount || 0);
+          }
+          return status;
+        },
+        {
+          loading: {
+            title: "Payment initiated",
+            description: "Enter your mobile money PIN.",
+          },
+          success: () => ({
+            title: "Payment confirmed",
+            icon: (
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-600 text-white">
+                <Check className="h-4 w-4" aria-hidden="true" />
+              </span>
+            ),
+            description: profileRefreshFailed
+              ? `${formatCurrency(finalAmount)} was confirmed, but your capital balance could not be refreshed. Check transaction history.`
+              : payType === "gpu"
+                ? `${formatCurrency(finalAmount)} payment confirmed. Your product is active.`
+                : `${formatCurrency(finalAmount)} has been added to your capital.`,
+          }),
+          error: (error) => ({
+            title: "Payment failed",
+            description: error instanceof Error ? error.message : "We couldn’t confirm this payment.",
+          }),
+        }
+      );
+      if (result.status === "SUCCESSFUL") onNavigateToHistory();
+    } catch (error) {
+      console.error("Deposit flow failed:", error);
+      if (transactionResolved) onNavigateToHistory();
     } finally {
       setIsSubmitting(false);
     }
@@ -235,15 +212,14 @@ export default function DepositView({
 
   const handleStartManualPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg("");
     if (depositMode === "usdt" && !config.usdtAddress?.trim()) {
-      toast.error("USDT deposits are not available right now.");
+      sileo.error({ title: "USDT unavailable", description: "USDT deposits are not available right now." });
       return;
     }
     let phoneTrim = normalizeUgandaPhone(senderPhone);
     if (depositMode === "manual") {
       if (!/^\d{9,10}$/.test(phoneTrim)) {
-        toast.error("Enter a valid 9 or 10 digit sender number.");
+        sileo.error({ title: "Invalid phone number", description: "Enter a valid 9 or 10 digit sender number." });
         return;
       }
     } else {
@@ -251,7 +227,7 @@ export default function DepositView({
     }
     const refTrim = manualRef.trim();
     if (!refTrim) {
-      toast.error("Enter the transaction ID or hash to submit your payment.");
+      sileo.error({ title: "Transaction reference required", description: "Enter the transaction ID or hash to submit your payment." });
       return;
     }
     const finalAmount =
@@ -262,12 +238,10 @@ export default function DepositView({
         : manualAmount;
     const limitError = getDepositLimitError(finalAmount);
     if (limitError) {
-      toast.error(limitError);
+      sileo.error({ title: "Invalid amount", description: limitError });
       return;
     }
     setIsSubmitting(true);
-    setPaymentStatus("PENDING");
-    setCurrentTransId(null);
     let detectedOperator = depositMode === "usdt" ? "USDT" : "MTN";
     if (depositMode === "manual") {
       const normalizedPhone = phoneTrim;
@@ -275,28 +249,73 @@ export default function DepositView({
         detectedOperator = "Airtel";
       }
     }
+    let transactionResolved = false;
     try {
-      const response = await fetch("/api/manual/deposit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: userProfile.id,
-          senderPhone: phoneTrim,
-          amount: finalAmount,
-          operator: detectedOperator,
-          transId: refTrim,
-          itemId: payType === "gpu" ? selectedGpu?.id : undefined,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Proof submission failed.");
-      handledSuccessTransIdRef.current = null;
-      setCurrentTransId(data.trans_id);
-      toast.success("Payment details submitted. We’ll review them shortly.");
-    } catch (err: any) {
-      console.error(err);
-      setPaymentStatus("IDLE");
-      toast.error(err.message || "We couldn’t submit your payment details. Please try again.");
+      const result = await sileo.promise(
+        async () => {
+          const response = await fetch("/api/manual/deposit", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              phone: userProfile.id,
+              senderPhone: phoneTrim,
+              amount: finalAmount,
+              operator: detectedOperator,
+              transId: refTrim,
+              itemId: payType === "gpu" ? selectedGpu?.id : undefined,
+            }),
+          });
+          const data = await response.json().catch(() => null);
+          if (!response.ok) throw new Error(data?.error || "Proof submission failed.");
+          if (typeof data?.trans_id !== "string" || !data.trans_id) {
+            throw new Error("Your payment proof was submitted, but its transaction reference was missing.");
+          }
+
+          const status = await waitForPaymentResolution(data.trans_id, data);
+          transactionResolved = true;
+          if (status.status === "FAILED") {
+            throw new Error(status.error || "Payment verification failed. Please check your transaction history.");
+          }
+          if (payType === "balance") {
+            const settledProfile = status.profile as UserProfile | undefined;
+            if (!settledProfile || settledProfile.id !== userProfile.id) {
+              throw new Error("Payment confirmed, but your updated balance could not be loaded. Please check transaction history.");
+            }
+            onDepositSuccess(settledProfile);
+          } else if (status.subscription) {
+            onGpuSuccess(status.subscription, selectedGpu?.amount || 0);
+          }
+          return status;
+        },
+        {
+          loading: {
+            title: "Payment submitted",
+            description: depositMode === "usdt"
+              ? `Your ${config.usdtNetwork || "TRC20"} payment is awaiting verification.`
+              : "Your payment proof is awaiting verification.",
+          },
+          success: () => ({
+            title: "Payment confirmed",
+            icon: (
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-600 text-white">
+                <Check className="h-4 w-4" aria-hidden="true" />
+              </span>
+            ),
+            description: payType === "gpu"
+              ? `${formatCurrency(finalAmount)} payment confirmed. Your product is active.`
+              : `${formatCurrency(finalAmount)} has been added to your capital.`,
+          }),
+          error: (error) => ({
+            title: "Payment verification failed",
+            description: error instanceof Error ? error.message : "We couldn’t verify this payment.",
+          }),
+        }
+      );
+      if (result.status === "SUCCESSFUL") onNavigateToHistory();
+    } catch (error) {
+      console.error("Manual deposit flow failed:", error);
+      if (transactionResolved) onNavigateToHistory();
     } finally {
       setIsSubmitting(false);
     }
@@ -363,8 +382,7 @@ export default function DepositView({
 
       </div>
 
-      {paymentStatus === "IDLE" ? (
-        <div className="liquid-glass-panel overflow-hidden rounded-[26px] border border-white/15 shadow-[0_14px_36px_color-mix(in_srgb,var(--theme-card-shadow)_22%,transparent)]">
+      <div className="liquid-glass-panel overflow-hidden rounded-[26px] border border-white/15 shadow-[0_14px_36px_color-mix(in_srgb,var(--theme-card-shadow)_22%,transparent)]">
           {/* Payment method dropdown */}
           <div className="space-y-2 px-2.5 py-2.5 sm:px-3">
             <PaymentMethodSelect
@@ -374,7 +392,6 @@ export default function DepositView({
               paymentImages={{ mtn: config.mtnLogoUrl, airtel: config.airtelLogoUrl, usdt: config.usdtLogoUrl }}
               onChange={(channel) => {
                 setDepositMode(channel === "crypto" ? "usdt" : autoEnabled ? "auto" : "manual");
-                setErrorMsg("");
               }}
             />
             {depositMode !== "usdt" && autoEnabled && manualEnabled ? (
@@ -384,7 +401,7 @@ export default function DepositView({
                   <select
                     id="mobile-money-deposit-mode"
                     value={depositMode}
-                    onChange={(event) => { setDepositMode(event.target.value as "auto" | "manual"); setErrorMsg(""); }}
+                    onChange={(event) => setDepositMode(event.target.value as "auto" | "manual")}
                     className="w-full appearance-none rounded-xl border border-white/20 bg-[var(--theme-card-bg)]/70 px-3.5 py-2.5 pr-10 text-[13px] font-semibold text-[var(--theme-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] outline-none backdrop-blur-xl focus:border-[var(--theme-primary)] focus:ring-2 focus:ring-[var(--theme-primary)]/20"
                   >
                     <option value="auto">Instant mobile payment</option>
@@ -489,7 +506,7 @@ export default function DepositView({
                           type="button"
                           onClick={() => {
                             navigator.clipboard.writeText(config.mtnReceiverPhone);
-                            toast.success("MTN number copied");
+                            notify("success", "MTN number copied");
                           }}
                           className="shrink-0 w-8 h-8 rounded-full bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] flex items-center justify-center hover:border-[var(--theme-primary)]/30 transition-colors cursor-pointer"
                         >
@@ -517,7 +534,7 @@ export default function DepositView({
                           type="button"
                           onClick={() => {
                             navigator.clipboard.writeText(config.airtelReceiverPhone);
-                            toast.success("Airtel number copied");
+                            notify("success", "Airtel number copied");
                           }}
                           className="shrink-0 w-8 h-8 rounded-full bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] flex items-center justify-center hover:border-[var(--theme-primary)]/30 transition-colors cursor-pointer"
                         >
@@ -536,7 +553,7 @@ export default function DepositView({
                         type="button"
                         onClick={() => {
                           navigator.clipboard.writeText(String(finalAmount));
-                          toast.success("Amount copied");
+                          notify("success", "Amount copied");
                         }}
                         className="w-7 h-7 rounded-full bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] flex items-center justify-center cursor-pointer"
                       >
@@ -652,7 +669,7 @@ export default function DepositView({
                         onClick={() => {
                           if (config.usdtAddress) {
                             navigator.clipboard.writeText(config.usdtAddress);
-                            toast.success("Wallet copied");
+                            notify("success", "Wallet copied");
                           }
                         }}
                         className="shrink-0 w-9 h-9 rounded-full bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] flex items-center justify-center hover:border-[var(--theme-primary)]/30 transition-colors cursor-pointer"
@@ -719,101 +736,6 @@ export default function DepositView({
             )}
           </div>
         </div>
-      ) : paymentStatus === "PENDING" ? (
-        <div className="rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] p-8 text-center space-y-4 shadow-sm">
-          <div className="payment-status-spinner mx-auto rounded-full" aria-hidden="true" />
-          <div className="space-y-1">
-            <h3 className="font-black text-sm">
-              {depositMode === "manual" || depositMode === "usdt" ? "Verification pending" : "Awaiting PIN confirmation"}
-            </h3>
-            <p className="text-xs font-bold opacity-60 leading-relaxed max-w-xs mx-auto">
-              {depositMode === "manual" || depositMode === "usdt" ? (
-                <>
-                  Reference <span className="text-[var(--theme-accent)]">{currentTransId}</span> is under review. Your balance will update once the payment is confirmed.
-                </>
-              ) : (
-                <>
-                  Payment request sent to <span className="text-[var(--theme-accent)]">{mobileNumber}</span>. Approve <span className="text-[var(--theme-text)]">{formatCurrency(finalAmount)}</span> on your phone.
-                </>
-              )}
-            </p>
-          </div>
-          {(depositMode === "manual" || depositMode === "usdt") && (
-            <button
-              type="button"
-              onClick={() => {
-                setPaymentStatus("IDLE");
-                toast.info("Check History for updates.");
-              }}
-              className="px-4 py-2 rounded-full bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] text-xs font-black hover:border-[var(--theme-primary)]/30 transition-colors cursor-pointer"
-            >
-              Submit another proof
-            </button>
-          )}
-        </div>
-      ) : paymentStatus === "SUCCESSFUL" ? (
-        <div className="rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] p-8 text-center space-y-5 shadow-sm">
-          <div className="w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center mx-auto text-emerald-500">
-            <CheckCircle className="w-10 h-10" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="font-black text-sm uppercase tracking-wide">
-              {payType === "gpu" ? "Product secured!" : "Account credited!"}
-            </h3>
-            <p className="text-xs font-bold opacity-60 max-w-sm mx-auto leading-relaxed">
-              {payType === "gpu" ? (
-                <><span className="text-[var(--theme-text)] opacity-100">{formatCurrency(finalAmount)}</span> payment confirmed. Your product is active.</>
-              ) : (
-                <><span className="text-[var(--theme-text)] opacity-100">{formatCurrency(finalAmount)}</span> has been credited to your account.</>
-              )} {currentTransId ? `Reference: ${currentTransId}` : ""}
-            </p>
-          </div>
-          <div className="rounded-xl bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] p-4 max-w-xs mx-auto text-left space-y-2 text-xs font-bold">
-            <div className="flex justify-between">
-              <span className="opacity-60">Total</span>
-              <span>{formatCurrency(finalAmount)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="opacity-60">Status</span>
-              <span className="text-emerald-600">Approved</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="opacity-60">Type</span>
-              <span className="text-[var(--theme-accent)] truncate ml-2">{payType === "gpu" && selectedGpu ? selectedGpu.name : "Deposit"}</span>
-            </div>
-          </div>
-          <button
-            onClick={() => {
-              setPaymentStatus("IDLE");
-              setErrorMsg("");
-            }}
-            className="w-full py-4 rounded-2xl bg-[var(--theme-primary)] text-[var(--theme-on-primary)] font-sans font-extrabold text-sm shadow-[0_3px_0_0_var(--theme-primary-shadow)] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer"
-          >
-            Make another deposit
-          </button>
-        </div>
-      ) : (
-        <div className="rounded-[var(--theme-radius)] bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] p-8 text-center space-y-5 shadow-sm">
-          <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto text-rose-500">
-            <XCircle className="w-10 h-10" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="font-black text-xs uppercase tracking-widest text-rose-500">Payment failed</h3>
-            <p className="text-xs font-bold opacity-60 max-w-sm mx-auto">{errorMsg || "We couldn’t confirm this payment. Please try again."}</p>
-          </div>
-          <div className="flex gap-2 justify-center">
-            <button
-              onClick={() => {
-                setPaymentStatus("IDLE");
-                setErrorMsg("");
-              }}
-              className="px-5 py-2.5 rounded-full bg-[var(--theme-card-bg)]/90 backdrop-blur-xl border border-[var(--theme-card-border)] text-xs font-black cursor-pointer"
-            >
-              Try again
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

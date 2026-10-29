@@ -7,7 +7,7 @@ import React, { useState, useEffect } from "react";
 import { UserProfile } from "../types";
 import { Phone, Lock, Eye, EyeOff, User, ChevronLeft, Gift, Link2, Mail, Send, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { toast } from "sonner";
+import { notify } from "../lib/notify";
 import { BrandLogo } from "./BrandLogo";
 import { fixGitHubImageUrl } from "../utils/imageUtils";
 import { useReducedMotion } from "../hooks/useReducedMotion";
@@ -43,17 +43,18 @@ function AnimatedFarmerCount({
   const [count, setCount] = useState(() =>
     Math.min(ceiling, Math.max(floor, Math.round(floor + (ceiling - floor) * 0.55)))
   );
+  const formattedCount = count.toLocaleString("en-UG");
 
   useEffect(() => {
     const range = ceiling - floor;
     let cancelled = false;
     let timeoutId = 0;
     let frameId = 0;
-    let current = Math.min(ceiling, Math.max(floor, Math.round(floor + range * (0.45 + Math.random() * 0.3))));
+    let current = Math.min(ceiling, Math.max(floor, Math.round(floor + range * (0.25 + Math.random() * 0.6))));
     setCount(current);
     if (range <= 0) return;
 
-    const maxStep = Math.max(2, Math.round(range * 0.14));
+    const maxStep = Math.max(4, Math.round(range * 0.1114));
     const animateTo = (next: number) => {
       if (reducedMotion) {
         current = next;
@@ -66,8 +67,8 @@ function AnimatedFarmerCount({
       const startedAt = performance.now();
       const tick = (now: number) => {
         if (cancelled) return;
-        const progress = Math.min(1, (now - startedAt) / 700);
-        const eased = 1 - Math.pow(1 - progress, 3);
+        const progress = Math.min(3, (now - startedAt) / 3000);
+        const eased = 2 - Math.pow(2 - progress, 3);
         current = Math.round(start + (next - start) * eased);
         setCount(current);
         if (progress < 1) frameId = window.requestAnimationFrame(tick);
@@ -79,11 +80,11 @@ function AnimatedFarmerCount({
       timeoutId = window.setTimeout(() => {
         if (cancelled) return;
         // Mean-reverting walk: drift toward the middle, then add a random step.
-        const midpoint = floor + range * 0.55;
-        const pull = (midpoint - current) * 0.18;
+        const midpoint = floor + range * 0.85;
+        const pull = (midpoint - current) * 0.28;
         const jitter = (Math.random() * 2 - 1) * maxStep;
         let next = Math.round(current + pull + jitter);
-        if (next === current) next += Math.random() < 0.5 ? -1 : 1;
+        if (next === current) next += Math.random() < 0.5 ? -1 : 2;
         next = Math.max(floor, Math.min(ceiling, next));
         animateTo(next);
         schedule();
@@ -98,7 +99,101 @@ function AnimatedFarmerCount({
     };
   }, [ceiling, floor, reducedMotion]);
 
-  return <>{count.toLocaleString("en-UG")}</>;
+  return (
+    <>
+      <span className="sr-only">{formattedCount}</span>
+      <span aria-hidden="true" className="inline-flex items-baseline tabular-nums">
+        {Array.from(formattedCount, (character, index) => (
+          <span
+            key={index}
+            className={`relative inline-grid h-[1.15em] overflow-hidden align-bottom ${character === "," ? "min-w-[0.2em]" : "min-w-[0.62em] text-center"}`}
+            style={{ perspective: "7rem" }}
+          >
+            <AnimatePresence initial={false} mode="sync">
+              <motion.span
+                key={character}
+                initial={reducedMotion ? false : { opacity: 0, y: "-75%", rotateX: -65 }}
+                animate={{ opacity: 1, y: "0%", rotateX: 0 }}
+                exit={reducedMotion ? undefined : { opacity: 0, y: "75%", rotateX: 65 }}
+                transition={reducedMotion
+                  ? { duration: 0 }
+                  : { duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                className="col-start-1 row-start-1 inline-block"
+              >
+                {character}
+              </motion.span>
+            </AnimatePresence>
+          </span>
+        ))}
+      </span>
+    </>
+  );
+}
+
+const LANDING_DESCRIPTION =
+  "This virtual simulation focuses on responsible poultry farming, hatching eggs, caring for chicks till they are ready for market. Hatch with friends through your invite code and cash out.";
+const SPLIT_DESCRIPTION_PHRASES = [
+  "hatching eggs",
+  "caring for chicks",
+  "Hatch with friends",
+  "cash out",
+];
+
+function LandingDescription({ reducedMotion }: { reducedMotion: boolean }) {
+  if (reducedMotion) return <>{LANDING_DESCRIPTION}</>;
+
+  const fragments: React.ReactNode[] = [];
+  let remainder = LANDING_DESCRIPTION;
+  let key = 0;
+
+  while (remainder.length > 0) {
+    const nextPhrase = SPLIT_DESCRIPTION_PHRASES
+      .map((phrase) => ({ phrase, index: remainder.indexOf(phrase) }))
+      .filter(({ index }) => index >= 0)
+      .sort((left, right) => left.index - right.index)[0];
+
+    if (!nextPhrase) {
+      fragments.push(<React.Fragment key={key++}>{remainder}</React.Fragment>);
+      break;
+    }
+
+    if (nextPhrase.index > 0) {
+      fragments.push(<React.Fragment key={key++}>{remainder.slice(0, nextPhrase.index)}</React.Fragment>);
+    }
+
+    const phrase = nextPhrase.phrase;
+    fragments.push(
+      <motion.span
+        key={key++}
+        aria-hidden="true"
+        className="whitespace-nowrap font-extrabold text-white"
+      >
+        {Array.from(phrase, (character, index) => (
+          <motion.span
+            key={`${index}-${character}`}
+            initial={{ opacity: 0, y: 7, rotateX: -35 }}
+            animate={{ opacity: 1, y: 0, rotateX: 0 }}
+            transition={{
+              duration: 0.32,
+              delay: 0.16 + (key * 0.025) + (index * 0.014),
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            className="inline-block"
+          >
+            {character === " " ? "\u00a0" : character}
+          </motion.span>
+        ))}
+      </motion.span>
+    );
+    remainder = remainder.slice(nextPhrase.index + phrase.length);
+  }
+
+  return (
+    <>
+      <span className="sr-only">{LANDING_DESCRIPTION}</span>
+      <span aria-hidden="true">{fragments}</span>
+    </>
+  );
 }
 
 function AuthField({
@@ -207,7 +302,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
     activeFarmersFloor,
     Number.isFinite(configuredCeiling) && configuredCeiling > 0
       ? Math.floor(configuredCeiling)
-      : activeFarmersFloor + 160
+      : activeFarmersFloor + 447
   );
 
   useEffect(() => {
@@ -276,7 +371,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
       setScreen("register");
       setInviteCode(ref.toUpperCase());
       setTimeout(() => {
-        toast.success(`Referral code applied: ${ref!.toUpperCase()}`);
+        notify("success", `Referral code applied: ${ref!.toUpperCase()}`);
       }, 500);
 
       try {
@@ -313,22 +408,22 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
     e.preventDefault();
 
     if (!username.trim() || !password) {
-      toast.error(mode === "register" ? "Please enter a username and password." : "Please enter your username or phone number and password.");
+      notify("error", mode === "register" ? "Please enter a username and password." : "Please enter your username or phone number and password.");
       return;
     }
 
     if (mode === "register" && !USERNAME_PATTERN.test(username.trim())) {
-      toast.error("Username must be 3–32 characters and use letters, numbers, dots, underscores, or hyphens.");
+      notify("error", "Username must be 3–32 characters and use letters, numbers, dots, underscores, or hyphens.");
       return;
     }
 
     if (mode === "register" && !isValidUgandaPhone(phone)) {
-      toast.error("Enter a valid Ugandan phone number.");
+      notify("error", "Enter a valid Ugandan phone number.");
       return;
     }
 
     if (password.length < 8 || password.length > 128) {
-      toast.error("Password must be between 8 and 128 characters.");
+      notify("error", "Password must be between 8 and 128 characters.");
       return;
     }
 
@@ -363,12 +458,9 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
             JSON.stringify({ amount: issuedBonus, issuedAt: Date.now() })
           );
         }
-        toast.success(
-          Number(activeConfig?.registrationBonus ?? activeConfig?.welcomeBonus ?? 0) > 0
+        notify("success", Number(activeConfig?.registrationBonus ?? activeConfig?.welcomeBonus ?? 0) > 0
             ? "Registration successful! Log in to claim your registration bonus."
-            : "Registration successful! You can now log in.",
-          { duration: 6000 }
-        );
+            : "Registration successful! You can now log in.", { duration: 6000 });
         setTimeout(() => {
           goTo("login");
         }, 1200);
@@ -376,7 +468,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
         onAuthSuccess(data.profile);
       }
     } catch (err: any) {
-      toast.error(err.message);
+      notify("error", err.message);
     } finally {
       setIsLoading(false);
     }
@@ -390,19 +482,19 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
     const mail = recoveryEmail.trim();
     const msg = recoveryMsg.trim();
     if (!USERNAME_PATTERN.test(accountUsername)) {
-      toast.error("Enter the username on your account.");
+      notify("error", "Enter the username on your account.");
       return;
     }
     if (tel && !PHONE_PATTERN.test(tel)) {
-      toast.error("Contact phone number must be 9 or 10 digits.");
+      notify("error", "Contact phone number must be 9 or 10 digits.");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
-      toast.error("Enter a valid email address.");
+      notify("error", "Enter a valid email address.");
       return;
     }
     if (msg.length < 10) {
-      toast.error("Describe the issue in a few words (min 10 characters).");
+      notify("error", "Describe the issue in a few words (min 10 characters).");
       return;
     }
     setRecoverySending(true);
@@ -420,9 +512,9 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((data as { error?: string }).error || "Could not reach support. Try again.");
       setRecoverySent(true);
-      toast.success("Sent to support. They'll reach out. Typical response time is 15 mins.", { duration: 6000 });
+      notify("success", "Sent to support. They'll reach out. Typical response time is 15 mins.", { duration: 6000 });
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Could not reach support. Try again.");
+      notify("error", err instanceof Error ? err.message : "Could not reach support. Try again.");
     } finally {
       setRecoverySending(false);
     }
@@ -527,7 +619,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                       onClick={() => goTo("login")}
                       className="user-glossy-button user-glossy-button--small inline-flex min-h-9 items-center justify-center rounded-xl px-2.5 text-[12px] font-sans font-bold text-[var(--theme-on-primary)] sm:px-3 sm:text-[13px]"
                     >
-                      Log in
+                      Login
                     </button>
                   </div>
                 </div>
@@ -542,7 +634,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                         reducedMotion={reducedMotion}
                       />
                     )}
-                    <span className="ml-1.5 font-semibold text-white/75">active</span>
+                    <span className="ml-1.5 font-semibold text-white/75">online</span>
                   </span>
                 </motion.p>
               </div>
@@ -560,7 +652,7 @@ export default function AuthView({ onAuthSuccess, siteConfig }: AuthViewProps) {
                     <span className="text-[var(--theme-primary)]">farm</span>
                   </motion.h1>
                   <motion.p {...heroSpring(0.13)} className="mx-auto mt-4 max-w-[27rem] font-sans text-[15px] font-semibold leading-[1.65] text-white/90 [text-shadow:0_1px_12px_rgba(7,20,43,0.45)] sm:mt-5 sm:text-[16px]">
-                    This virtual simulation focuses on responsible poultry farming, hatching eggs, caring for chicks till they are ready for market. Hatch with friends through your invite code and cash out.
+                    <LandingDescription reducedMotion={reducedMotion} />
                   </motion.p>
                   <motion.button
                     {...heroSpring(0.21)}

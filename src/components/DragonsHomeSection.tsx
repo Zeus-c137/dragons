@@ -2,12 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowRight, Award, Check, ChevronRight, Clock, Egg, ExternalLink, Gift, Loader2, LogOut, Timer, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { toast } from "sonner";
+import { sileo } from "sileo";
+import { notify } from "../lib/notify";
 import { useCurrency } from "../currency";
 import { useGatedInterval } from "../hooks/useGatedInterval";
 import type { Collectible, SiteConfig, SubscribedNode, SubscriptionItem, UserProfile } from "../types";
 import { readApiJson } from "../utils/api";
-import { getRunEndMs, getRunMinimumClaimAmount, isRunCycleFinished } from "../utils/runs";
+import { getRunClaimableReturns, getRunEndMs, getRunMinimumClaimAmount, isRunCycleFinished } from "../utils/runs";
 import { isDragonEggProduct } from "../utils/dragons";
 import { getMonthlyGenesisArt } from "../utils/monthlyGenesisArt";
 import { usePwaInstall } from "../hooks/usePwaInstall";
@@ -25,6 +26,8 @@ import downloadAppIcon from "@/src/assets/svg/download.svg";
 import communityIcon from "@/src/assets/svg/community.svg";
 import depositIcon from "@/src/assets/svg/deposit.svg";
 import withdrawIcon from "@/src/assets/svg/withdraw.svg";
+import chickIcon from "@/src/assets/chics/1chick.svg";
+import eggToastIcon from "@/src/assets/eggs/1egg.svg";
 import { playCheckinSound, primeCheckinSound } from "../utils/checkinSound";
 
 type CoinFlight = { id: number; startX: number; startY: number; dx: number; dy: number; delay: number };
@@ -97,14 +100,14 @@ export default function DragonsHomeSection({
   const handleDownloadApp = async () => {
     setSettingsMenuOpen(false);
     if (isInstalled) {
-      toast.info("App is already installed on this device.");
+      notify("info", "App is already installed on this device.");
       return;
     }
     if (canInstall) {
-      if (!(await install())) toast.info("Installation was cancelled.");
+      if (!(await install())) notify("info", "Installation was cancelled.");
       return;
     }
-    toast.info("Use your browser menu and choose Install app or Add to Home screen.");
+    notify("info", "Use your browser menu and choose Install app or Add to Home screen.");
   };
 
   // Coin-flight + delayed toast remain here for the gift-code redemption reward on home.
@@ -126,10 +129,6 @@ export default function DragonsHomeSection({
       delay: index * 0.045,
     })));
     window.setTimeout(() => setCoinFlights([]), 1150);
-  };
-
-  const toastAfterClaimAnimation = (message: string) => {
-    window.setTimeout(() => toast.success(message), CLAIM_SUCCESS_TOAST_DELAY_MS);
   };
 
   useEffect(() => {
@@ -211,9 +210,15 @@ export default function DragonsHomeSection({
       setGiftCodeValue("");
       setIsRedeemingGiftCode(false);
       void refreshAvailableGiftCodes();
-      toastAfterClaimAnimation(`Redeemed gift code of ${formatCurrency(amount)}.`);
+      window.setTimeout(() => {
+        sileo.action({
+          title: "Gift code redeemed",
+          description: `Redeemed gift code of ${formatCurrency(amount)}.`,
+          button: { title: "View balance", onClick: onNavigateToWithdraw },
+        });
+      }, CLAIM_SUCCESS_TOAST_DELAY_MS);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not redeem this gift code.");
+      notify("error", error instanceof Error ? error.message : "Could not redeem this gift code.");
     } finally {
       setIsRedeemingGiftCode(false);
     }
@@ -285,6 +290,11 @@ export default function DragonsHomeSection({
       return String(node.status).toLowerCase() === "active" && (endMs === null || nowMs < endMs);
     })
     .reduce((sum, node) => sum + getRunMinimumClaimAmount(node), 0);
+  const readyChickCount = activeNodes.filter((node) => {
+    if (!node.eggImageUrl || !node.dragonImageUrl || isRunCycleFinished(node, new Date(nowMs))) return false;
+    const minimum = getRunMinimumClaimAmount(node);
+    return minimum > 0 && getRunClaimableReturns(node, new Date(nowMs)).amount >= minimum;
+  }).length;
   const monthlyChickMetricArt = getMonthlyGenesisArt(new Date(nowMs)).chick;
   const handleOpenEgg = async () => {
     if (!confirmingEgg || hatchStage !== "idle") return;
@@ -306,8 +316,20 @@ export default function DragonsHomeSection({
       }
       setHatchStage("hatched");
       playCheckinSound();
+      sileo.action({
+        title: "Chick hatched",
+        description: `${formatCurrency(egg.amount)} has been deducted from your capital.`,
+        icon: <img src={eggToastIcon} alt="" className="h-5 w-5 object-contain" />,
+        button: {
+          title: "View chicks",
+          onClick: () => {
+            closeEggModal();
+            onNavigateToCollection();
+          },
+        },
+      });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "The egg could not be opened.");
+      notify("error", error instanceof Error ? error.message : "The egg could not be opened.");
       setHatchStage("idle");
     }
   };
@@ -677,11 +699,32 @@ export default function DragonsHomeSection({
         </div>
       </section>
 
+      {readyChickCount > 0 ? (
+        <button
+          type="button"
+          onClick={onNavigateToCollection}
+          aria-label={`Open My Chicks to feed ${readyChickCount} ${readyChickCount === 1 ? "chick" : "chicks"}`}
+          className="flex w-full items-center gap-3 rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] px-4 py-3 text-left transition-transform active:scale-[0.99]"
+        >
+          <img src={chickIcon} alt="" aria-hidden="true" className="h-11 w-11 shrink-0 object-contain" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-[15px] font-black text-[var(--theme-text)]">
+              {readyChickCount} {readyChickCount === 1 ? "chick is" : "chicks are"} ready to feed
+            </span>
+            <span className="block text-[12px] font-semibold text-[var(--theme-text)] opacity-60">
+              Visit My Chicks to collect today’s earnings.
+            </span>
+          </span>
+          <ArrowRight className="h-4 w-4 shrink-0 text-[var(--theme-accent)]" aria-hidden="true" />
+        </button>
+      ) : null}
+
       <GenesisEggCard
         isActive={isActive}
         profile={profile}
         siteConfig={siteConfig}
         onProfileUpdate={onProfileUpdate}
+        onNavigateToWithdraw={onNavigateToWithdraw}
       />
 
       {readyHens.length > 0 ? (
@@ -841,16 +884,19 @@ export default function DragonsHomeSection({
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--theme-accent)]">Chick hatched</p>
                 <h2 id="egg-confirm-title" className="font-display text-[23px] font-black leading-tight sm:text-[26px]">{confirmingEgg.name}</h2>
                 <p className="text-[13px] leading-relaxed opacity-70">
-                  Your chick is in My Chicks. Feed it once a day. On the final feed it moves to Completed, where you can keep it as a hen.
+                 Come back everyday to feed your chick and collect its daily returns for {confirmingEgg.duration} days.
                 </p>
-                <button
+               <div className="flex gap-2">
+                 <button
                   type="button"
                   onClick={finishHatchAndGoToMyChicks}
                   className="user-glossy-button mt-1 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98]"
                 >
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  Take me to My Chicks
+                  
+                My chicks
                 </button>
+                
+               </div>
               </div>
             ) : (
               <>
