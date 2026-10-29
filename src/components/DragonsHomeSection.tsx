@@ -863,10 +863,10 @@ export default function DragonsHomeSection({
                     />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--theme-accent)]">{hatchStage === "hatching" ? "Hatching" : "Ready to hatch"}</p>
+                
                     <h2 id="egg-confirm-title" className="mt-1 font-display text-[23px] font-black leading-tight sm:text-[26px]">{confirmingEgg.name}</h2>
                     <p className="mt-1.5 text-[13px] leading-relaxed opacity-70">
-                      {hatchStage === "hatching" ? "Cracking open…" : `One feed per day. After ${confirmingEgg.duration} feeds this chick becomes a hen.`}
+                      {hatchStage === "hatching" ? "Cracking open…" : `Feed the hatched chick once everyday for ${confirmingEgg.duration} days.`}
                     </p>
                   </div>
                 </div>
@@ -876,12 +876,16 @@ export default function DragonsHomeSection({
                     <span className="font-medium opacity-65">Egg cost</span>
                     <span className="font-display font-black tabular-nums">{formatCurrency(confirmingEgg.amount)}</span>
                   </div>
-                  <div className="h-px bg-[var(--theme-card-border)]/60" />
+                   <div className="flex items-center justify-between gap-3 text-[14px]">
+                    <span className="font-medium opacity-65">Daily return</span>
+                    <span className="font-display font-black tabular-nums">{formatCurrency(confirmingEgg.dailyYield)}</span>
+                  </div>
+
                 </div>
 
                 {(Number(profile.rechargeableBalance) || 0) < confirmingEgg.amount ? (
                   <p className="relative mt-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3.5 py-3 text-[13px] font-semibold text-rose-700">
-                    Your capital is too low to open this egg.
+                    Your capital is too low to hatch this egg.
                   </p>
                 ) : null}
 
