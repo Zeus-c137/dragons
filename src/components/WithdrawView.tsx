@@ -5,6 +5,7 @@ import {
   Check,
   CheckCircle2,
   LockKeyhole,
+  Plus,
 } from "lucide-react";
 import { notify } from "../lib/notify";
 import { sileo } from "sileo";
@@ -307,7 +308,7 @@ export default function WithdrawView({
                 !activeNodes ||
                 activeNodes.length === 0
               }
-              className="w-full"
+              className="w-[150px] sm:w-[180px]"
             >
               {!activeNodes || activeNodes.length === 0 ? <span>Hatch an egg first</span> : <span>Withdraw</span>}
             </Button>
@@ -318,7 +319,7 @@ export default function WithdrawView({
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
               )}
               <span>
-                Minimum withdrawal is {formatCurrency(minimumWithdrawal)}{maximumWithdrawal > 0 ? `; maximum is ${formatCurrency(maximumWithdrawal)}` : ""}. {activeNodes && activeNodes.length > 0 ? "Your egg hatch has activated withdrawals." : "Hatch an egg to activate withdrawals."}
+                Minimum withdrawal is {formatCurrency(minimumWithdrawal)}{maximumWithdrawal > 0 ? `; maximum is ${formatCurrency(maximumWithdrawal)}` : ""}. {activeNodes && activeNodes.length > 0 ? "Withdrawals are active." : "Hatch an egg to activate withdrawals."}
               </span>
             </p>
           </div>

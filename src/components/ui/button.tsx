@@ -31,7 +31,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-md font-black uppercase tracking-wider transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+    "inline-flex items-center justify-center gap-2 rounded-md font-black tracking-wider transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
   const variantCls =
     variant === "primary"
       ? "user-glossy-button text-[var(--theme-on-primary)]"
