@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { sileo } from "sileo";
 import { notify } from "../lib/notify";
 import { useCurrency } from "../currency";
@@ -22,7 +23,6 @@ interface Props {
 }
 
 const SUCCESSFUL_STATUSES = new Set(["SUCCESSFUL", "COMPLETED"]);
-const FEED_SUCCESS_TOAST_DELAY_MS = 3000;
 
 function formatRewardAmount(amount: number): string {
   const numericAmount = Number(amount);
@@ -34,14 +34,13 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
   const { formatCurrency } = useCurrency();
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [claimedDays, setClaimedDays] = useState<Set<string>>(new Set());
+  const [historyStatus, setHistoryStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [isOpening, setIsOpening] = useState(false);
   const [isHatching, setIsHatching] = useState(false);
   const [isFeeding, setIsFeeding] = useState(false);
   const [revealChick, setRevealChick] = useState(false);
   const [revealHen, setRevealHen] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
-  const feedStripRef = useRef<HTMLDivElement | null>(null);
-  const targetFeedTileRef = useRef<HTMLButtonElement | null>(null);
   const profileRef = useRef(profile);
   profileRef.current = profile;
 
@@ -73,40 +72,31 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
   const fedDays = [...claimedDays].filter((key) => key.startsWith(`${monthKey}-`)).length;
   const isMature = fedDays >= stageThreshold;
   const currentStage = isHatching || !isOpened ? "egg" : isMature ? "hen" : "chick";
-  const feedDays = useMemo(() => Array.from({ length: 30 }, (_, index) => {
+  const feedDays = useMemo(() => Array.from({ length: 7 }, (_, index) => {
     const date = new Date(`${todayKey}T12:00:00Z`);
-    date.setUTCDate(date.getUTCDate() + index - (hasCheckedInToday ? 28 : 29));
+    date.setUTCDate(date.getUTCDate() + index - 6);
     const key = date.toISOString().slice(0, 10);
     const dayDate = new Date(`${key}T12:00:00Z`);
     return {
       key,
       day: Number(key.slice(-2)),
-      weekday: new Intl.DateTimeFormat("en", { weekday: "short", timeZone: "UTC" }).format(dayDate),
+      weekday: new Intl.DateTimeFormat("en", { weekday: "narrow", timeZone: "UTC" }).format(dayDate),
       isToday: key === todayKey,
-      isTarget: index === 29,
     };
-  }), [todayKey, hasCheckedInToday]);
-  const targetDayKey = feedDays[feedDays.length - 1]?.key;
-
-  useEffect(() => {
-    if (!isActive || !targetDayKey || !feedStripRef.current || !targetFeedTileRef.current) return;
-    targetFeedTileRef.current.scrollIntoView({
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-      block: "nearest",
-      inline: "center",
-    });
-  }, [isActive, targetDayKey]);
+  }), [todayKey]);
 
   useEffect(() => {
     if (!isActive || !profile.id) return;
     const controller = new AbortController();
+    setHistoryStatus("loading");
     const initialDays = new Set<string>();
     if (profile.lastCheckinDate) initialDays.add(profile.lastCheckinDate);
     setClaimedDays(initialDays);
     fetchJsonWithSignal<TransactionRow[]>(`/api/profile/transactions/${encodeURIComponent(profile.id)}`, controller.signal, {
       credentials: "same-origin",
     }).then((rows) => {
-      if (controller.signal.aborted || !Array.isArray(rows)) return;
+      if (controller.signal.aborted) return;
+      if (!Array.isArray(rows)) throw new Error("Bonus history could not be loaded.");
       const days = new Set<string>();
       for (const row of rows) {
         if (String(row.type).toLowerCase() !== "daily_checkin_bonus") continue;
@@ -117,11 +107,11 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
         days.add(key);
       }
       if (profile.lastCheckinDate) days.add(profile.lastCheckinDate);
-      setClaimedDays(days);
+      setClaimedDays((previous) => new Set([...days, ...previous]));
+      setHistoryStatus("ready");
     }).catch((error) => {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      // The profile's current day still gives us enough information to keep
-      // today's feed state truthful when historical data is unavailable.
+      if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+      setHistoryStatus("error");
     });
     return () => controller.abort();
   }, [isActive, profile.id, monthKey]);
@@ -174,25 +164,7 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
     if (!isOpened || hasCheckedInToday || isFeeding) return;
     primeCheckinSound();
     setIsFeeding(true);
-    const optimisticAmount = Math.max(0, Number(todayReward) || 0);
-    const optimisticProfile: UserProfile = {
-      ...profile,
-      points: (Number(profile.points) || 0) + optimisticAmount,
-      withdrawableBalance: (Number(profile.withdrawableBalance) || 0) + optimisticAmount,
-      lastCheckinDate: todayKey,
-      checkinStreak: nextStreak,
-    };
-    profileRef.current = optimisticProfile;
-    onProfileUpdate(optimisticProfile);
-    setClaimedDays((previous) => new Set(previous).add(todayKey));
-    setIsShaking(true);
-    window.setTimeout(() => setIsShaking(false), 900);
-    playCheckinSound();
-    celebrateFeed([source.getBoundingClientRect()]);
-    if (fedDays < stageThreshold && fedDays + 1 >= stageThreshold) {
-      setRevealHen(true);
-      window.setTimeout(() => setRevealHen(false), 900);
-    }
+    const sourceRect = source.getBoundingClientRect();
     try {
       const response = await fetch("/api/user/checkin", {
         method: "POST",
@@ -207,49 +179,45 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
       const latest = profileRef.current;
       const updatedProfile: UserProfile = {
         ...latest,
-        points: (Number(latest.points) || 0) + amount - optimisticAmount,
-        withdrawableBalance: (Number(latest.withdrawableBalance) || 0) + amount - optimisticAmount,
+        points: (Number(latest.points) || 0) + amount,
+        withdrawableBalance: (Number(latest.withdrawableBalance) || 0) + amount,
         lastCheckinDate: creditedDay,
         checkinStreak: streak,
       };
       profileRef.current = updatedProfile;
       onProfileUpdate(updatedProfile);
       setClaimedDays((previous) => new Set(previous).add(creditedDay));
-      const showSuccess = () => sileo.action({
+      setIsShaking(true);
+      window.setTimeout(() => setIsShaking(false), 900);
+      playCheckinSound();
+      celebrateFeed([sourceRect]);
+      if (fedDays < stageThreshold && fedDays + 1 >= stageThreshold) {
+        setRevealHen(true);
+        window.setTimeout(() => setRevealHen(false), 900);
+      }
+      sileo.action({
         title: "Daily bonus claimed",
-        description: `${formatCurrency(amount)} added to your withdrawable balance.`,
+        description: amount > 0
+          ? `${formatCurrency(amount)} added to your withdrawable balance.`
+          : `Day ${streak} streak saved.`,
         icon: <img src={flameSvg} alt="" className="h-5 w-5 object-contain" />,
         duration: 4500,
         ...(onNavigateToWithdraw ? { button: { title: "View balance", onClick: onNavigateToWithdraw } } : {}),
       });
-      window.setTimeout(showSuccess, FEED_SUCCESS_TOAST_DELAY_MS);
     } catch (error) {
-      const latest = profileRef.current;
-      const rollbackProfile: UserProfile = {
-        ...latest,
-        points: Math.max(0, (Number(latest.points) || 0) - optimisticAmount),
-        withdrawableBalance: Math.max(0, (Number(latest.withdrawableBalance) || 0) - optimisticAmount),
-        lastCheckinDate: profile.lastCheckinDate,
-        checkinStreak: profile.checkinStreak,
-      };
-      profileRef.current = rollbackProfile;
-      onProfileUpdate(rollbackProfile);
-      setClaimedDays((previous) => {
-        const next = new Set(previous);
-        next.delete(todayKey);
-        return next;
-      });
-      if (fedDays < stageThreshold && fedDays + 1 >= stageThreshold) setRevealHen(false);
       notify("error", error instanceof Error ? error.message : "The daily bonus could not be claimed. Please try again.");
     } finally {
       setIsFeeding(false);
     }
   };
 
-  const handleCycleTap = (source: HTMLButtonElement) => {
-    if (isOpening || isHatching || isFeeding) return;
+  const handleDayTap = (source: HTMLButtonElement, key: string) => {
+    if (key < todayKey) {
+      notify("info", "That bonus day has passed", { description: "Only today's tile can be claimed." });
+      return;
+    }
     if (!isOpened) {
-      void handleOpenEgg();
+      notify("info", "Hatch your egg first", { description: "Tap the egg thumbnail to open it." });
       return;
     }
     if (hasCheckedInToday) {
@@ -259,38 +227,22 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
     void handleFeed(source);
   };
 
-  const handleDayTap = (source: HTMLButtonElement, key: string) => {
-    if (key < todayKey) {
-      notify("info", "That bonus day has passed", { description: "Only today's tile can be claimed." });
-      return;
-    }
-    if (key > todayKey) {
-      notify("info", "That bonus day is coming up", { description: "Come back on that date to claim it." });
-      return;
-    }
-    if (!isOpened) {
-      notify("info", "Hatch your egg first", { description: "Tap the egg thumbnail to open it." });
-      return;
-    }
-    handleCycleTap(source);
-  };
-
   return (
     <article
-      aria-label="Monthly free egg and daily bonus"
+      aria-label="Daily bonus"
       className={`feed-celebration-card overflow-hidden rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] text-[var(--theme-text)] ${isShaking ? "is-shaking" : ""}`}
     >
-      <div className="space-y-2.5 p-3">
-        <div className="flex items-center gap-3">
+      <div className="space-y-2 p-2.5">
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            aria-label={!isOpened ? "Tap to hatch this month's egg" : hasCheckedInToday ? "View when your next bonus is available" : "Tap to claim today's daily bonus"}
-            onClick={(event) => handleCycleTap(event.currentTarget)}
-            disabled={isOpening || isHatching || isFeeding}
+            aria-label={!isOpened ? "Hatch this month's egg" : "This month's egg is open"}
+            onClick={() => void handleOpenEgg()}
+            disabled={isOpened || isOpening || isHatching || isFeeding}
             aria-busy={isOpening || isHatching || isFeeding}
-            className="liquid-glass-panel relative grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-[20px] border border-white/25 bg-[var(--theme-primary)]/10 p-1.5 shadow-lg transition-transform active:scale-95 disabled:cursor-default"
+            className="liquid-glass-panel relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[16px] border border-white/25 bg-[var(--theme-primary)]/10 p-1 shadow-lg transition-transform active:scale-95 disabled:cursor-default"
           >
-            <span className={`dragon-egg-art${currentStage === "egg" ? " dragon-egg-float" : " dragon-chicken-art"} h-[54px] w-[54px]`}>
+            <span className={`dragon-egg-art${currentStage === "egg" ? " dragon-egg-float" : " dragon-chicken-art"} h-10 w-10`}>
               <img
                 src={currentStage === "egg" ? monthArt.egg : currentStage === "hen" ? monthArt.hen : monthArt.chick}
                 alt={currentStage === "egg" ? "Monthly egg" : currentStage === "hen" ? "Monthly hen" : "Monthly chick"}
@@ -299,61 +251,94 @@ export default function GenesisEggCard({ isActive, profile, siteConfig, onProfil
             </span>
           </button>
 
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-display text-[13px] font-black leading-tight">Daily bonus</p>
+            <p className="truncate text-[10px] font-semibold leading-tight opacity-65">
+              {isOpening || isHatching
+                ? "Hatching monthly egg…"
+                : isFeeding
+                  ? "Adding bonus to your balance…"
+                  : !isOpened
+                    ? "Tap to unlock"
+                    : hasCheckedInToday
+                      ? `Next bonus in ${nextFeedCountdown}`
+                      : `Day ${nextStreak} streak reward`}
+            </p>
+          </div>
+
           <button
             type="button"
             aria-label={isRewardUnavailable
               ? `Today's bonus is claimed. Next bonus in ${nextFeedCountdown}.`
-              : `${!isOpened ? "Hatch and claim bonus" : "Claim today's bonus of"} ${formatRewardAmount(todayReward)}`}
-            onClick={(event) => handleCycleTap(event.currentTarget)}
+              : isOpening || isHatching
+                ? "Hatching monthly egg"
+                : isFeeding
+                  ? "Claiming daily bonus"
+                  : !isOpened
+                    ? "Hatch monthly egg"
+                    : `Claim UGX ${formatRewardAmount(todayReward)} to your withdrawable balance`}
+            onClick={(event) => {
+              if (!isOpened) void handleOpenEgg();
+              else if (!hasCheckedInToday) void handleFeed(event.currentTarget);
+            }}
             disabled={isOpening || isHatching || isFeeding || isRewardUnavailable}
             aria-busy={isOpening || isHatching || isFeeding}
-            className="user-glossy-button user-glossy-button--small ml-auto inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[14px] text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
+            className="user-glossy-button user-glossy-button--small inline-flex max-w-[52%] shrink-0 items-center justify-center gap-1 rounded-[12px] px-2 py-2 text-center text-[10px] font-black leading-tight text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
           >
-            <img src={corn} alt="" aria-hidden="true" className="h-4 w-4 object-contain" />
-            <span className="font-display text-[13px] font-black tabular-nums">{formatRewardAmount(todayReward)}</span>
+            {isOpening || isHatching || isFeeding ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden="true" /> : null}
+            <span>
+              {isOpening || isHatching
+                ? "Hatching…"
+                : isFeeding
+                  ? "Claiming…"
+                  : isRewardUnavailable
+                    ? "Claimed"
+                    : !isOpened
+                      ? "Hatch monthly egg"
+                      : `Claim UGX ${formatRewardAmount(todayReward)}`}
+            </span>
           </button>
         </div>
 
-        <section aria-label="Thirty-day bonus history" className="space-y-1">
-          <div className="flex items-center justify-between px-0.5 text-[14px] font-black tracking-wide opacity-74">
-            <span className="flex items-baseline gap-2">
-              <span>{new Intl.DateTimeFormat("en", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m, 1)))}</span>
-              <span className="text-[9px] font-sans uppercase tracking-[0.14em] opacity-45">Daily bonus</span>
-            </span>
-            {hasCheckedInToday ? (
-              <span aria-label={`Next bonus in ${nextFeedCountdown}`}>
-                 <span className="tabular-nums">{nextFeedCountdown}</span>
-              </span>
-            ) : <span>Today</span>}
+        <section aria-label="Daily bonus for the last seven days" className="space-y-1">
+          <div className="flex items-center justify-between px-0.5">
+            <span className="text-[9px] font-black uppercase tracking-[0.12em] opacity-55">Last 7 days</span>
+            {historyStatus === "loading" ? (
+              <span className="text-[9px] font-semibold opacity-55">Loading history…</span>
+            ) : historyStatus === "error" ? (
+              <span className="text-[9px] font-semibold text-[var(--theme-accent)]">History unavailable</span>
+            ) : null}
           </div>
           <div
-            ref={feedStripRef}
             role="group"
-            aria-label="Thirty days of bonus history; scroll horizontally"
-            className="flex snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            aria-label="Seven most recent daily bonuses"
+            className="grid grid-cols-7 gap-1"
           >
-            {feedDays.map(({ key, day, weekday, isToday, isTarget }) => {
+            {feedDays.map(({ key, day, weekday, isToday }) => {
               const fed = claimedDays.has(key) || (isToday && hasCheckedInToday);
               const canFeed = isToday && isOpened && !fed && !isOpening && !isHatching && !isFeeding;
-              const future = key > todayKey;
-              const tileClass = `relative flex h-[52px] w-11 shrink-0 snap-center flex-col items-center justify-center gap-1 rounded-[13px] border text-[10px] font-black tabular-nums transition-colors ${canFeed ? "genesis-feed-tile-pulse border-[var(--theme-primary)]/70 bg-[var(--theme-primary)]/15 text-[var(--theme-accent)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--theme-primary)_22%,transparent)] hover:bg-[var(--theme-primary)]/25 active:scale-95" : isTarget ? "border-[var(--theme-primary)]/50 bg-[var(--theme-primary)]/10 text-[var(--theme-text)]" : fed ? "border-white/15 bg-white/[0.075] text-[var(--theme-accent)]" : "border-white/[0.08] bg-black/[0.035] text-[var(--theme-text)] opacity-55"}`;
+              const tileClass = `relative flex min-w-0 h-9 flex-col items-center justify-center gap-0.5 rounded-[10px] border text-[9px] font-black tabular-nums transition-colors ${canFeed ? "genesis-feed-tile-pulse border-[var(--theme-primary)]/70 bg-[var(--theme-primary)]/15 text-[var(--theme-accent)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--theme-primary)_22%,transparent)] hover:bg-[var(--theme-primary)]/25 active:scale-95" : isToday ? "border-[var(--theme-primary)]/50 bg-[var(--theme-primary)]/10 text-[var(--theme-text)]" : fed ? "border-white/15 bg-white/[0.075] text-[var(--theme-accent)]" : "border-white/[0.08] bg-black/[0.035] text-[var(--theme-text)] opacity-55"}`;
               return (
                 <button
                   key={key}
-                  ref={isTarget ? targetFeedTileRef : undefined}
                   type="button"
-                  aria-label={`${key}${fed ? ", claimed" : canFeed ? ", available to claim" : future ? ", upcoming" : ", not claimed"}`}
+                  aria-label={`${key}${fed ? ", claimed" : canFeed ? ", available to claim" : ", not claimed"}`}
                   onClick={(event) => handleDayTap(event.currentTarget, key)}
-                  disabled={future || isFeeding || isOpening || isHatching}
+                  disabled={isFeeding || isOpening || isHatching}
                   className={`${tileClass} disabled:cursor-default`}
                 >
-                  <span className="text-[8px] font-black uppercase leading-none opacity-55">{weekday}</span>
+                  <span className="text-[8px] font-black uppercase leading-none opacity-55">{isToday ? "Today" : weekday}</span>
                   <span>{day}</span>
-                  {(fed || canFeed) && <img src={corn} alt="" aria-hidden="true" className="absolute bottom-0.5 right-0.5 h-3.5 w-3.5 object-contain" />}
+                  {fed && <img src={corn} alt="" aria-hidden="true" className="absolute bottom-0.5 right-0.5 h-2.5 w-2.5 object-contain" />}
                 </button>
               );
             })}
           </div>
+          {historyStatus === "error" ? (
+            <p aria-live="polite" className="text-[9px] leading-tight opacity-60">
+              Past claims couldn’t be loaded. Today’s claim status remains available.
+            </p>
+          ) : null}
         </section>
 
       </div>

@@ -4,6 +4,7 @@ import {
   Check,
   Cpu,
   Copy,
+  Plus,
   LockKeyhole,
   InfoIcon,
   ChevronDown,
@@ -471,9 +472,10 @@ export default function DepositView({
                     type="submit"
                     loading={isSubmitting}
                     disabled={!autoDepositIsValid || isSubmitting}
-                    className="w-full"
+                    className="w-[180px]"
                   >
-                    <span>Deposit</span>
+                    <span>< Plus/> </span>
+                    <span>Top up</span>
                   </Button>
                   <p id="deposit-amount-rules" className="flex items-start gap-2 text-[12px] font-sans font-medium leading-relaxed opacity-60">
                     <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" />
@@ -497,9 +499,9 @@ export default function DepositView({
                             <span className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px] font-black shrink-0">MTN</span>
                           )}
                           <div className="min-w-0">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-amber-600 leading-none">MTN Uganda</p>
+                            <p className="text-[10px] font-black  tracking-wider text-amber-600 leading-none">MTN Uganda</p>
                             <p className="text-sm font-black leading-none mt-1 select-all truncate">{config.mtnReceiverPhone}</p>
-                            <p className="text-[11px] font-bold opacity-60 truncate">{config.mtnReceiverName || "PJNATAL"}</p>
+                            <p className="text-[11px] font-bold opacity-60 truncate">{config.mtnReceiverName || ""}</p>
                           </div>
                         </div>
                         <button
@@ -525,7 +527,7 @@ export default function DepositView({
                             <span className="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px] font-black shrink-0">AT</span>
                           )}
                           <div className="min-w-0">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-rose-600 leading-none">Airtel Money</p>
+                            <p className="text-[10px] font-black  tracking-wider text-rose-600 leading-none">Airtel Money</p>
                             <p className="text-sm font-black leading-none mt-1 select-all truncate">{config.airtelReceiverPhone}</p>
                             <p className="text-[11px] font-bold opacity-60 truncate">{config.airtelReceiverName || "PJNATAL"}</p>
                           </div>

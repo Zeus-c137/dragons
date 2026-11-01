@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRight, Award, Check, ChevronRight, Clock, Egg, ExternalLink, Gift, Loader2, LogOut, Timer, X } from "lucide-react";
+import { ArrowRight, Award, Check, ChevronRight, Egg, ExternalLink, Gift, Loader2, LogOut, Timer, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { sileo } from "sileo";
 import { notify } from "../lib/notify";
@@ -16,7 +16,6 @@ import GenesisEggCard from "./GenesisEggCard";
 
 import egg from "@/src/assets/svg/celestial.png";
 import corn from "@/src/assets/svg/corn.svg";
-import priceTag from "@/src/assets/svg/price-tag.svg";
 import barnMenuIcon from "@/src/assets/svg/barn-menu.svg";
 import tractor from "@/src/assets/svg/tractor.svg";
 import transactionsIcon from "@/src/assets/svg/transactions.svg";
@@ -394,6 +393,14 @@ export default function DragonsHomeSection({
       
       </header>
 
+      <GenesisEggCard
+        isActive={isActive}
+        profile={profile}
+        siteConfig={siteConfig}
+        onProfileUpdate={onProfileUpdate}
+        onNavigateToWithdraw={onNavigateToWithdraw}
+      />
+
       <AnimatePresence>
         {settingsMenuOpen ? (
           <motion.div
@@ -700,32 +707,46 @@ export default function DragonsHomeSection({
       </section>
 
       {readyChickCount > 0 ? (
-        <button
+        <motion.button
           type="button"
           onClick={onNavigateToCollection}
           aria-label={`Open My Chicks to feed ${readyChickCount} ${readyChickCount === 1 ? "chick" : "chicks"}`}
-          className="flex w-full items-center gap-3 rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] px-4 py-3 text-left transition-transform active:scale-[0.99]"
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.38, ease: [0.22, 1, 0.36, 1] }}
+          whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+          className="liquid-glass-panel liquid-glass-money-panel group relative flex w-full items-center gap-3 overflow-hidden rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]/95 px-3 py-3 text-left shadow-lg"
         >
-          <img src={chickIcon} alt="" aria-hidden="true" className="h-11 w-11 shrink-0 object-contain" />
-          <span className="min-w-0 flex-1">
-            <span className="block font-display text-[15px] font-black text-[var(--theme-text)]">
-              {readyChickCount} {readyChickCount === 1 ? "chick is" : "chicks are"} ready to feed
-            </span>
-            <span className="block text-[12px] font-semibold text-[var(--theme-text)] opacity-60">
-              Visit My Chicks to collect today’s earnings.
+          <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-[16px] bg-[var(--theme-primary)]/15">
+            <motion.img
+              src={chickIcon}
+              alt=""
+              aria-hidden="true"
+              initial={prefersReducedMotion ? false : { scale: 0.82, rotate: -8 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.45, delay: prefersReducedMotion ? 0 : 0.08, ease: [0.22, 1, 0.36, 1] }}
+              className="h-10 w-10 object-contain"
+            />
+            <span className="absolute -right-1 -top-1 grid h-[21px] min-w-[21px] place-items-center rounded-full border-2 border-[var(--theme-card-bg)] bg-[var(--theme-primary)] px-1 text-[10px] font-black leading-none text-[var(--theme-on-primary)] tabular-nums">
+              {readyChickCount}
             </span>
           </span>
-          <ArrowRight className="h-4 w-4 shrink-0 text-[var(--theme-accent)]" aria-hidden="true" />
-        </button>
+          <span className="min-w-0 flex-1">
+            <span className="mb-1 block text-[9px] font-black uppercase tracking-[0.14em] text-[var(--theme-primary)]">
+              Ready to feed
+            </span>
+            <span className="block font-display text-[15px] font-black leading-tight text-[var(--theme-text)]">
+              {readyChickCount} {readyChickCount === 1 ? "chick is" : "chicks are"} waiting
+            </span>
+            <span className="mt-0.5 block text-[11px] font-semibold text-[var(--theme-text)] opacity-60">
+              Feed now to collect today’s earnings
+            </span>
+          </span>
+          <span className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-xl bg-[var(--theme-primary)] px-3 text-[11px] font-black text-[var(--theme-on-primary)] transition-transform group-active:scale-[0.97]">
+            Visit
+          </span>
+        </motion.button>
       ) : null}
-
-      <GenesisEggCard
-        isActive={isActive}
-        profile={profile}
-        siteConfig={siteConfig}
-        onProfileUpdate={onProfileUpdate}
-        onNavigateToWithdraw={onNavigateToWithdraw}
-      />
 
       {readyHens.length > 0 ? (
         <button
@@ -750,93 +771,89 @@ export default function DragonsHomeSection({
 
       <section aria-label="Eggs available to hatch" className="space-y-3">
         {eggs.length > 0 ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {eggs.map((egg, index) => {
-              const soldOut = egg.outOfStock;
-              const hatchCount = hatchCounts.get(egg.id) || 0;
-              const totalDays = Math.max(1, Math.floor(Number(egg.duration) || 15));
-              return (
-                <article
-                  key={egg.id}
-                  className="feed-celebration-card overflow-hidden rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)]"
-                  style={{ "--feed-stagger": `${Math.min(index, 5) * 30}ms` } as React.CSSProperties}
-                >
-                  <div
-                    className="relative isolate flex aspect-[2.3] items-center justify-center overflow-hidden bg-cover bg-center p-2"
-                    style={{
-                      backgroundImage: `url("https://i.pinimg.com/1200x/f5/c5/ba/f5c5ba93b44f4c12bfb5045f4896540c.jpg")`,
-                    }}
+          <>
+            <div className="flex items-center px-1">
+              <span className="inline-flex min-h-7 items-center rounded-full border border-[var(--theme-primary)]/70 bg-[var(--theme-primary)] px-3 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--theme-on-primary)] shadow-sm">
+                Eggs [{eggs.length}]
+              </span>
+            </div>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              {eggs.map((egg, index) => {
+                const soldOut = egg.outOfStock;
+                const hatchCount = hatchCounts.get(egg.id) || 0;
+                const totalDays = Math.max(1, Math.floor(Number(egg.duration) || 15));
+                return (
+                  <article
+                    key={egg.id}
+                    className="feed-celebration-card relative isolate grid min-h-[166px] grid-cols-[minmax(0,1fr)_120px] overflow-hidden rounded-[20px] border border-[var(--theme-card-border)] bg-[var(--theme-card-bg)] sm:grid-cols-[minmax(0,1fr)_140px]"
+                    style={{ "--feed-stagger": `${Math.min(index, 5) * 30}ms` } as React.CSSProperties}
                   >
-                    <span
-                      className="dragon-egg-art catalog-product-art dragon-egg-float relative z-10"
-                      style={{ animationDelay: `${(index % 5) * -0.65}s` }}
-                    >
-                      <img
-                        src={egg.eggImageUrl}
-                        alt={`${egg.name} egg`}
-                        loading="lazy"
-                        className="h-full w-full object-contain dragon-egg-idle-spin"
-                      />
-                    </span>
-                    <div className="absolute left-3 top-3 z-10 flex flex-col items-start gap-1">
-                    <span className="rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[14px] font-bold text-[var(--theme-text)]">
-                      {egg.category}
-                    </span>
-                    <span
-                      aria-label={`${totalDays} day${totalDays === 1 ? "" : "s"} duration`}
-                      className="inline-flex items-center gap-1 rounded-full border border-[var(--theme-primary)]/55 bg-[var(--theme-bg)]/90 px-2 py-0.5 text-[10px] font-sans font-semibold leading-none tabular-nums text-[var(--theme-accent)]"
-                    >
-                      <Timer className="h-3.5 w-3.5" aria-hidden="true" />
-                      {totalDays} {totalDays === 1 ? "day" : "days"}
-                    </span>
-                    {hatchCount > 0 ? (
-                      <span className="rounded-full bg-[var(--theme-primary)] px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[var(--theme-on-primary)] tabular-nums">
-                        Hatched ×{hatchCount}
-                      </span>
-                    ) : null}
-                    </div>
-
-                    {soldOut ? (
-                      <span className="absolute bottom-3 right-3 rounded-full bg-[var(--theme-bg)]/85 px-2.5 py-1 text-[14px] font-black text-[var(--theme-text)]">SOLD OUT</span>
-                    ) : null}
-
-                  </div>
-                  <div className="space-y-2 p-3">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="relative z-10 flex min-w-0 flex-col justify-between gap-2.5 p-3">
                       <div className="min-w-0">
-                        <h3 className="truncate font-display text-[17px] font-black text-[var(--theme-text)] sm:text-[19px]">{egg.name}</h3>
-                      </div>
-                      <div className="flex shrink-0 items-end">
-                        <p className="inline-flex items-center gap-1 font-display text-[20px] font-black tabular-nums text-[var(--theme-text)] sm:text-[22px]">
-                          <img src={priceTag} alt="" aria-hidden="true" className="h-4 w-4 object-contain" />
-                          {formatCurrency(egg.amount)}
+                        <h3 className="line-clamp-2 font-display text-[16px] font-black leading-tight text-[var(--theme-text)] sm:text-[17px]">
+                          {egg.name}
+                        </h3>
+                        <p className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold tabular-nums text-[var(--theme-accent)]">
+                          <Timer className="h-3 w-3" aria-hidden="true" />
+                          {totalDays} days
                         </p>
+                        {hatchCount > 0 ? (
+                          <p className="mt-2 ml-3 inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--theme-text)] opacity-55">
+                            <Egg className="h-3 w-3 shrink-0" aria-hidden="true" />
+                            Hatched {hatchCount} {hatchCount === 1 ? "time" : "times"}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div>
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.1em] opacity-50">Price</p>
+                            <p className="truncate font-display text-[12px] font-black tabular-nums text-[var(--theme-text)]">
+                              {formatCurrency(egg.amount)}
+                            </p>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.1em] opacity-50">Daily return</p>
+                            <p className="truncate font-display text-[12px] font-black tabular-nums text-[var(--theme-accent)]">
+                              {formatCurrency(egg.dailyYield)}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingEgg(egg)}
+                          disabled={!!soldOut}
+                          className="user-glossy-button mt-2 inline-flex min-h-8 items-center justify-center self-start rounded-xl px-3 text-[10px] font-black text-[var(--theme-on-primary)] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:grayscale disabled:opacity-55"
+                        >
+                          {soldOut ? "Sold out" : "Hatch"}
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between text-[14px]">
-                      <span className="inline-flex items-center gap-1.5 text-[var(--theme-text)] opacity-70">
-                        <Clock className="h-3.5 w-3.5" aria-hidden="true" /> Income per day
-                      </span>
-                      <span className="inline-flex items-center gap-1 font-display text-[17px] font-semibold tabular-nums text-[var(--theme-accent)]">
-                        <img src={corn} alt="" aria-hidden="true" className="h-4 w-4 object-contain" />
-                        {formatCurrency(egg.dailyYield)}
-                      </span>
-                    </div>
-                    <div className="space-y-2">
-                      <button
-                        type="button"
-                        onClick={() => setConfirmingEgg(egg)}
-                        disabled={!!soldOut}
-                        className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-[var(--theme-primary)]/20 bg-[var(--theme-primary)]/10 px-4 py-3 text-[14px] font-sans font-black text-[var(--theme-accent)] transition-transform duration-200 hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+
+                    <div
+                      className="relative col-start-2 row-start-1 row-end-2 min-h-full overflow-hidden bg-[var(--theme-primary)]/12"
+                      style={{ clipPath: "polygon(18% 0, 100% 0, 100% 100%, 0 100%)" }}
+                    >
+                      <div className="absolute -right-8 -top-7 h-28 w-28 rounded-full bg-[var(--theme-accent)]/10" aria-hidden="true" />
+                      <div className="absolute -bottom-8 -left-5 h-24 w-24 rounded-full border border-[var(--theme-primary)]/20" aria-hidden="true" />
+                      <span
+                        className="dragon-egg-art catalog-product-art dragon-egg-float absolute inset-2 z-10"
+                        style={{ animationDelay: `${(index % 5) * -0.65}s` }}
                       >
-                        Hatch egg <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                      </button>
+                        <img
+                          src={egg.eggImageUrl}
+                          alt={`${egg.name} egg`}
+                          loading="lazy"
+                          className="h-full w-full object-contain drop-shadow-[0_8px_12px_rgba(15,23,42,0.3)]"
+                        />
+                      </span>
                     </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+                  </article>
+                );
+              })}
+            </div>
+          </>
         ) : (
           <div className="rounded-[20px] border border-dashed border-[var(--theme-card-border)] px-5 py-8 text-center">
             <Egg className="mx-auto h-7 w-7 text-[var(--theme-accent)]" aria-hidden="true" />
